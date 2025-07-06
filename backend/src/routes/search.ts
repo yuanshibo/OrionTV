@@ -228,4 +228,43 @@ router.get("/", async (req: Request, res: Response) => {
   }
 });
 
+// 按资源 url 单个获取数据
+router.get("/one", async (req: Request, res: Response) => {
+  const { resourceId, q } = req.query;
+
+  if (!resourceId || !q) {
+    return res.status(400).json({ error: "resourceId and q are required" });
+  }
+
+  const apiSites = getApiSites();
+  const apiSite = apiSites.find((site) => site.key === (resourceId as string));
+
+  if (!apiSite) {
+    return res.status(404).json({ error: "Resource not found" });
+  }
+
+  try {
+    const results = await searchFromApi(apiSite, q as string);
+    const result = results.filter((r) => r.title === (q as string));
+
+    if (results) {
+      const cacheTime = getCacheTime();
+      res.setHeader("Cache-Control", `public, max-age=${cacheTime}`);
+      res.json({results: result});
+    } else {
+      res.status(404).json({ error: "Resource not found with the given query" });
+    }
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch resource details" });
+  }
+});
+
+// 获取所有可用的资源列表
+router.get("/resources", async (req: Request, res: Response) => {
+  const apiSites = getApiSites();
+  const cacheTime = getCacheTime();
+  res.setHeader("Cache-Control", `public, max-age=${cacheTime}`);
+  res.json(apiSites);
+});
+
 export default router;

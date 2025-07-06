@@ -58,6 +58,13 @@ export interface PlayRecord {
   user_id: number; // User ID, always 0 in this version
 }
 
+export interface ApiSite {
+  key: string;
+  api: string;
+  name: string;
+  detail?: string;
+}
+
 export class API {
   public baseURL: string = "";
 
@@ -116,6 +123,27 @@ export class API {
     return response.json();
   }
 
+  async searchVideo(query: string, resourceId: string, signal?: AbortSignal): Promise<{ results: SearchResult[] }> {
+    if (!this.baseURL) {
+      throw new Error("API_URL_NOT_SET");
+    }
+    const url = `${this.baseURL}/api/search/one?q=${encodeURIComponent(query)}&resourceId=${encodeURIComponent(resourceId)}`;
+    const response = await fetch(url, { signal });
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    return response.json();
+  }
+
+  async getResources(signal?: AbortSignal): Promise<ApiSite[]> {
+   if (!this.baseURL) {
+      throw new Error("API_URL_NOT_SET");
+    }
+    const url = `${this.baseURL}/api/search/resources`;
+    const response = await fetch(url, { signal });
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    return response.json();
+  }
+
+
   /**
    * 获取视频详情
    */
@@ -128,53 +156,13 @@ export class API {
     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
     return response.json();
   }
-
-  /**
-   * 登录
-   */
-  async login(password: string): Promise<{ ok: boolean; error?: string }> {
-    const url = `${this.baseURL}/api/login`;
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password }),
-    });
-    return response.json();
-  }
-
-  /**
-   * 获取所有播放记录
-   */
-  async getPlayRecords(): Promise<Record<string, PlayRecord>> {
-    const url = `${this.baseURL}/api/playrecords`;
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-    return response.json();
-  }
-
-  /**
-   * 保存播放记录
-   */
-  async savePlayRecord(
-    key: string,
-    record: PlayRecord
-  ): Promise<{ success: boolean }> {
-    const url = `${this.baseURL}/api/playrecords`;
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key, record }),
-    });
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-    return response.json();
-  }
 }
 
 // 默认实例
-export let moonTVApi = new API();
+export let api = new API();
 
 // 初始化 API
 export const initializeApi = async () => {
   const settings = await SettingsManager.get();
-  moonTVApi.setBaseUrl(settings.apiBaseUrl);
+  api.setBaseUrl(settings.apiBaseUrl);
 };

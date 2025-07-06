@@ -28,7 +28,7 @@ COPY --from=builder /app/dist ./dist
 
 # Copy config.json from the project root relative to the Docker build context
 # IMPORTANT: When building, run `docker build -f backend/Dockerfile .` from the project root.
-COPY config.json ./
+COPY src/config/config.json dist/config/
 
 # Expose the port the app runs on
 EXPOSE 3001

@@ -7,7 +7,8 @@ const resolutionCache: { [url: string]: CacheEntry } = {};
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 export const getResolutionFromM3U8 = async (
-  url: string
+  url: string,
+  signal?: AbortSignal
 ): Promise<string | null> => {
   // 1. Check cache first
   const cachedEntry = resolutionCache[url];
@@ -20,7 +21,7 @@ export const getResolutionFromM3U8 = async (
   }
 
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, { signal });
     if (!response.ok) {
       return null;
     }

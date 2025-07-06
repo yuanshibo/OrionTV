@@ -1,17 +1,10 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
-import {
-  View,
-  StyleSheet,
-  ActivityIndicator,
-  FlatList,
-  Pressable,
-  Dimensions,
-} from "react-native";
-import { ThemedView } from "@/components/ThemedView";
-import { ThemedText } from "@/components/ThemedText";
-import { moonTVApi } from "@/services/api";
-import { SearchResult } from "@/services/api";
-import { PlayRecord } from "@/services/storage";
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { View, StyleSheet, ActivityIndicator, FlatList, Pressable, Dimensions } from 'react-native';
+import { ThemedView } from '@/components/ThemedView';
+import { ThemedText } from '@/components/ThemedText';
+import { api } from '@/services/api';
+import { SearchResult } from '@/services/api';
+import { PlayRecord } from '@/services/storage';
 
 export type RowItem = (SearchResult | PlayRecord) & {
   id: string;
@@ -26,35 +19,35 @@ export type RowItem = (SearchResult | PlayRecord) & {
   year?: string;
   rate?: string;
 };
-import VideoCard from "@/components/VideoCard.tv";
-import { PlayRecordManager } from "@/services/storage";
-import { useFocusEffect, useRouter } from "expo-router";
-import { useColorScheme } from "react-native";
-import { Search, Settings } from "lucide-react-native";
-import { SettingsModal } from "@/components/SettingsModal";
+import VideoCard from '@/components/VideoCard.tv';
+import { PlayRecordManager } from '@/services/storage';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useColorScheme } from 'react-native';
+import { Search, Settings } from 'lucide-react-native';
+import { SettingsModal } from '@/components/SettingsModal';
 
 // --- 类别定义 ---
 interface Category {
   title: string;
-  type?: "movie" | "tv" | "record";
+  type?: 'movie' | 'tv' | 'record';
   tag?: string;
 }
 
 const initialCategories: Category[] = [
-  { title: "最近播放", type: "record" },
-  { title: "综艺", type: "tv", tag: "综艺" },
-  { title: "热门剧集", type: "tv", tag: "热门" },
-  { title: "热门电影", type: "movie", tag: "热门" },
-  { title: "豆瓣 Top250", type: "movie", tag: "top250" },
-  { title: "儿童", type: "movie", tag: "少儿" },
-  { title: "美剧", type: "tv", tag: "美剧" },
-  { title: "韩剧", type: "tv", tag: "韩剧" },
-  { title: "日剧", type: "tv", tag: "日剧" },
-  { title: "日漫", type: "tv", tag: "日本动画" },
+  { title: '最近播放', type: 'record' },
+  { title: '热门剧集', type: 'tv', tag: '热门' },
+  { title: '综艺', type: 'tv', tag: '综艺' },
+  { title: '热门电影', type: 'movie', tag: '热门' },
+  { title: '豆瓣 Top250', type: 'movie', tag: 'top250' },
+  { title: '儿童', type: 'movie', tag: '少儿' },
+  { title: '美剧', type: 'tv', tag: '美剧' },
+  { title: '韩剧', type: 'tv', tag: '韩剧' },
+  { title: '日剧', type: 'tv', tag: '日剧' },
+  { title: '日漫', type: 'tv', tag: '日本动画' },
 ];
 
 const NUM_COLUMNS = 5;
-const { width } = Dimensions.get("window");
+const { width } = Dimensions.get('window');
 const ITEM_WIDTH = width / NUM_COLUMNS - 24;
 
 export default function HomeScreen() {
@@ -62,9 +55,7 @@ export default function HomeScreen() {
   const colorScheme = useColorScheme();
 
   const [categories, setCategories] = useState<Category[]>(initialCategories);
-  const [selectedCategory, setSelectedCategory] = useState<Category>(
-    categories[0]
-  );
+  const [selectedCategory, setSelectedCategory] = useState<Category>(categories[0]);
   const [contentData, setContentData] = useState<RowItem[]>([]);
 
   const [loading, setLoading] = useState(true);
@@ -82,7 +73,7 @@ export default function HomeScreen() {
     const records = await PlayRecordManager.getAll();
     return Object.entries(records)
       .map(([key, record]) => {
-        const [source, id] = key.split("+");
+        const [source, id] = key.split('+');
         return {
           id,
           source,
@@ -95,23 +86,20 @@ export default function HomeScreen() {
           totalEpisodes: record.total_episodes,
         } as RowItem;
       })
-      .filter(
-        (record) =>
-          record.progress !== undefined &&
-          record.progress > 0 &&
-          record.progress < 1
-      )
+      .filter(record => record.progress !== undefined && record.progress > 0 && record.progress < 1)
       .sort((a, b) => (b.lastPlayed || 0) - (a.lastPlayed || 0));
   };
 
-  const fetchData = async (category: Category, start: number) => {
-    if (category.type === "record") {
-      const records = await fetchPlayRecords();
-      if (records.length === 0 && categories[0].type === "record") {
+  const fetchData = async (category: Category, start: number, preloadedRecords?: RowItem[]) => {
+    if (category.type === 'record') {
+      const records = preloadedRecords ?? (await fetchPlayRecords());
+      if (records.length === 0 && categories.some(c => c.type === 'record')) {
         // 如果没有播放记录，则移除"最近播放"分类并选择第一个真实分类
-        const newCategories = categories.slice(1);
+        const newCategories = categories.filter(c => c.type !== 'record');
         setCategories(newCategories);
-        handleCategorySelect(newCategories[0]);
+        if (newCategories.length > 0) {
+          handleCategorySelect(newCategories[0]);
+        }
       } else {
         setContentData(records);
         setHasMore(false);
@@ -126,33 +114,26 @@ export default function HomeScreen() {
     setError(null);
 
     try {
-      const result = await moonTVApi.getDoubanData(
-        category.type,
-        category.tag,
-        20,
-        start
-      );
+      const result = await api.getDoubanData(category.type, category.tag, 20, start);
 
       if (result.list.length === 0) {
         setHasMore(false);
       } else {
-        const newItems = result.list.map((item) => ({
+        const newItems = result.list.map(item => ({
           ...item,
           id: item.title, // 临时ID
-          source: "douban",
+          source: 'douban',
         })) as RowItem[];
 
-        setContentData((prev) =>
-          start === 0 ? newItems : [...prev, ...newItems]
-        );
-        setPageStart((prev) => prev + result.list.length);
+        setContentData(prev => (start === 0 ? newItems : [...prev, ...newItems]));
+        setPageStart(prev => prev + result.list.length);
         setHasMore(true);
       }
     } catch (err: any) {
-      if (err.message === "API_URL_NOT_SET") {
-        setError("请点击右上角设置按钮，配置您的 API 地址");
+      if (err.message === 'API_URL_NOT_SET') {
+        setError('请点击右上角设置按钮，配置您的 API 地址');
       } else {
-        setError("加载失败，请重试");
+        setError('加载失败，请重试');
       }
     } finally {
       setLoading(false);
@@ -163,9 +144,27 @@ export default function HomeScreen() {
   // --- Effects ---
   useFocusEffect(
     useCallback(() => {
-      if (selectedCategory.type === "record") {
-        loadInitialData();
-      }
+      const manageRecordCategory = async () => {
+        const records = await fetchPlayRecords();
+        const hasRecords = records.length > 0;
+
+        setCategories(currentCategories => {
+          const recordCategoryExists = currentCategories.some(c => c.type === 'record');
+          if (hasRecords && !recordCategoryExists) {
+            // Add 'Recent Plays' if records exist and the tab doesn't
+            return [initialCategories[0], ...currentCategories];
+          }
+          return currentCategories;
+        });
+
+        // If 'Recent Plays' is selected, always refresh its data.
+        // This will also handle removing the tab if records have disappeared.
+        if (selectedCategory.type === 'record') {
+          loadInitialData(records);
+        }
+      };
+
+      manageRecordCategory();
     }, [selectedCategory])
   );
 
@@ -173,23 +172,17 @@ export default function HomeScreen() {
     loadInitialData();
   }, [selectedCategory]);
 
-  const loadInitialData = () => {
+  const loadInitialData = (records?: RowItem[]) => {
     setLoading(true);
     setContentData([]);
     setPageStart(0);
     setHasMore(true);
     flatListRef.current?.scrollToOffset({ animated: false, offset: 0 });
-    fetchData(selectedCategory, 0);
+    fetchData(selectedCategory, 0, records);
   };
 
   const loadMoreData = () => {
-    if (
-      loading ||
-      loadingMore ||
-      !hasMore ||
-      selectedCategory.type === "record"
-    )
-      return;
+    if (loading || loadingMore || !hasMore || selectedCategory.type === 'record') return;
     fetchData(selectedCategory, pageStart);
   };
 
@@ -209,14 +202,7 @@ export default function HomeScreen() {
         ]}
         onPress={() => handleCategorySelect(item)}
       >
-        <ThemedText
-          style={[
-            styles.categoryText,
-            isSelected && styles.categoryTextSelected,
-          ]}
-        >
-          {item.title}
-        </ThemedText>
+        <ThemedText style={[styles.categoryText, isSelected && styles.categoryTextSelected]}>{item.title}</ThemedText>
       </Pressable>
     );
   };
@@ -234,7 +220,7 @@ export default function HomeScreen() {
         episodeIndex={item.episodeIndex}
         sourceName={item.sourceName}
         totalEpisodes={item.totalEpisodes}
-        api={moonTVApi}
+        api={api}
         onRecordDeleted={loadInitialData} // For "Recent Plays"
       />
     </View>
@@ -252,28 +238,16 @@ export default function HomeScreen() {
         <ThemedText style={styles.headerTitle}>首页</ThemedText>
         <View style={styles.rightHeaderButtons}>
           <Pressable
-            style={({ focused }) => [
-              styles.searchButton,
-              focused && styles.searchButtonFocused,
-            ]}
-            onPress={() => router.push({ pathname: "/search" })}
+            style={({ focused }) => [styles.searchButton, focused && styles.searchButtonFocused]}
+            onPress={() => router.push({ pathname: '/search' })}
           >
-            <Search
-              color={colorScheme === "dark" ? "white" : "black"}
-              size={24}
-            />
+            <Search color={colorScheme === 'dark' ? 'white' : 'black'} size={24} />
           </Pressable>
           <Pressable
-            style={({ focused }) => [
-              styles.searchButton,
-              focused && styles.searchButtonFocused,
-            ]}
+            style={({ focused }) => [styles.searchButton, focused && styles.searchButtonFocused]}
             onPress={() => setSettingsVisible(true)}
           >
-            <Settings
-              color={colorScheme === "dark" ? "white" : "black"}
-              size={24}
-            />
+            <Settings color={colorScheme === 'dark' ? 'white' : 'black'} size={24} />
           </Pressable>
         </View>
       </View>
@@ -283,7 +257,7 @@ export default function HomeScreen() {
         <FlatList
           data={categories}
           renderItem={renderCategory}
-          keyExtractor={(item) => item.title}
+          keyExtractor={item => item.title}
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.categoryListContent}
@@ -338,25 +312,26 @@ const styles = StyleSheet.create({
   },
   centerContainer: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
+    paddingTop: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   // Header
   headerContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 24,
     marginBottom: 10,
   },
   headerTitle: {
     fontSize: 32,
-    fontWeight: "bold",
+    fontWeight: 'bold',
     paddingTop: 16,
   },
   rightHeaderButtons: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   searchButton: {
     padding: 10,
@@ -364,7 +339,7 @@ const styles = StyleSheet.create({
     marginLeft: 10,
   },
   searchButtonFocused: {
-    backgroundColor: "#007AFF",
+    backgroundColor: '#007AFF',
     transform: [{ scale: 1.1 }],
   },
   // Category Selector
@@ -381,18 +356,18 @@ const styles = StyleSheet.create({
     marginHorizontal: 5,
   },
   categoryButtonSelected: {
-    backgroundColor: "#007AFF", // A bright blue for selected state
+    backgroundColor: '#007AFF', // A bright blue for selected state
   },
   categoryButtonFocused: {
-    backgroundColor: "#0056b3", // A darker blue for focused state
+    backgroundColor: '#0056b3', // A darker blue for focused state
     elevation: 5,
   },
   categoryText: {
     fontSize: 16,
-    fontWeight: "500",
+    fontWeight: '500',
   },
   categoryTextSelected: {
-    color: "#FFFFFF",
+    color: '#FFFFFF',
   },
   // Content Grid
   listContent: {
@@ -402,6 +377,6 @@ const styles = StyleSheet.create({
   itemContainer: {
     margin: 8,
     width: ITEM_WIDTH,
-    alignItems: "center",
+    alignItems: 'center',
   },
 });

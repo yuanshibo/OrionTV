@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useLocalSearchParams } from "expo-router";
 import { Video, AVPlaybackStatus } from "expo-av";
-import { moonTVApi, VideoDetail } from "@/services/api";
+import { api, VideoDetail } from "@/services/api";
 import { PlayRecordManager } from "@/services/storage";
 import { getResolutionFromM3U8 } from "@/services/m3u8";
 
@@ -67,7 +67,7 @@ export const usePlaybackManager = (videoRef: React.RefObject<Video>) => {
       const source = (params.source as string) || "1";
       const id = (params.id as string) || "1";
 
-      const data = await moonTVApi.getVideoDetail(source, id);
+      const data = await api.getVideoDetail(source, id);
       setDetail(data);
 
       const processedEpisodes = data.episodes.map((url, index) => ({
