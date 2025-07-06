@@ -1,76 +1,58 @@
-import React from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Pressable,
-} from "react-native";
-import { useRouter } from "expo-router";
-import { AVPlaybackStatus } from "expo-av";
-import {
-  ArrowLeft,
-  Pause,
-  Play,
-  SkipForward,
-  List,
-  ChevronsRight,
-  ChevronsLeft,
-} from "lucide-react-native";
-import { ThemedText } from "@/components/ThemedText";
-import { MediaButton } from "@/components/MediaButton";
+import React from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Pressable } from 'react-native';
+import { useRouter } from 'expo-router';
+import { AVPlaybackStatus } from 'expo-av';
+import { ArrowLeft, Pause, Play, SkipForward, List, ChevronsRight, ChevronsLeft } from 'lucide-react-native';
+import { ThemedText } from '@/components/ThemedText';
+import { MediaButton } from '@/components/MediaButton';
 
-interface PlayerControlsProps {
-  videoTitle: string;
-  currentEpisodeTitle?: string;
-  status: AVPlaybackStatus | null;
-  isSeeking: boolean;
-  seekPosition: number;
-  progressPosition: number;
-  currentFocus: string | null;
-  hasNextEpisode: boolean;
-  onSeekStart: () => void;
-  onSeekMove: (event: { nativeEvent: { locationX: number } }) => void;
-  onSeekRelease: (event: { nativeEvent: { locationX: number } }) => void;
-  onSeek: (forward: boolean) => void;
-  onTogglePlayPause: () => void;
-  onPlayNextEpisode: () => void;
-  onShowEpisodes: () => void;
-  formatTime: (time: number) => string;
-}
+import usePlayerStore from '@/stores/playerStore';
 
-export const PlayerControls: React.FC<PlayerControlsProps> = ({
-  videoTitle,
-  currentEpisodeTitle,
-  status,
-  isSeeking,
-  seekPosition,
-  progressPosition,
-  currentFocus,
-  hasNextEpisode,
-  onSeekStart,
-  onSeekMove,
-  onSeekRelease,
-  onSeek,
-  onTogglePlayPause,
-  onPlayNextEpisode,
-  onShowEpisodes,
-  formatTime,
-}) => {
+interface PlayerControlsProps {}
+
+export const PlayerControls: React.FC<PlayerControlsProps> = () => {
   const router = useRouter();
+  const {
+    detail,
+    currentEpisodeIndex,
+    status,
+    isSeeking,
+    seekPosition,
+    progressPosition,
+    seek,
+    togglePlayPause,
+    playEpisode,
+    setShowEpisodeModal,
+  } = usePlayerStore();
+
+  const videoTitle = detail?.videoInfo?.title || '';
+  const currentEpisode = detail?.episodes[currentEpisodeIndex];
+  const currentEpisodeTitle = currentEpisode?.title;
+  const hasNextEpisode = currentEpisodeIndex < (detail?.episodes.length || 0) - 1;
+
+  const formatTime = (milliseconds: number) => {
+    if (!milliseconds) return '00:00';
+    const totalSeconds = Math.floor(milliseconds / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  const onPlayNextEpisode = () => {
+    if (hasNextEpisode) {
+      playEpisode(currentEpisodeIndex + 1);
+    }
+  };
 
   return (
     <View style={styles.controlsOverlay}>
       <View style={styles.topControls}>
-        <TouchableOpacity
-          style={styles.controlButton}
-          onPress={() => router.back()}
-        >
+        <TouchableOpacity style={styles.controlButton} onPress={() => router.back()}>
           <ArrowLeft color="white" size={24} />
         </TouchableOpacity>
 
         <Text style={styles.controlTitle}>
-          {videoTitle} {currentEpisodeTitle ? `- ${currentEpisodeTitle}` : ""}
+          {videoTitle} {currentEpisodeTitle ? `- ${currentEpisodeTitle}` : ''}
         </Text>
       </View>
 
@@ -81,40 +63,25 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
             style={[
               styles.progressBarFilled,
               {
-                width: `${
-                  (isSeeking ? seekPosition : progressPosition) * 100
-                }%`,
+                width: `${(isSeeking ? seekPosition : progressPosition) * 100}%`,
               },
             ]}
           />
-          <Pressable
-            style={styles.progressBarTouchable}
-            onPressIn={onSeekStart}
-            onTouchMove={onSeekMove}
-            onTouchEnd={onSeekRelease}
-          />
+          <Pressable style={styles.progressBarTouchable} />
         </View>
 
-        <ThemedText style={{ color: "white", marginTop: 5 }}>
+        <ThemedText style={{ color: 'white', marginTop: 5 }}>
           {status?.isLoaded
-            ? `${formatTime(status.positionMillis)} / ${formatTime(
-                status.durationMillis || 0
-              )}`
-            : "00:00 / 00:00"}
+            ? `${formatTime(status.positionMillis)} / ${formatTime(status.durationMillis || 0)}`
+            : '00:00 / 00:00'}
         </ThemedText>
 
         <View style={styles.bottomControls}>
-          <MediaButton
-            onPress={() => onSeek(false)}
-            isFocused={currentFocus === "skipBack"}
-          >
+          <MediaButton onPress={() => seek(false)}>
             <ChevronsLeft color="white" size={24} />
           </MediaButton>
 
-          <MediaButton
-            onPress={onTogglePlayPause}
-            isFocused={currentFocus === "playPause"}
-          >
+          <MediaButton onPress={togglePlayPause}>
             {status?.isLoaded && status.isPlaying ? (
               <Pause color="white" size={24} />
             ) : (
@@ -122,25 +89,15 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
             )}
           </MediaButton>
 
-          <MediaButton
-            onPress={onPlayNextEpisode}
-            isFocused={currentFocus === "nextEpisode"}
-            isDisabled={!hasNextEpisode}
-          >
-            <SkipForward color={hasNextEpisode ? "white" : "#666"} size={24} />
+          <MediaButton onPress={onPlayNextEpisode} isDisabled={!hasNextEpisode}>
+            <SkipForward color={hasNextEpisode ? 'white' : '#666'} size={24} />
           </MediaButton>
 
-          <MediaButton
-            onPress={() => onSeek(true)}
-            isFocused={currentFocus === "skipForward"}
-          >
+          <MediaButton onPress={() => seek(true)}>
             <ChevronsRight color="white" size={24} />
           </MediaButton>
 
-          <MediaButton
-            onPress={onShowEpisodes}
-            isFocused={currentFocus === "episodes"}
-          >
+          <MediaButton onPress={() => setShowEpisodeModal(true)}>
             <List color="white" size={24} />
           </MediaButton>
         </View>
@@ -152,58 +109,58 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
 const styles = StyleSheet.create({
   controlsOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0, 0, 0, 0.4)",
-    justifyContent: "space-between",
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    justifyContent: 'space-between',
     padding: 20,
   },
   topControls: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   controlTitle: {
-    color: "white",
+    color: 'white',
     fontSize: 16,
-    fontWeight: "bold",
+    fontWeight: 'bold',
     flex: 1,
-    textAlign: "center",
+    textAlign: 'center',
     marginHorizontal: 10,
   },
   bottomControlsContainer: {
-    width: "100%",
-    alignItems: "center",
+    width: '100%',
+    alignItems: 'center',
   },
   bottomControls: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
     gap: 10,
-    flexWrap: "wrap",
+    flexWrap: 'wrap',
     marginTop: 15,
   },
   progressBarContainer: {
-    width: "100%",
+    width: '100%',
     height: 8,
-    position: "relative",
+    position: 'relative',
     marginTop: 10,
   },
   progressBarBackground: {
-    position: "absolute",
+    position: 'absolute',
     left: 0,
     right: 0,
     height: 8,
-    backgroundColor: "rgba(255, 255, 255, 0.3)",
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
     borderRadius: 4,
   },
   progressBarFilled: {
-    position: "absolute",
+    position: 'absolute',
     left: 0,
     height: 8,
-    backgroundColor: "#ff0000",
+    backgroundColor: '#ff0000',
     borderRadius: 4,
   },
   progressBarTouchable: {
-    position: "absolute",
+    position: 'absolute',
     left: 0,
     right: 0,
     height: 30,
@@ -212,20 +169,20 @@ const styles = StyleSheet.create({
   },
   controlButton: {
     padding: 10,
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   topRightContainer: {
     padding: 10,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
     minWidth: 44, // Match TouchableOpacity default size for alignment
   },
   resolutionText: {
-    color: "white",
+    color: 'white',
     fontSize: 16,
-    fontWeight: "bold",
-    backgroundColor: "rgba(0,0,0,0.5)",
+    fontWeight: 'bold',
+    backgroundColor: 'rgba(0,0,0,0.5)',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,

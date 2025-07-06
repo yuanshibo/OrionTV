@@ -1,38 +1,28 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Modal, View, Text, TextInput, StyleSheet, Pressable, useColorScheme } from 'react-native';
-import { SettingsManager } from '@/services/storage';
-import { api } from '@/services/api';
 import { ThemedText } from './ThemedText';
 import { ThemedView } from './ThemedView';
+import { useSettingsStore } from '@/stores/settingsStore';
 
-interface SettingsModalProps {
-  visible: boolean;
-  onCancel: () => void;
-  onSave: () => void;
-}
+export const SettingsModal: React.FC = () => {
+  const { isModalVisible, hideModal, apiBaseUrl, setApiBaseUrl, saveSettings, loadSettings } = useSettingsStore();
 
-export const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onCancel, onSave }) => {
-  const [apiUrl, setApiUrl] = useState('');
   const [isInputFocused, setIsInputFocused] = useState(false);
   const colorScheme = useColorScheme();
   const inputRef = useRef<TextInput>(null);
 
   useEffect(() => {
-    if (visible) {
-      SettingsManager.get().then(settings => {
-        setApiUrl(settings.apiBaseUrl);
-      });
+    if (isModalVisible) {
+      loadSettings();
       const timer = setTimeout(() => {
         inputRef.current?.focus();
       }, 200);
       return () => clearTimeout(timer);
     }
-  }, [visible]);
+  }, [isModalVisible, loadSettings]);
 
-  const handleSave = async () => {
-    await SettingsManager.save({ apiBaseUrl: apiUrl });
-    api.setBaseUrl(apiUrl);
-    onSave();
+  const handleSave = () => {
+    saveSettings();
   };
 
   const styles = StyleSheet.create({
@@ -107,15 +97,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onCancel,
   });
 
   return (
-    <Modal animationType="fade" transparent={true} visible={visible} onRequestClose={onCancel}>
+    <Modal animationType="fade" transparent={true} visible={isModalVisible} onRequestClose={hideModal}>
       <View style={styles.modalContainer}>
         <ThemedView style={styles.modalContent}>
           <ThemedText style={styles.title}>设置</ThemedText>
           <TextInput
             ref={inputRef}
             style={[styles.input, isInputFocused && styles.inputFocused]}
-            value={apiUrl}
-            onChangeText={setApiUrl}
+            value={apiBaseUrl}
+            onChangeText={setApiBaseUrl}
             placeholder="输入 API 地址"
             placeholderTextColor={colorScheme === 'dark' ? '#888' : '#555'}
             autoCapitalize="none"
@@ -126,7 +116,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onCancel,
           <View style={styles.buttonContainer}>
             <Pressable
               style={({ focused }) => [styles.button, styles.buttonCancel, focused && styles.focusedButton]}
-              onPress={onCancel}
+              onPress={hideModal}
             >
               <Text style={styles.buttonText}>取消</Text>
             </Pressable>
