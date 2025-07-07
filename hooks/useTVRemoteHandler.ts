@@ -46,7 +46,7 @@ export const useTVRemoteHandler = ({
     }
 
     // Only set a timer to hide controls if they are shown AND no element is focused.
-    if (showControls && currentFocus === null) {
+    if (showControls) {
       controlsTimer.current = setTimeout(() => {
         setShowControls(false);
       }, 5000);
@@ -64,9 +64,13 @@ export const useTVRemoteHandler = ({
       return;
     }
 
-    // If controls are hidden, the first interaction will just show them.
+    // If controls are hidden, 'select' should toggle play/pause immediately
+    // and other interactions will just show the controls.
     if (!showControls) {
-      if (["up", "down", "left", "right", "select"].includes(event.eventType)) {
+      if (event.eventType === "select") {
+        onPlayPause();
+        setShowControls(true);
+      } else if (["up", "down", "left", "right"].includes(event.eventType)) {
         setShowControls(true);
       }
       return;

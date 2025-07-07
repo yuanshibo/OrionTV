@@ -27,8 +27,9 @@ interface PlayerState {
   isSeeking: boolean;
   seekPosition: number;
   progressPosition: number;
+  initialPosition: number;
   setVideoRef: (ref: RefObject<Video>) => void;
-  loadVideo: (source: string, id: string, episodeIndex: number) => Promise<void>;
+  loadVideo: (source: string, id: string, episodeIndex: number, position?: number) => Promise<void>;
   playEpisode: (index: number) => void;
   togglePlayPause: () => void;
   seek: (forward: boolean) => void;
@@ -53,11 +54,18 @@ const usePlayerStore = create<PlayerState>((set, get) => ({
   isSeeking: false,
   seekPosition: 0,
   progressPosition: 0,
+  initialPosition: 0,
 
   setVideoRef: (ref) => set({ videoRef: ref }),
 
-  loadVideo: async (source, id, episodeIndex) => {
-    set({ isLoading: true, detail: null, episodes: [], currentEpisodeIndex: 0 });
+  loadVideo: async (source, id, episodeIndex, position) => {
+    set({
+      isLoading: true,
+      detail: null,
+      episodes: [],
+      currentEpisodeIndex: 0,
+      initialPosition: position || 0,
+    });
     try {
       const videoDetail = await api.getVideoDetail(source, id);
       const episodes = videoDetail.episodes.map((ep, index) => ({ url: ep, title: `第 ${index + 1} 集` }));
@@ -76,7 +84,7 @@ const usePlayerStore = create<PlayerState>((set, get) => ({
   playEpisode: (index) => {
     const { episodes, videoRef } = get();
     if (index >= 0 && index < episodes.length) {
-      set({ currentEpisodeIndex: index, showNextEpisodeOverlay: false });
+      set({ currentEpisodeIndex: index, showNextEpisodeOverlay: false, initialPosition: 0 });
       videoRef?.current?.replayAsync();
     }
   },
@@ -156,6 +164,7 @@ const usePlayerStore = create<PlayerState>((set, get) => ({
       showControls: true,
       showEpisodeModal: false,
       showNextEpisodeOverlay: false,
+      initialPosition: 0,
     });
   },
 }));

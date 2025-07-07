@@ -76,6 +76,7 @@ export default function HomeScreen() {
         year={item.year}
         rate={item.rate}
         progress={item.progress}
+        playTime={item.play_time}
         episodeIndex={item.episodeIndex}
         sourceName={item.sourceName}
         totalEpisodes={item.totalEpisodes}

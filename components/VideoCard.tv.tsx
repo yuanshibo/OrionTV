@@ -16,6 +16,7 @@ interface VideoCardProps {
   rate?: string;
   sourceName?: string;
   progress?: number; // 播放进度，0-1之间的小数
+  playTime?: number; // 播放时间 in ms
   episodeIndex?: number; // 剧集索引
   totalEpisodes?: number; // 总集数
   onFocus?: () => void;
@@ -37,6 +38,7 @@ export default function VideoCard({
   onFocus,
   onRecordDeleted,
   api,
+  playTime,
 }: VideoCardProps) {
   const router = useRouter();
   const [isFocused, setIsFocused] = useState(false);
@@ -60,7 +62,7 @@ export default function VideoCard({
     if (progress !== undefined && episodeIndex !== undefined) {
       router.push({
         pathname: '/play',
-        params: { source, id, episodeIndex },
+        params: { source, id, episodeIndex, position: playTime },
       });
     } else {
       router.push({

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { SettingsManager } from '@/services/storage';
 import { api } from '@/services/api';
+import useHomeStore from './homeStore';
 
 interface SettingsState {
   apiBaseUrl: string;
@@ -26,6 +27,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     await SettingsManager.save({ apiBaseUrl });
     api.setBaseUrl(apiBaseUrl);
     set({ isModalVisible: false });
+    useHomeStore.getState().fetchInitialData();
   },
   showModal: () => set({ isModalVisible: true }),
   hideModal: () => set({ isModalVisible: false }),

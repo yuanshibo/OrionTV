@@ -8,9 +8,12 @@ import { MediaButton } from '@/components/MediaButton';
 
 import usePlayerStore from '@/stores/playerStore';
 
-interface PlayerControlsProps {}
+interface PlayerControlsProps {
+  currentFocus: string | null;
+  setShowControls: (show: boolean) => void;
+}
 
-export const PlayerControls: React.FC<PlayerControlsProps> = () => {
+export const PlayerControls: React.FC<PlayerControlsProps> = ({ currentFocus, setShowControls }) => {
   const router = useRouter();
   const {
     detail,
@@ -41,6 +44,7 @@ export const PlayerControls: React.FC<PlayerControlsProps> = () => {
   const onPlayNextEpisode = () => {
     if (hasNextEpisode) {
       playEpisode(currentEpisodeIndex + 1);
+      setShowControls(false);
     }
   };
 
@@ -77,11 +81,11 @@ export const PlayerControls: React.FC<PlayerControlsProps> = () => {
         </ThemedText>
 
         <View style={styles.bottomControls}>
-          <MediaButton onPress={() => seek(false)}>
+          <MediaButton onPress={() => seek(false)} isFocused={currentFocus === 'skipBack'}>
             <ChevronsLeft color="white" size={24} />
           </MediaButton>
 
-          <MediaButton onPress={togglePlayPause}>
+          <MediaButton onPress={togglePlayPause} isFocused={currentFocus === 'playPause'}>
             {status?.isLoaded && status.isPlaying ? (
               <Pause color="white" size={24} />
             ) : (
@@ -89,15 +93,19 @@ export const PlayerControls: React.FC<PlayerControlsProps> = () => {
             )}
           </MediaButton>
 
-          <MediaButton onPress={onPlayNextEpisode} isDisabled={!hasNextEpisode}>
+          <MediaButton
+            onPress={onPlayNextEpisode}
+            isDisabled={!hasNextEpisode}
+            isFocused={currentFocus === 'nextEpisode'}
+          >
             <SkipForward color={hasNextEpisode ? 'white' : '#666'} size={24} />
           </MediaButton>
 
-          <MediaButton onPress={() => seek(true)}>
+          <MediaButton onPress={() => seek(true)} isFocused={currentFocus === 'skipForward'}>
             <ChevronsRight color="white" size={24} />
           </MediaButton>
 
-          <MediaButton onPress={() => setShowEpisodeModal(true)}>
+          <MediaButton onPress={() => setShowEpisodeModal(true)} isFocused={currentFocus === 'episodes'}>
             <List color="white" size={24} />
           </MediaButton>
         </View>

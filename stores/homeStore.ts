@@ -8,6 +8,7 @@ export type RowItem = (SearchResult | PlayRecord) & {
   title: string;
   poster: string;
   progress?: number;
+  play_time?: number;
   lastPlayed?: number;
   episodeIndex?: number;
   sourceName?: string;
@@ -61,48 +62,48 @@ const useHomeStore = create<HomeState>((set, get) => ({
   error: null,
 
   fetchInitialData: async () => {
-    const { selectedCategory } = get();
     set({ loading: true, contentData: [], pageStart: 0, hasMore: true, error: null });
     await get().loadMoreData();
-    set({ loading: false });
   },
 
   loadMoreData: async () => {
-    const { selectedCategory, pageStart, loading, loadingMore, hasMore } = get();
-    if (loading || loadingMore || !hasMore) return;
+    const { selectedCategory, pageStart, loadingMore, hasMore } = get();
+    if (loadingMore || !hasMore) return;
 
-    if (selectedCategory.type === 'record') {
-      const records = await PlayRecordManager.getAll();
-      const rowItems = Object.entries(records)
-        .map(([key, record]) => {
-          const [source, id] = key.split('+');
-          return { ...record, id, source, progress: record.play_time / record.total_time, poster: record.cover, sourceName: record.source_name, episodeIndex: record.index, totalEpisodes: record.total_episodes, lastPlayed: record.save_time };
-        })
-        .filter(record => record.progress !== undefined && record.progress > 0 && record.progress < 1)
-        .sort((a, b) => (b.lastPlayed || 0) - (a.lastPlayed || 0));
-      
-      set({ contentData: rowItems, hasMore: false });
-      return;
+    if (pageStart > 0) {
+      set({ loadingMore: true });
     }
 
-    if (!selectedCategory.type || !selectedCategory.tag) return;
-
-    set({ loadingMore: true });
     try {
-      const result = await api.getDoubanData(selectedCategory.type, selectedCategory.tag, 20, pageStart);
-      if (result.list.length === 0) {
-        set({ hasMore: false });
+      if (selectedCategory.type === 'record') {
+        const records = await PlayRecordManager.getAll();
+        const rowItems = Object.entries(records)
+          .map(([key, record]) => {
+            const [source, id] = key.split('+');
+            return { ...record, id, source, progress: record.play_time / record.total_time, poster: record.cover, sourceName: record.source_name, episodeIndex: record.index, totalEpisodes: record.total_episodes, lastPlayed: record.save_time, play_time: record.play_time };
+          })
+          .filter(record => record.progress !== undefined && record.progress > 0 && record.progress < 1)
+          .sort((a, b) => (b.lastPlayed || 0) - (a.lastPlayed || 0));
+        
+        set({ contentData: rowItems, hasMore: false });
+      } else if (selectedCategory.type && selectedCategory.tag) {
+        const result = await api.getDoubanData(selectedCategory.type, selectedCategory.tag, 20, pageStart);
+        if (result.list.length === 0) {
+          set({ hasMore: false });
+        } else {
+          const newItems = result.list.map(item => ({
+            ...item,
+            id: item.title,
+            source: 'douban',
+          })) as RowItem[];
+          set(state => ({
+            contentData: pageStart === 0 ? newItems : [...state.contentData, ...newItems],
+            pageStart: state.pageStart + result.list.length,
+            hasMore: true,
+          }));
+        }
       } else {
-        const newItems = result.list.map(item => ({
-          ...item,
-          id: item.title,
-          source: 'douban',
-        })) as RowItem[];
-        set(state => ({
-          contentData: pageStart === 0 ? newItems : [...state.contentData, ...newItems],
-          pageStart: state.pageStart + result.list.length,
-          hasMore: true,
-        }));
+        set({ hasMore: false });
       }
     } catch (err: any) {
       if (err.message === 'API_URL_NOT_SET') {
@@ -111,7 +112,7 @@ const useHomeStore = create<HomeState>((set, get) => ({
         set({ error: '加载失败，请重试' });
       }
     } finally {
-      set({ loadingMore: false });
+      set({ loading: false, loadingMore: false });
     }
   },
 

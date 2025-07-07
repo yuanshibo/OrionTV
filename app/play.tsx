@@ -14,7 +14,12 @@ import { useTVRemoteHandler } from '@/hooks/useTVRemoteHandler';
 export default function PlayScreen() {
   const videoRef = useRef<Video>(null);
   useKeepAwake();
-  const { source, id, episodeIndex } = useLocalSearchParams<{ source: string; id: string; episodeIndex: string }>();
+  const { source, id, episodeIndex, position } = useLocalSearchParams<{
+    source: string;
+    id: string;
+    episodeIndex: string;
+    position: string;
+  }>();
 
   const {
     detail,
@@ -24,6 +29,7 @@ export default function PlayScreen() {
     showControls,
     showEpisodeModal,
     showNextEpisodeOverlay,
+    initialPosition,
     setVideoRef,
     loadVideo,
     playEpisode,
@@ -39,14 +45,14 @@ export default function PlayScreen() {
   useEffect(() => {
     setVideoRef(videoRef);
     if (source && id) {
-      loadVideo(source, id, parseInt(episodeIndex || '0', 10));
+      loadVideo(source, id, parseInt(episodeIndex || '0', 10), parseInt(position || '0', 10));
     }
     return () => {
       reset(); // Reset state when component unmounts
     };
-  }, [source, id, episodeIndex, setVideoRef, loadVideo, reset]);
+  }, [source, id, episodeIndex, position, setVideoRef, loadVideo, reset]);
 
-  const { setCurrentFocus } = useTVRemoteHandler({
+  const { currentFocus, setCurrentFocus } = useTVRemoteHandler({
     showControls,
     setShowControls,
     showEpisodeModal,
@@ -56,6 +62,7 @@ export default function PlayScreen() {
     onPlayNextEpisode: () => {
       if (currentEpisodeIndex < episodes.length - 1) {
         playEpisode(currentEpisodeIndex + 1);
+        setShowControls(false);
       }
     },
   });
@@ -71,7 +78,7 @@ export default function PlayScreen() {
   const currentEpisode = episodes[currentEpisodeIndex];
 
   return (
-    <ThemedView style={styles.container}>
+    <ThemedView focusable style={styles.container}>
       <TouchableOpacity
         activeOpacity={1}
         style={styles.videoContainer}
@@ -86,13 +93,18 @@ export default function PlayScreen() {
           source={{ uri: currentEpisode?.url }}
           resizeMode={ResizeMode.CONTAIN}
           onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
-          onLoad={() => usePlayerStore.setState({ isLoading: false })}
+          onLoad={() => {
+            if (initialPosition > 0) {
+              videoRef.current?.setPositionAsync(initialPosition);
+            }
+            usePlayerStore.setState({ isLoading: false });
+          }}
           onLoadStart={() => usePlayerStore.setState({ isLoading: true })}
           useNativeControls={false}
           shouldPlay
         />
 
-        {showControls && <PlayerControls />}
+        {showControls && <PlayerControls currentFocus={currentFocus} setShowControls={setShowControls} />}
 
         <LoadingOverlay visible={isLoading} />
 
