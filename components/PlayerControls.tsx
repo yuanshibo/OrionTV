@@ -2,7 +2,7 @@ import React, { useCallback, useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Pressable } from "react-native";
 import { useRouter } from "expo-router";
 import { AVPlaybackStatus } from "expo-av";
-import { ArrowLeft, Pause, Play, SkipForward, List, ChevronsRight, ChevronsLeft } from "lucide-react-native";
+import { ArrowLeft, Pause, Play, SkipForward, List, ChevronsRight, ChevronsLeft, Tv } from "lucide-react-native";
 import { ThemedText } from "@/components/ThemedText";
 import { MediaButton } from "@/components/MediaButton";
 
@@ -18,6 +18,7 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
   const {
     detail,
     currentEpisodeIndex,
+    currentSourceIndex,
     status,
     isSeeking,
     seekPosition,
@@ -26,11 +27,14 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
     togglePlayPause,
     playEpisode,
     setShowEpisodeModal,
+    setShowSourceModal,
   } = usePlayerStore();
 
   const videoTitle = detail?.videoInfo?.title || "";
   const currentEpisode = detail?.episodes[currentEpisodeIndex];
   const currentEpisodeTitle = currentEpisode?.title;
+  const currentSource = detail?.sources[currentSourceIndex];
+  const currentSourceName = currentSource?.source_name;
   const hasNextEpisode = currentEpisodeIndex < (detail?.episodes.length || 0) - 1;
 
   const formatTime = (milliseconds: number) => {
@@ -51,7 +55,8 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
     <View style={styles.controlsOverlay}>
       <View style={styles.topControls}>
         <Text style={styles.controlTitle}>
-          {videoTitle} {currentEpisodeTitle ? `- ${currentEpisodeTitle}` : ""}
+          {videoTitle} {currentEpisodeTitle ? `- ${currentEpisodeTitle}` : ""}{" "}
+          {currentSourceName ? `(${currentSourceName})` : ""}
         </Text>
       </View>
 
@@ -98,6 +103,10 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
 
           <MediaButton onPress={() => setShowEpisodeModal(true)}>
             <List color="white" size={24} />
+          </MediaButton>
+
+          <MediaButton onPress={() => setShowSourceModal(true)}>
+            <Tv color="white" size={24} />
           </MediaButton>
         </View>
       </View>

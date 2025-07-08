@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Modal, View, Text, TextInput, StyleSheet, useColorScheme } from "react-native";
+import { Modal, View, Text, TextInput, StyleSheet } from "react-native";
 import { ThemedText } from "./ThemedText";
 import { ThemedView } from "./ThemedView";
 import { useSettingsStore } from "@/stores/settingsStore";
@@ -9,7 +9,7 @@ export const SettingsModal: React.FC = () => {
   const { isModalVisible, hideModal, apiBaseUrl, setApiBaseUrl, saveSettings, loadSettings } = useSettingsStore();
 
   const [isInputFocused, setIsInputFocused] = useState(false);
-  const colorScheme = useColorScheme();
+  const colorScheme = "dark"; // Replace with useColorScheme() if needed
   const inputRef = useRef<TextInput>(null);
 
   useEffect(() => {

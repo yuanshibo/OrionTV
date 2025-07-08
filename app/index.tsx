@@ -5,7 +5,6 @@ import { ThemedText } from "@/components/ThemedText";
 import { api } from "@/services/api";
 import VideoCard from "@/components/VideoCard.tv";
 import { useFocusEffect, useRouter } from "expo-router";
-import { useColorScheme } from "react-native";
 import { Search, Settings } from "lucide-react-native";
 import { SettingsModal } from "@/components/SettingsModal";
 import { StyledButton } from "@/components/StyledButton";
@@ -18,7 +17,7 @@ const ITEM_WIDTH = width / NUM_COLUMNS - 24;
 
 export default function HomeScreen() {
   const router = useRouter();
-  const colorScheme = useColorScheme();
+  const colorScheme = "dark";
   const flatListRef = useRef<FlatList>(null);
 
   const {

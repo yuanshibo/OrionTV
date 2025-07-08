@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { AVPlaybackStatus, Video } from "expo-av";
 import { RefObject } from "react";
-import { api, VideoDetail as ApiVideoDetail } from "@/services/api";
+import { api, VideoDetail as ApiVideoDetail, SearchResult } from "@/services/api";
 import { PlayRecordManager } from "@/services/storage";
 
 interface Episode {
@@ -12,17 +12,21 @@ interface Episode {
 interface VideoDetail {
   videoInfo: ApiVideoDetail["videoInfo"];
   episodes: Episode[];
+  sources: SearchResult[];
 }
 
 interface PlayerState {
   videoRef: RefObject<Video> | null;
   detail: VideoDetail | null;
   episodes: Episode[];
+  sources: SearchResult[];
+  currentSourceIndex: number;
   currentEpisodeIndex: number;
   status: AVPlaybackStatus | null;
   isLoading: boolean;
   showControls: boolean;
   showEpisodeModal: boolean;
+  showSourceModal: boolean;
   showNextEpisodeOverlay: boolean;
   isSeeking: boolean;
   seekPosition: number;
@@ -30,6 +34,7 @@ interface PlayerState {
   initialPosition: number;
   setVideoRef: (ref: RefObject<Video>) => void;
   loadVideo: (source: string, id: string, episodeIndex: number, position?: number) => Promise<void>;
+  switchSource: (newSourceIndex: number) => Promise<void>;
   playEpisode: (index: number) => void;
   togglePlayPause: () => void;
   seek: (duration: number) => void;
@@ -37,6 +42,7 @@ interface PlayerState {
   setLoading: (loading: boolean) => void;
   setShowControls: (show: boolean) => void;
   setShowEpisodeModal: (show: boolean) => void;
+  setShowSourceModal: (show: boolean) => void;
   setShowNextEpisodeOverlay: (show: boolean) => void;
   reset: () => void;
   _seekTimeout?: NodeJS.Timeout;
@@ -46,11 +52,14 @@ const usePlayerStore = create<PlayerState>((set, get) => ({
   videoRef: null,
   detail: null,
   episodes: [],
+  sources: [],
+  currentSourceIndex: 0,
   currentEpisodeIndex: 0,
   status: null,
   isLoading: true,
   showControls: false,
   showEpisodeModal: false,
+  showSourceModal: false,
   showNextEpisodeOverlay: false,
   isSeeking: false,
   seekPosition: 0,
@@ -65,20 +74,59 @@ const usePlayerStore = create<PlayerState>((set, get) => ({
       isLoading: true,
       detail: null,
       episodes: [],
+      sources: [],
       currentEpisodeIndex: 0,
       initialPosition: position || 0,
     });
     try {
       const videoDetail = await api.getVideoDetail(source, id);
       const episodes = videoDetail.episodes.map((ep, index) => ({ url: ep, title: `第 ${index + 1} 集` }));
+
+      const searchResults = await api.searchVideos(videoDetail.videoInfo.title);
+      const sources = searchResults.results.filter((r) => r.title === videoDetail.videoInfo.title);
+      const currentSourceIndex = sources.findIndex((s) => s.source === source && s.id.toString() === id);
+
       set({
-        detail: { videoInfo: videoDetail.videoInfo, episodes },
+        detail: { videoInfo: videoDetail.videoInfo, episodes, sources },
         episodes,
+        sources,
+        currentSourceIndex: currentSourceIndex !== -1 ? currentSourceIndex : 0,
         currentEpisodeIndex: episodeIndex,
         isLoading: false,
       });
     } catch (error) {
       console.error("Failed to load video details", error);
+      set({ isLoading: false });
+    }
+  },
+
+  switchSource: async (newSourceIndex: number) => {
+    const { sources, currentEpisodeIndex, status, detail } = get();
+    if (!detail || newSourceIndex < 0 || newSourceIndex >= sources.length) return;
+
+    const newSource = sources[newSourceIndex];
+    const position = status?.isLoaded ? status.positionMillis : 0;
+
+    set({ isLoading: true, showSourceModal: false });
+
+    try {
+      const videoDetail = await api.getVideoDetail(newSource.source, newSource.id.toString());
+      const episodes = videoDetail.episodes.map((ep, index) => ({ url: ep, title: `第 ${index + 1} 集` }));
+
+      set({
+        detail: {
+          ...detail,
+          videoInfo: videoDetail.videoInfo,
+          episodes,
+        },
+        episodes,
+        currentSourceIndex: newSourceIndex,
+        currentEpisodeIndex: currentEpisodeIndex < episodes.length ? currentEpisodeIndex : 0,
+        initialPosition: position,
+        isLoading: false,
+      });
+    } catch (error) {
+      console.error("Failed to switch source", error);
       set({ isLoading: false });
     }
   },
@@ -170,17 +218,21 @@ const usePlayerStore = create<PlayerState>((set, get) => ({
   setLoading: (loading) => set({ isLoading: loading }),
   setShowControls: (show) => set({ showControls: show }),
   setShowEpisodeModal: (show) => set({ showEpisodeModal: show }),
+  setShowSourceModal: (show) => set({ showSourceModal: show }),
   setShowNextEpisodeOverlay: (show) => set({ showNextEpisodeOverlay: show }),
 
   reset: () => {
     set({
       detail: null,
       episodes: [],
+      sources: [],
+      currentSourceIndex: 0,
       currentEpisodeIndex: 0,
       status: null,
       isLoading: true,
       showControls: false,
       showEpisodeModal: false,
+      showSourceModal: false,
       showNextEpisodeOverlay: false,
       initialPosition: 0,
     });

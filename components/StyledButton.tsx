@@ -1,14 +1,5 @@
 import React from "react";
-import {
-  Animated,
-  Pressable,
-  StyleSheet,
-  StyleProp,
-  ViewStyle,
-  PressableProps,
-  TextStyle,
-  useColorScheme,
-} from "react-native";
+import { Animated, Pressable, StyleSheet, StyleProp, ViewStyle, PressableProps, TextStyle } from "react-native";
 import { ThemedText } from "./ThemedText";
 import { Colors } from "@/constants/Colors";
 import { useButtonAnimation } from "@/hooks/useButtonAnimation";
@@ -31,7 +22,7 @@ export const StyledButton: React.FC<StyledButtonProps> = ({
   textStyle,
   ...rest
 }) => {
-  const colorScheme = useColorScheme() ?? "dark";
+  const colorScheme = "dark";
   const colors = Colors[colorScheme];
   const [isFocused, setIsFocused] = React.useState(false);
   const animationStyle = useButtonAnimation(isFocused);

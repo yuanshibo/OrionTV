@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, Image, StyleSheet, Pressable, TouchableOpacity, Alert } from 'react-native';
-import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
-import { useRouter } from 'expo-router';
-import { Heart, Star, Play, Trash2 } from 'lucide-react-native';
-import { FavoriteManager, PlayRecordManager } from '@/services/storage';
-import { API, api } from '@/services/api';
-import { ThemedText } from '@/components/ThemedText';
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { View, Text, Image, StyleSheet, Pressable, TouchableOpacity, Alert } from "react-native";
+import Animated, { useSharedValue, useAnimatedStyle, withSpring } from "react-native-reanimated";
+import { useRouter } from "expo-router";
+import { Heart, Star, Play, Trash2 } from "lucide-react-native";
+import { FavoriteManager, PlayRecordManager } from "@/services/storage";
+import { API, api } from "@/services/api";
+import { ThemedText } from "@/components/ThemedText";
 
 interface VideoCardProps {
   id: string;
@@ -61,12 +61,12 @@ export default function VideoCard({
     // 如果有播放进度，直接转到播放页面
     if (progress !== undefined && episodeIndex !== undefined) {
       router.push({
-        pathname: '/play',
+        pathname: "/play",
         params: { source, id, episodeIndex, position: playTime },
       });
     } else {
       router.push({
-        pathname: '/detail',
+        pathname: "/detail",
         params: { source, q: title },
       });
     }
@@ -90,14 +90,14 @@ export default function VideoCard({
     longPressTriggered.current = true;
 
     // Show confirmation dialog to delete play record
-    Alert.alert('删除观看记录', `确定要删除"${title}"的观看记录吗？`, [
+    Alert.alert("删除观看记录", `确定要删除"${title}"的观看记录吗？`, [
       {
-        text: '取消',
-        style: 'cancel',
+        text: "取消",
+        style: "cancel",
       },
       {
-        text: '删除',
-        style: 'destructive',
+        text: "删除",
+        style: "destructive",
         onPress: async () => {
           try {
             // Delete from local storage
@@ -109,11 +109,11 @@ export default function VideoCard({
             }
             // 如果没有回调函数，则使用导航刷新作为备选方案
             else if (router.canGoBack()) {
-              router.replace('/');
+              router.replace("/");
             }
           } catch (error) {
-            console.error('Failed to delete play record:', error);
-            Alert.alert('错误', '删除观看记录失败，请重试');
+            console.error("Failed to delete play record:", error);
+            Alert.alert("错误", "删除观看记录失败，请重试");
           }
         },
       },
@@ -173,7 +173,7 @@ export default function VideoCard({
         </View>
         <View style={styles.infoContainer}>
           <ThemedText numberOfLines={1}>{title}</ThemedText>
-          {isContinueWatching && !isFocused && (
+          {isContinueWatching && (
             <View style={styles.infoRow}>
               <ThemedText style={styles.continueLabel}>
                 第{episodeIndex! + 1}集 已观看 {Math.round((progress || 0) * 100)}%
@@ -194,126 +194,126 @@ const styles = StyleSheet.create({
     marginHorizontal: 8,
   },
   pressable: {
-    alignItems: 'center',
+    alignItems: "center",
   },
   card: {
     width: CARD_WIDTH,
     height: CARD_HEIGHT,
     borderRadius: 8,
-    backgroundColor: '#222',
-    overflow: 'hidden',
+    backgroundColor: "#222",
+    overflow: "hidden",
   },
   poster: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0,0,0,0.3)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   buttonRow: {
-    position: 'absolute',
+    position: "absolute",
     top: 8,
     left: 8,
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 8,
   },
   iconButton: {
     padding: 4,
   },
   favButton: {
-    position: 'absolute',
+    position: "absolute",
     top: 8,
     left: 8,
   },
   ratingContainer: {
-    position: 'absolute',
+    position: "absolute",
     top: 8,
     right: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
     borderRadius: 6,
     paddingHorizontal: 6,
     paddingVertical: 3,
   },
   ratingText: {
-    color: '#FFD700',
+    color: "#FFD700",
     fontSize: 12,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginLeft: 4,
   },
   infoContainer: {
     width: CARD_WIDTH,
     marginTop: 8,
-    alignItems: 'flex-start', // Align items to the start
+    alignItems: "flex-start", // Align items to the start
     marginBottom: 16,
     paddingHorizontal: 4, // Add some padding
   },
   infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    width: "100%",
   },
   title: {
-    color: 'white',
+    color: "white",
     fontSize: 16,
-    fontWeight: 'bold',
-    textAlign: 'center',
+    fontWeight: "bold",
+    textAlign: "center",
   },
   yearBadge: {
-    position: 'absolute',
+    position: "absolute",
     top: 8,
     right: 8,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
     borderRadius: 6,
     paddingHorizontal: 6,
     paddingVertical: 3,
   },
   sourceNameBadge: {
-    position: 'absolute',
+    position: "absolute",
     top: 8,
     left: 8,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
     borderRadius: 6,
     paddingHorizontal: 6,
     paddingVertical: 3,
   },
   badgeText: {
-    color: 'white',
+    color: "white",
     fontSize: 12,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   progressContainer: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
     height: 3,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
   },
   progressBar: {
     height: 3,
-    backgroundColor: '#ff0000',
+    backgroundColor: "#ff0000",
   },
   continueWatchingBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 0, 0, 0.8)',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 0, 0, 0.8)",
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 5,
   },
   continueWatchingText: {
-    color: 'white',
+    color: "white",
     marginLeft: 5,
     fontSize: 12,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   continueLabel: {
-    color: '#ff5252',
+    color: "#ff5252",
     fontSize: 12,
   },
 });

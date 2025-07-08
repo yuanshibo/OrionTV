@@ -6,6 +6,7 @@ import { useKeepAwake } from "expo-keep-awake";
 import { ThemedView } from "@/components/ThemedView";
 import { PlayerControls } from "@/components/PlayerControls";
 import { EpisodeSelectionModal } from "@/components/EpisodeSelectionModal";
+import { SourceSelectionModal } from "@/components/SourceSelectionModal";
 import { SeekingBar } from "@/components/SeekingBar";
 import { NextEpisodeOverlay } from "@/components/NextEpisodeOverlay";
 import { LoadingOverlay } from "@/components/LoadingOverlay";
@@ -30,6 +31,7 @@ export default function PlayScreen() {
     isLoading,
     showControls,
     showEpisodeModal,
+    showSourceModal,
     showNextEpisodeOverlay,
     initialPosition,
     setVideoRef,
@@ -40,6 +42,7 @@ export default function PlayScreen() {
     handlePlaybackStatusUpdate,
     setShowControls,
     setShowEpisodeModal,
+    setShowSourceModal,
     setShowNextEpisodeOverlay,
     reset,
   } = usePlayerStore();
@@ -69,7 +72,15 @@ export default function PlayScreen() {
     const backHandler = BackHandler.addEventListener("hardwareBackPress", backAction);
 
     return () => backHandler.remove();
-  }, [showControls, showEpisodeModal, setShowControls, setShowEpisodeModal, router]);
+  }, [
+    showControls,
+    showEpisodeModal,
+    showSourceModal,
+    setShowControls,
+    setShowEpisodeModal,
+    setShowSourceModal,
+    router,
+  ]);
 
   if (!detail && isLoading) {
     return (
@@ -111,6 +122,7 @@ export default function PlayScreen() {
       </TouchableOpacity>
 
       <EpisodeSelectionModal />
+      <SourceSelectionModal />
     </ThemedView>
   );
 }
