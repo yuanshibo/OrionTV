@@ -4,25 +4,26 @@ import { Pressable, StyleSheet, StyleProp, ViewStyle } from "react-native";
 interface MediaButtonProps {
   onPress: () => void;
   children: React.ReactNode;
-  isFocused?: boolean;
   isDisabled?: boolean;
+  hasTVPreferredFocus?: boolean;
   style?: StyleProp<ViewStyle>;
 }
 
 export const MediaButton: React.FC<MediaButtonProps> = ({
   onPress,
   children,
-  isFocused = false,
   isDisabled = false,
+  hasTVPreferredFocus = false,
   style,
 }) => {
   return (
     <Pressable
+      hasTVPreferredFocus={hasTVPreferredFocus}
       onPress={onPress}
       disabled={isDisabled}
-      style={[
+      style={({ focused }) => [
         styles.mediaControlButton,
-        isFocused && styles.focusedButton,
+        focused && styles.focusedButton,
         isDisabled && styles.disabledButton,
         style,
       ]}

@@ -1,15 +1,16 @@
-import React, { useEffect, useRef } from 'react';
-import { View, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
-import { Video, ResizeMode } from 'expo-av';
-import { useKeepAwake } from 'expo-keep-awake';
-import { ThemedView } from '@/components/ThemedView';
-import { PlayerControls } from '@/components/PlayerControls';
-import { EpisodeSelectionModal } from '@/components/EpisodeSelectionModal';
-import { NextEpisodeOverlay } from '@/components/NextEpisodeOverlay';
-import { LoadingOverlay } from '@/components/LoadingOverlay';
-import usePlayerStore from '@/stores/playerStore';
-import { useTVRemoteHandler } from '@/hooks/useTVRemoteHandler';
+import React, { useEffect, useRef } from "react";
+import { View, StyleSheet, TouchableOpacity, ActivityIndicator } from "react-native";
+import { useLocalSearchParams } from "expo-router";
+import { Video, ResizeMode } from "expo-av";
+import { useKeepAwake } from "expo-keep-awake";
+import { ThemedView } from "@/components/ThemedView";
+import { PlayerControls } from "@/components/PlayerControls";
+import { EpisodeSelectionModal } from "@/components/EpisodeSelectionModal";
+import { SeekingBar } from "@/components/SeekingBar";
+import { NextEpisodeOverlay } from "@/components/NextEpisodeOverlay";
+import { LoadingOverlay } from "@/components/LoadingOverlay";
+import usePlayerStore from "@/stores/playerStore";
+import { useTVRemoteHandler } from "@/hooks/useTVRemoteHandler";
 
 export default function PlayScreen() {
   const videoRef = useRef<Video>(null);
@@ -45,27 +46,14 @@ export default function PlayScreen() {
   useEffect(() => {
     setVideoRef(videoRef);
     if (source && id) {
-      loadVideo(source, id, parseInt(episodeIndex || '0', 10), parseInt(position || '0', 10));
+      loadVideo(source, id, parseInt(episodeIndex || "0", 10), parseInt(position || "0", 10));
     }
     return () => {
       reset(); // Reset state when component unmounts
     };
   }, [source, id, episodeIndex, position, setVideoRef, loadVideo, reset]);
 
-  const { currentFocus, setCurrentFocus } = useTVRemoteHandler({
-    showControls,
-    setShowControls,
-    showEpisodeModal,
-    onPlayPause: togglePlayPause,
-    onSeek: seek,
-    onShowEpisodes: () => setShowEpisodeModal(true),
-    onPlayNextEpisode: () => {
-      if (currentEpisodeIndex < episodes.length - 1) {
-        playEpisode(currentEpisodeIndex + 1);
-        setShowControls(false);
-      }
-    },
-  });
+  const { onScreenPress } = useTVRemoteHandler();
 
   if (!detail && isLoading) {
     return (
@@ -79,14 +67,7 @@ export default function PlayScreen() {
 
   return (
     <ThemedView focusable style={styles.container}>
-      <TouchableOpacity
-        activeOpacity={1}
-        style={styles.videoContainer}
-        onPress={() => {
-          setShowControls(!showControls);
-          setCurrentFocus(null);
-        }}
-      >
+      <TouchableOpacity activeOpacity={1} style={styles.videoContainer} onPress={onScreenPress}>
         <Video
           ref={videoRef}
           style={styles.videoPlayer}
@@ -104,7 +85,9 @@ export default function PlayScreen() {
           shouldPlay
         />
 
-        {showControls && <PlayerControls currentFocus={currentFocus} setShowControls={setShowControls} />}
+        {showControls && <PlayerControls showControls={showControls} setShowControls={setShowControls} />}
+
+        <SeekingBar />
 
         <LoadingOverlay visible={isLoading} />
 
@@ -117,8 +100,8 @@ export default function PlayScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: 'black' },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  container: { flex: 1, backgroundColor: "black" },
+  centered: { flex: 1, justifyContent: "center", alignItems: "center" },
   videoContainer: {
     ...StyleSheet.absoluteFillObject,
   },

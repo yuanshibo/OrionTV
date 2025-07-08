@@ -1,118 +1,97 @@
-import { useState, useEffect, useRef } from "react";
-import { useTVEventHandler } from "react-native";
+import { useEffect, useRef, useCallback } from "react";
+import { useTVEventHandler, HWEvent } from "react-native";
+import usePlayerStore from "@/stores/playerStore";
 
-interface TVRemoteHandlerProps {
-  showControls: boolean;
-  setShowControls: (show: boolean) => void;
-  showEpisodeModal: boolean;
-  onPlayPause: () => void;
-  onSeek: (forward: boolean) => void;
-  onShowEpisodes: () => void;
-  onPlayNextEpisode: () => void;
-}
+// 定时器延迟时间（毫秒）
+const CONTROLS_TIMEOUT = 5000;
 
-const focusGraph: Record<string, Record<string, string>> = {
-  skipBack: { right: "playPause" },
-  playPause: { left: "skipBack", right: "nextEpisode" },
-  nextEpisode: { left: "playPause", right: "skipForward" },
-  skipForward: { left: "nextEpisode", right: "episodes" },
-  episodes: { left: "skipForward" },
-};
+/**
+ * 管理播放器控件的显示/隐藏、遥控器事件和自动隐藏定时器。
+ * @returns onScreenPress - 一个函数，用于处理屏幕点击事件，以显示控件并重置定时器。
+ */
+export const useTVRemoteHandler = () => {
+  const { showControls, setShowControls, showEpisodeModal, togglePlayPause, seek } = usePlayerStore();
 
-export const useTVRemoteHandler = ({
-  showControls,
-  setShowControls,
-  showEpisodeModal,
-  onPlayPause,
-  onSeek,
-  onShowEpisodes,
-  onPlayNextEpisode,
-}: TVRemoteHandlerProps) => {
-  const [currentFocus, setCurrentFocus] = useState<string | null>(null);
   const controlsTimer = useRef<NodeJS.Timeout | null>(null);
 
-  const actionMap: Record<string, () => void> = {
-    playPause: onPlayPause,
-    skipBack: () => onSeek(false),
-    skipForward: () => onSeek(true),
-    nextEpisode: onPlayNextEpisode,
-    episodes: onShowEpisodes,
-  };
-
-  // Centralized timer logic driven by state changes.
-  useEffect(() => {
+  // 重置或启动隐藏控件的定时器
+  const resetTimer = useCallback(() => {
+    // 清除之前的定时器
     if (controlsTimer.current) {
       clearTimeout(controlsTimer.current);
     }
+    // 设置新的定时器
+    controlsTimer.current = setTimeout(() => {
+      setShowControls(false);
+    }, CONTROLS_TIMEOUT);
+  }, [setShowControls]);
 
-    // Only set a timer to hide controls if they are shown AND no element is focused.
+  // 当控件显示时，启动定时器
+  useEffect(() => {
     if (showControls) {
-      controlsTimer.current = setTimeout(() => {
-        setShowControls(false);
-      }, 5000);
+      resetTimer();
+    } else {
+      // 如果控件被隐藏，清除定时器
+      if (controlsTimer.current) {
+        clearTimeout(controlsTimer.current);
+      }
     }
 
+    // 组件卸载时清除定时器
     return () => {
       if (controlsTimer.current) {
         clearTimeout(controlsTimer.current);
       }
     };
-  }, [showControls, currentFocus]);
+  }, [showControls, resetTimer]);
 
-  useTVEventHandler((event) => {
-    if (showEpisodeModal) {
-      return;
-    }
-
-    // If controls are hidden, 'select' should toggle play/pause immediately
-    // and other interactions will just show the controls.
-    if (!showControls) {
-      if (event.eventType === "select") {
-        onPlayPause();
-        setShowControls(true);
-      } else if (["up", "down", "left", "right"].includes(event.eventType)) {
-        setShowControls(true);
+  // 处理遥控器事件
+  const handleTVEvent = useCallback(
+    (event: HWEvent) => {
+      // 如果剧集选择模态框显示，则不处理任何事件
+      if (showEpisodeModal) {
+        return;
       }
-      return;
-    }
 
-    // --- Event handling when controls are visible ---
+      resetTimer();
 
-    if (currentFocus === null) {
-      // When no specific element is focused on the control bar
-      switch (event.eventType) {
-        case "left":
-          onSeek(false);
-          break;
-        case "right":
-          onSeek(true);
-          break;
-        case "select":
-          onPlayPause();
-          break;
-        case "down":
-          setCurrentFocus("playPause");
-          break;
+      if (!showControls) {
+        switch (event.eventType) {
+          case "select":
+            togglePlayPause();
+            setShowControls(true);
+            break;
+          case "left":
+            seek(-15000); // 快退15秒
+            break;
+          case "right":
+            seek(15000); // 快进15秒
+            break;
+          case "longLeft":
+            seek(-60000); // 快退60秒
+            break;
+          case "longRight":
+            seek(60000); // 快进60秒
+            break;
+        }
       }
-    } else {
-      // When an element on the control bar is focused
-      switch (event.eventType) {
-        case "left":
-        case "right":
-          const nextFocus = focusGraph[currentFocus]?.[event.eventType];
-          if (nextFocus) {
-            setCurrentFocus(nextFocus);
-          }
-          break;
-        case "up":
-          setCurrentFocus(null);
-          break;
-        case "select":
-          actionMap[currentFocus]?.();
-          break;
-      }
-    }
-  });
+    },
+    [showControls, showEpisodeModal, setShowControls, resetTimer, togglePlayPause, seek]
+  );
 
-  return { currentFocus, setCurrentFocus };
+  useTVEventHandler(handleTVEvent);
+
+  // 处理屏幕点击事件
+  const onScreenPress = () => {
+    // 切换控件的显示状态
+    const newShowControls = !showControls;
+    setShowControls(newShowControls);
+
+    // 如果控件变为显示状态，则重置定时器
+    if (newShowControls) {
+      resetTimer();
+    }
+  };
+
+  return { onScreenPress };
 };

@@ -1,18 +1,18 @@
-import React, { useEffect, useCallback, useRef } from 'react';
-import { View, StyleSheet, ActivityIndicator, FlatList, Pressable, Dimensions } from 'react-native';
-import { ThemedView } from '@/components/ThemedView';
-import { ThemedText } from '@/components/ThemedText';
-import { api } from '@/services/api';
-import VideoCard from '@/components/VideoCard.tv';
-import { useFocusEffect, useRouter } from 'expo-router';
-import { useColorScheme } from 'react-native';
-import { Search, Settings } from 'lucide-react-native';
-import { SettingsModal } from '@/components/SettingsModal';
-import useHomeStore, { RowItem, Category } from '@/stores/homeStore';
-import { useSettingsStore } from '@/stores/settingsStore';
+import React, { useEffect, useCallback, useRef } from "react";
+import { View, StyleSheet, ActivityIndicator, FlatList, Pressable, Dimensions } from "react-native";
+import { ThemedView } from "@/components/ThemedView";
+import { ThemedText } from "@/components/ThemedText";
+import { api } from "@/services/api";
+import VideoCard from "@/components/VideoCard.tv";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useColorScheme } from "react-native";
+import { Search, Settings } from "lucide-react-native";
+import { SettingsModal } from "@/components/SettingsModal";
+import useHomeStore, { RowItem, Category } from "@/stores/homeStore";
+import { useSettingsStore } from "@/stores/settingsStore";
 
 const NUM_COLUMNS = 5;
-const { width } = Dimensions.get('window');
+const { width } = Dimensions.get("window");
 const ITEM_WIDTH = width / NUM_COLUMNS - 24;
 
 export default function HomeScreen() {
@@ -33,7 +33,7 @@ export default function HomeScreen() {
     refreshPlayRecords,
   } = useHomeStore();
 
-  const showSettingsModal = useSettingsStore(state => state.showModal);
+  const showSettingsModal = useSettingsStore((state) => state.showModal);
 
   useFocusEffect(
     useCallback(() => {
@@ -99,15 +99,15 @@ export default function HomeScreen() {
         <View style={styles.rightHeaderButtons}>
           <Pressable
             style={({ focused }) => [styles.searchButton, focused && styles.searchButtonFocused]}
-            onPress={() => router.push({ pathname: '/search' })}
+            onPress={() => router.push({ pathname: "/search" })}
           >
-            <Search color={colorScheme === 'dark' ? 'white' : 'black'} size={24} />
+            <Search color={colorScheme === "dark" ? "white" : "black"} size={24} />
           </Pressable>
           <Pressable
             style={({ focused }) => [styles.searchButton, focused && styles.searchButtonFocused]}
             onPress={showSettingsModal}
           >
-            <Settings color={colorScheme === 'dark' ? 'white' : 'black'} size={24} />
+            <Settings color={colorScheme === "dark" ? "white" : "black"} size={24} />
           </Pressable>
         </View>
       </View>
@@ -117,7 +117,7 @@ export default function HomeScreen() {
         <FlatList
           data={categories}
           renderItem={renderCategory}
-          keyExtractor={item => item.title}
+          keyExtractor={(item) => item.title}
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.categoryListContent}
@@ -166,25 +166,25 @@ const styles = StyleSheet.create({
   centerContainer: {
     flex: 1,
     paddingTop: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   // Header
   headerContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 24,
     marginBottom: 10,
   },
   headerTitle: {
     fontSize: 32,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     paddingTop: 16,
   },
   rightHeaderButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   searchButton: {
     padding: 10,
@@ -192,7 +192,7 @@ const styles = StyleSheet.create({
     marginLeft: 10,
   },
   searchButtonFocused: {
-    backgroundColor: '#007AFF',
+    backgroundColor: "#007AFF",
     transform: [{ scale: 1.1 }],
   },
   // Category Selector
@@ -209,18 +209,18 @@ const styles = StyleSheet.create({
     marginHorizontal: 5,
   },
   categoryButtonSelected: {
-    backgroundColor: '#007AFF', // A bright blue for selected state
+    backgroundColor: "#007AFF", // A bright blue for selected state
   },
   categoryButtonFocused: {
-    backgroundColor: '#0056b3', // A darker blue for focused state
+    backgroundColor: "#0056b3", // A darker blue for focused state
     elevation: 5,
   },
   categoryText: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   categoryTextSelected: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
   },
   // Content Grid
   listContent: {
@@ -230,6 +230,6 @@ const styles = StyleSheet.create({
   itemContainer: {
     margin: 8,
     width: ITEM_WIDTH,
-    alignItems: 'center',
+    alignItems: "center",
   },
 });
