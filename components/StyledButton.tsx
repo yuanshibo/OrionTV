@@ -1,7 +1,17 @@
 import React from "react";
-import { Pressable, StyleSheet, StyleProp, ViewStyle, PressableProps, TextStyle, useColorScheme } from "react-native";
+import {
+  Animated,
+  Pressable,
+  StyleSheet,
+  StyleProp,
+  ViewStyle,
+  PressableProps,
+  TextStyle,
+  useColorScheme,
+} from "react-native";
 import { ThemedText } from "./ThemedText";
 import { Colors } from "@/constants/Colors";
+import { useButtonAnimation } from "@/hooks/useButtonAnimation";
 
 interface StyledButtonProps extends PressableProps {
   children?: React.ReactNode;
@@ -21,8 +31,10 @@ export const StyledButton: React.FC<StyledButtonProps> = ({
   textStyle,
   ...rest
 }) => {
-  const colorScheme = useColorScheme() ?? "light";
+  const colorScheme = useColorScheme() ?? "dark";
   const colors = Colors[colorScheme];
+  const [isFocused, setIsFocused] = React.useState(false);
+  const animationStyle = useButtonAnimation(isSelected, isFocused);
 
   const variantStyles = {
     default: StyleSheet.create({
@@ -56,7 +68,6 @@ export const StyledButton: React.FC<StyledButtonProps> = ({
       },
       selectedButton: {
         backgroundColor: "rgba(0, 122, 255, 0.3)",
-        transform: [{ scale: 1.1 }],
       },
       selectedText: {
         color: colors.link,
@@ -79,10 +90,9 @@ export const StyledButton: React.FC<StyledButtonProps> = ({
 
   const styles = StyleSheet.create({
     button: {
-      paddingHorizontal: 15,
+      paddingHorizontal: 16,
       paddingVertical: 10,
       borderRadius: 8,
-      margin: 5,
       borderWidth: 2,
       borderColor: "transparent",
       flexDirection: "row",
@@ -92,7 +102,6 @@ export const StyledButton: React.FC<StyledButtonProps> = ({
     focusedButton: {
       backgroundColor: colors.link,
       borderColor: colors.background,
-      transform: [{ scale: 1.1 }],
       elevation: 5,
       shadowColor: colors.link,
       shadowOffset: { width: 0, height: 0 },
@@ -113,30 +122,33 @@ export const StyledButton: React.FC<StyledButtonProps> = ({
   });
 
   return (
-    <Pressable
-      style={({ focused }) => [
-        styles.button,
-        variantStyles[variant].button,
-        isSelected && (variantStyles[variant].selectedButton ?? styles.selectedButton),
-        focused && (variantStyles[variant].focusedButton ?? styles.focusedButton),
-        style,
-      ]}
-      {...rest}
-    >
-      {text ? (
-        <ThemedText
-          style={[
-            styles.text,
-            variantStyles[variant].text,
-            isSelected && (variantStyles[variant].selectedText ?? styles.selectedText),
-            textStyle,
-          ]}
-        >
-          {text}
-        </ThemedText>
-      ) : (
-        children
-      )}
-    </Pressable>
+    <Animated.View style={[animationStyle, style]}>
+      <Pressable
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => setIsFocused(false)}
+        style={({ focused }) => [
+          styles.button,
+          variantStyles[variant].button,
+          isSelected && (variantStyles[variant].selectedButton ?? styles.selectedButton),
+          focused && (variantStyles[variant].focusedButton ?? styles.focusedButton),
+        ]}
+        {...rest}
+      >
+        {text ? (
+          <ThemedText
+            style={[
+              styles.text,
+              variantStyles[variant].text,
+              isSelected && (variantStyles[variant].selectedText ?? styles.selectedText),
+              textStyle,
+            ]}
+          >
+            {text}
+          </ThemedText>
+        ) : (
+          children
+        )}
+      </Pressable>
+    </Animated.View>
   );
 };

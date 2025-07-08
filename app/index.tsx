@@ -58,7 +58,6 @@ export default function HomeScreen() {
         text={item.title}
         onPress={() => handleCategorySelect(item)}
         isSelected={isSelected}
-        variant="primary"
         style={styles.categoryButton}
         textStyle={styles.categoryText}
       />
@@ -190,16 +189,16 @@ const styles = StyleSheet.create({
   },
   // Category Selector
   categoryContainer: {
-    paddingBottom: 10,
+    paddingBottom: 6,
   },
   categoryListContent: {
     paddingHorizontal: 16,
   },
   categoryButton: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 2,
     paddingVertical: 6,
     borderRadius: 8,
-    marginHorizontal: 5,
+    marginHorizontal: 6,
   },
   categoryText: {
     fontSize: 16,

@@ -182,7 +182,7 @@ export default function DetailScreen() {
                   {item.episodes.length > 1 && (
                     <View style={styles.badge}>
                       <Text style={styles.badgeText}>
-                        {item.episodes.length > 99 ? "99+" : `${item.episodes.length}`}
+                        {item.episodes.length > 99 ? "99+" : `${item.episodes.length}`} 集
                       </Text>
                     </View>
                   )}
@@ -275,7 +275,7 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
   },
   sourceButton: {
-    margin: 5,
+    margin: 8,
   },
   sourceButtonText: {
     color: "white",
