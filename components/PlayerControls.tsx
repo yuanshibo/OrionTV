@@ -1,76 +1,76 @@
-import React from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Pressable,
-} from "react-native";
+import React, { useCallback, useState } from "react";
+import { View, Text, StyleSheet, TouchableOpacity, Pressable } from "react-native";
 import { useRouter } from "expo-router";
 import { AVPlaybackStatus } from "expo-av";
 import {
-  ArrowLeft,
   Pause,
   Play,
   SkipForward,
   List,
   ChevronsRight,
   ChevronsLeft,
+  Tv,
+  ArrowDownToDot,
+  ArrowUpFromDot,
 } from "lucide-react-native";
 import { ThemedText } from "@/components/ThemedText";
 import { MediaButton } from "@/components/MediaButton";
 
+import usePlayerStore from "@/stores/playerStore";
+
 interface PlayerControlsProps {
-  videoTitle: string;
-  currentEpisodeTitle?: string;
-  status: AVPlaybackStatus | null;
-  isSeeking: boolean;
-  seekPosition: number;
-  progressPosition: number;
-  currentFocus: string | null;
-  hasNextEpisode: boolean;
-  onSeekStart: () => void;
-  onSeekMove: (event: { nativeEvent: { locationX: number } }) => void;
-  onSeekRelease: (event: { nativeEvent: { locationX: number } }) => void;
-  onSeek: (forward: boolean) => void;
-  onTogglePlayPause: () => void;
-  onPlayNextEpisode: () => void;
-  onShowEpisodes: () => void;
-  formatTime: (time: number) => string;
+  showControls: boolean;
+  setShowControls: (show: boolean) => void;
 }
 
-export const PlayerControls: React.FC<PlayerControlsProps> = ({
-  videoTitle,
-  currentEpisodeTitle,
-  status,
-  isSeeking,
-  seekPosition,
-  progressPosition,
-  currentFocus,
-  hasNextEpisode,
-  onSeekStart,
-  onSeekMove,
-  onSeekRelease,
-  onSeek,
-  onTogglePlayPause,
-  onPlayNextEpisode,
-  onShowEpisodes,
-  formatTime,
-}) => {
+export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, setShowControls }) => {
   const router = useRouter();
+  const {
+    detail,
+    currentEpisodeIndex,
+    currentSourceIndex,
+    status,
+    isSeeking,
+    seekPosition,
+    progressPosition,
+    seek,
+    togglePlayPause,
+    playEpisode,
+    setShowEpisodeModal,
+    setShowSourceModal,
+    setIntroEndTime,
+    setOutroStartTime,
+    introEndTime,
+    outroStartTime,
+  } = usePlayerStore();
+
+  const videoTitle = detail?.videoInfo?.title || "";
+  const currentEpisode = detail?.episodes[currentEpisodeIndex];
+  const currentEpisodeTitle = currentEpisode?.title;
+  const currentSource = detail?.sources[currentSourceIndex];
+  const currentSourceName = currentSource?.source_name;
+  const hasNextEpisode = currentEpisodeIndex < (detail?.episodes.length || 0) - 1;
+
+  const formatTime = (milliseconds: number) => {
+    if (!milliseconds) return "00:00";
+    const totalSeconds = Math.floor(milliseconds / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+  };
+
+  const onPlayNextEpisode = () => {
+    if (hasNextEpisode) {
+      playEpisode(currentEpisodeIndex + 1);
+    }
+  };
 
   return (
     <View style={styles.controlsOverlay}>
       <View style={styles.topControls}>
-        <TouchableOpacity
-          style={styles.controlButton}
-          onPress={() => router.back()}
-        >
-          <ArrowLeft color="white" size={24} />
-        </TouchableOpacity>
-
         <Text style={styles.controlTitle}>
-          {videoTitle} {currentEpisodeTitle ? `- ${currentEpisodeTitle}` : ""}
+          {videoTitle} {currentEpisodeTitle ? `- ${currentEpisodeTitle}` : ""}{" "}
+          {currentSourceName ? `(${currentSourceName})` : ""}
         </Text>
       </View>
 
@@ -81,40 +81,25 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
             style={[
               styles.progressBarFilled,
               {
-                width: `${
-                  (isSeeking ? seekPosition : progressPosition) * 100
-                }%`,
+                width: `${(isSeeking ? seekPosition : progressPosition) * 100}%`,
               },
             ]}
           />
-          <Pressable
-            style={styles.progressBarTouchable}
-            onPressIn={onSeekStart}
-            onTouchMove={onSeekMove}
-            onTouchEnd={onSeekRelease}
-          />
+          <Pressable style={styles.progressBarTouchable} />
         </View>
 
         <ThemedText style={{ color: "white", marginTop: 5 }}>
           {status?.isLoaded
-            ? `${formatTime(status.positionMillis)} / ${formatTime(
-                status.durationMillis || 0
-              )}`
+            ? `${formatTime(status.positionMillis)} / ${formatTime(status.durationMillis || 0)}`
             : "00:00 / 00:00"}
         </ThemedText>
 
         <View style={styles.bottomControls}>
-          <MediaButton
-            onPress={() => onSeek(false)}
-            isFocused={currentFocus === "skipBack"}
-          >
-            <ChevronsLeft color="white" size={24} />
+          <MediaButton onPress={setIntroEndTime} timeLabel={introEndTime ? formatTime(introEndTime) : undefined}>
+            <ArrowDownToDot color="white" size={24} />
           </MediaButton>
 
-          <MediaButton
-            onPress={onTogglePlayPause}
-            isFocused={currentFocus === "playPause"}
-          >
+          <MediaButton onPress={togglePlayPause} hasTVPreferredFocus={showControls}>
             {status?.isLoaded && status.isPlaying ? (
               <Pause color="white" size={24} />
             ) : (
@@ -122,26 +107,20 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
             )}
           </MediaButton>
 
-          <MediaButton
-            onPress={onPlayNextEpisode}
-            isFocused={currentFocus === "nextEpisode"}
-            isDisabled={!hasNextEpisode}
-          >
+          <MediaButton onPress={onPlayNextEpisode} disabled={!hasNextEpisode}>
             <SkipForward color={hasNextEpisode ? "white" : "#666"} size={24} />
           </MediaButton>
 
-          <MediaButton
-            onPress={() => onSeek(true)}
-            isFocused={currentFocus === "skipForward"}
-          >
-            <ChevronsRight color="white" size={24} />
+          <MediaButton onPress={setOutroStartTime} timeLabel={outroStartTime ? formatTime(outroStartTime) : undefined}>
+            <ArrowUpFromDot color="white" size={24} />
           </MediaButton>
 
-          <MediaButton
-            onPress={onShowEpisodes}
-            isFocused={currentFocus === "episodes"}
-          >
+          <MediaButton onPress={() => setShowEpisodeModal(true)}>
             <List color="white" size={24} />
+          </MediaButton>
+
+          <MediaButton onPress={() => setShowSourceModal(true)}>
+            <Tv color="white" size={24} />
           </MediaButton>
         </View>
       </View>

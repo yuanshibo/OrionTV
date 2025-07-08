@@ -1,114 +1,133 @@
-import { useState, useEffect, useRef } from "react";
-import { useTVEventHandler } from "react-native";
+import { useEffect, useRef, useCallback } from "react";
+import { useTVEventHandler, HWEvent } from "react-native";
+import usePlayerStore from "@/stores/playerStore";
 
-interface TVRemoteHandlerProps {
-  showControls: boolean;
-  setShowControls: (show: boolean) => void;
-  showEpisodeModal: boolean;
-  onPlayPause: () => void;
-  onSeek: (forward: boolean) => void;
-  onShowEpisodes: () => void;
-  onPlayNextEpisode: () => void;
-}
+const SEEK_STEP = 20 * 1000; // 快进/快退的时间步长（毫秒）
 
-const focusGraph: Record<string, Record<string, string>> = {
-  skipBack: { right: "playPause" },
-  playPause: { left: "skipBack", right: "nextEpisode" },
-  nextEpisode: { left: "playPause", right: "skipForward" },
-  skipForward: { left: "nextEpisode", right: "episodes" },
-  episodes: { left: "skipForward" },
-};
+// 定时器延迟时间（毫秒）
+const CONTROLS_TIMEOUT = 5000;
 
-export const useTVRemoteHandler = ({
-  showControls,
-  setShowControls,
-  showEpisodeModal,
-  onPlayPause,
-  onSeek,
-  onShowEpisodes,
-  onPlayNextEpisode,
-}: TVRemoteHandlerProps) => {
-  const [currentFocus, setCurrentFocus] = useState<string | null>(null);
+/**
+ * 管理播放器控件的显示/隐藏、遥控器事件和自动隐藏定时器。
+ * @returns onScreenPress - 一个函数，用于处理屏幕点击事件，以显示控件并重置定时器。
+ */
+export const useTVRemoteHandler = () => {
+  const { showControls, setShowControls, showEpisodeModal, togglePlayPause, seek } = usePlayerStore();
+
   const controlsTimer = useRef<NodeJS.Timeout | null>(null);
+  const fastForwardIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const actionMap: Record<string, () => void> = {
-    playPause: onPlayPause,
-    skipBack: () => onSeek(false),
-    skipForward: () => onSeek(true),
-    nextEpisode: onPlayNextEpisode,
-    episodes: onShowEpisodes,
-  };
-
-  // Centralized timer logic driven by state changes.
-  useEffect(() => {
+  // 重置或启动隐藏控件的定时器
+  const resetTimer = useCallback(() => {
+    // 清除之前的定时器
     if (controlsTimer.current) {
       clearTimeout(controlsTimer.current);
     }
+    // 设置新的定时器
+    controlsTimer.current = setTimeout(() => {
+      setShowControls(false);
+    }, CONTROLS_TIMEOUT);
+  }, [setShowControls]);
 
-    // Only set a timer to hide controls if they are shown AND no element is focused.
-    if (showControls && currentFocus === null) {
-      controlsTimer.current = setTimeout(() => {
-        setShowControls(false);
-      }, 5000);
+  // 当控件显示时，启动定时器
+  useEffect(() => {
+    if (showControls) {
+      resetTimer();
+    } else {
+      // 如果控件被隐藏，清除定时器
+      if (controlsTimer.current) {
+        clearTimeout(controlsTimer.current);
+      }
     }
 
+    // 组件卸载时清除定时器
     return () => {
       if (controlsTimer.current) {
         clearTimeout(controlsTimer.current);
       }
     };
-  }, [showControls, currentFocus]);
+  }, [showControls, resetTimer]);
 
-  useTVEventHandler((event) => {
-    if (showEpisodeModal) {
-      return;
-    }
-
-    // If controls are hidden, the first interaction will just show them.
-    if (!showControls) {
-      if (["up", "down", "left", "right", "select"].includes(event.eventType)) {
-        setShowControls(true);
+  // 组件卸载时清除快进定时器
+  useEffect(() => {
+    return () => {
+      if (fastForwardIntervalRef.current) {
+        clearInterval(fastForwardIntervalRef.current);
       }
-      return;
-    }
+    };
+  }, []);
 
-    // --- Event handling when controls are visible ---
+  // 处理遥控器事件
+  const handleTVEvent = useCallback(
+    (event: HWEvent) => {
+      if (showEpisodeModal) {
+        return;
+      }
 
-    if (currentFocus === null) {
-      // When no specific element is focused on the control bar
+      if (event.eventType === "longRight" || event.eventType === "longLeft") {
+        if (event.eventKeyAction === 1) {
+          if (fastForwardIntervalRef.current) {
+            clearInterval(fastForwardIntervalRef.current);
+            fastForwardIntervalRef.current = null;
+          }
+        }
+      }
+
+      resetTimer();
+
+      if (showControls) {
+        // 如果控制条已显示，则不处理后台的快进/快退等操作
+        // 避免与控制条上的按钮焦点冲突
+        return;
+      }
+
       switch (event.eventType) {
-        case "left":
-          onSeek(false);
-          break;
-        case "right":
-          onSeek(true);
-          break;
         case "select":
-          onPlayPause();
+          togglePlayPause();
+          setShowControls(true);
           break;
-        case "down":
-          setCurrentFocus("playPause");
-          break;
-      }
-    } else {
-      // When an element on the control bar is focused
-      switch (event.eventType) {
         case "left":
-        case "right":
-          const nextFocus = focusGraph[currentFocus]?.[event.eventType];
-          if (nextFocus) {
-            setCurrentFocus(nextFocus);
+          seek(-SEEK_STEP); // 快退15秒
+          break;
+        case "longLeft":
+          if (!fastForwardIntervalRef.current && event.eventKeyAction === 0) {
+            fastForwardIntervalRef.current = setInterval(() => {
+              seek(-SEEK_STEP); 
+            }, 200);
           }
           break;
-        case "up":
-          setCurrentFocus(null);
+        case "right":
+          seek(SEEK_STEP);
           break;
-        case "select":
-          actionMap[currentFocus]?.();
+        case "longRight":
+          // 长按开始: 启动连续快进
+          if (!fastForwardIntervalRef.current && event.eventKeyAction === 0) {
+            fastForwardIntervalRef.current = setInterval(() => {
+              seek(SEEK_STEP); 
+            }, 200);
+          }
+          break;
+        case "down":
+          setShowControls(true);
           break;
       }
-    }
-  });
+    },
+    [showControls, showEpisodeModal, setShowControls, resetTimer, togglePlayPause, seek]
+  );
 
-  return { currentFocus, setCurrentFocus };
+  useTVEventHandler(handleTVEvent);
+
+  // 处理屏幕点击事件
+  const onScreenPress = () => {
+    // 切换控件的显示状态
+    const newShowControls = !showControls;
+    setShowControls(newShowControls);
+
+    // 如果控件变为显示状态，则重置定时器
+    if (newShowControls) {
+      resetTimer();
+    }
+  };
+
+  return { onScreenPress };
 };

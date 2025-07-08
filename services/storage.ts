@@ -10,7 +10,10 @@ const STORAGE_KEYS = {
 } as const;
 
 // --- Type Definitions (aligned with api.ts) ---
-export type PlayRecord = ApiPlayRecord;
+export interface PlayRecord extends ApiPlayRecord {
+  introEndTime?: number;
+  outroStartTime?: number;
+}
 
 export interface FavoriteItem {
   id: string;
