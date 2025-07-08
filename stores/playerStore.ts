@@ -188,11 +188,22 @@ const usePlayerStore = create<PlayerState>((set, get) => ({
   },
 
   setIntroEndTime: () => {
-    const { status, detail } = get();
-    if (status?.isLoaded && detail) {
-      const introEndTime = status.positionMillis;
-      set({ introEndTime });
-      get()._savePlayRecord({ introEndTime });
+    const { status, detail, introEndTime: existingIntroEndTime } = get();
+    if (!status?.isLoaded || !detail) return;
+
+    if (existingIntroEndTime) {
+      // Clear the time
+      set({ introEndTime: undefined });
+      get()._savePlayRecord({ introEndTime: undefined });
+      Toast.show({
+        type: "info",
+        text1: "已清除片头时间",
+      });
+    } else {
+      // Set the time
+      const newIntroEndTime = status.positionMillis;
+      set({ introEndTime: newIntroEndTime });
+      get()._savePlayRecord({ introEndTime: newIntroEndTime });
       Toast.show({
         type: "success",
         text1: "设置成功",
@@ -202,11 +213,22 @@ const usePlayerStore = create<PlayerState>((set, get) => ({
   },
 
   setOutroStartTime: () => {
-    const { status, detail } = get();
-    if (status?.isLoaded && detail) {
-      const outroStartTime = status.positionMillis;
-      set({ outroStartTime });
-      get()._savePlayRecord({ outroStartTime });
+    const { status, detail, outroStartTime: existingOutroStartTime } = get();
+    if (!status?.isLoaded || !detail) return;
+
+    if (existingOutroStartTime) {
+      // Clear the time
+      set({ outroStartTime: undefined });
+      get()._savePlayRecord({ outroStartTime: undefined });
+      Toast.show({
+        type: "info",
+        text1: "已清除片尾时间",
+      });
+    } else {
+      // Set the time
+      const newOutroStartTime = status.positionMillis;
+      set({ outroStartTime: newOutroStartTime });
+      get()._savePlayRecord({ outroStartTime: newOutroStartTime });
       Toast.show({
         type: "success",
         text1: "设置成功",
