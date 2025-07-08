@@ -107,7 +107,7 @@ yarn android-tv
 
 #### 使用 demo 地址
 
-在设置中可以使用 demo 地址： https://orion-tv.vercel.app 需要代理且不保证稳定和可用性。
+在设置中可以使用 demo 地址：https://orion-tv.edu.deal 不保证稳定和可用性。
 
 ## 📜 主要脚本
 
