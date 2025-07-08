@@ -67,7 +67,6 @@ export const useTVRemoteHandler = () => {
       if (event.eventType === "longRight" || event.eventType === "longLeft") {
         if (event.eventKeyAction === 1) {
           if (fastForwardIntervalRef.current) {
-            console.log("Long right key released, stopping fast forward.");
             clearInterval(fastForwardIntervalRef.current);
             fastForwardIntervalRef.current = null;
           }
@@ -81,8 +80,6 @@ export const useTVRemoteHandler = () => {
         // 避免与控制条上的按钮焦点冲突
         return;
       }
-
-      console.log("TV Event:", event);
 
       switch (event.eventType) {
         case "select":

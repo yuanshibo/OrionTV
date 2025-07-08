@@ -2,7 +2,17 @@ import React, { useCallback, useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Pressable } from "react-native";
 import { useRouter } from "expo-router";
 import { AVPlaybackStatus } from "expo-av";
-import { ArrowLeft, Pause, Play, SkipForward, List, ChevronsRight, ChevronsLeft, Tv } from "lucide-react-native";
+import {
+  Pause,
+  Play,
+  SkipForward,
+  List,
+  ChevronsRight,
+  ChevronsLeft,
+  Tv,
+  ArrowDownToDot,
+  ArrowUpFromDot,
+} from "lucide-react-native";
 import { ThemedText } from "@/components/ThemedText";
 import { MediaButton } from "@/components/MediaButton";
 
@@ -28,6 +38,10 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
     playEpisode,
     setShowEpisodeModal,
     setShowSourceModal,
+    setIntroEndTime,
+    setOutroStartTime,
+    introEndTime,
+    outroStartTime,
   } = usePlayerStore();
 
   const videoTitle = detail?.videoInfo?.title || "";
@@ -81,8 +95,8 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
         </ThemedText>
 
         <View style={styles.bottomControls}>
-          <MediaButton onPress={() => seek(-15000)}>
-            <ChevronsLeft color="white" size={24} />
+          <MediaButton onPress={setIntroEndTime} timeLabel={introEndTime ? formatTime(introEndTime) : undefined}>
+            <ArrowDownToDot color="white" size={24} />
           </MediaButton>
 
           <MediaButton onPress={togglePlayPause} hasTVPreferredFocus={showControls}>
@@ -97,8 +111,8 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
             <SkipForward color={hasNextEpisode ? "white" : "#666"} size={24} />
           </MediaButton>
 
-          <MediaButton onPress={() => seek(15000)}>
-            <ChevronsRight color="white" size={24} />
+          <MediaButton onPress={setOutroStartTime} timeLabel={outroStartTime ? formatTime(outroStartTime) : undefined}>
+            <ArrowUpFromDot color="white" size={24} />
           </MediaButton>
 
           <MediaButton onPress={() => setShowEpisodeModal(true)}>

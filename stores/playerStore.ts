@@ -1,8 +1,9 @@
 import { create } from "zustand";
+import Toast from "react-native-toast-message";
 import { AVPlaybackStatus, Video } from "expo-av";
 import { RefObject } from "react";
 import { api, VideoDetail as ApiVideoDetail, SearchResult } from "@/services/api";
-import { PlayRecordManager } from "@/services/storage";
+import { PlayRecord, PlayRecordManager } from "@/services/storage";
 
 interface Episode {
   url: string;
@@ -32,6 +33,8 @@ interface PlayerState {
   seekPosition: number;
   progressPosition: number;
   initialPosition: number;
+  introEndTime?: number;
+  outroStartTime?: number;
   setVideoRef: (ref: RefObject<Video>) => void;
   loadVideo: (source: string, id: string, episodeIndex: number, position?: number) => Promise<void>;
   switchSource: (newSourceIndex: number) => Promise<void>;
@@ -44,8 +47,12 @@ interface PlayerState {
   setShowEpisodeModal: (show: boolean) => void;
   setShowSourceModal: (show: boolean) => void;
   setShowNextEpisodeOverlay: (show: boolean) => void;
+  setIntroEndTime: () => void;
+  setOutroStartTime: () => void;
   reset: () => void;
   _seekTimeout?: NodeJS.Timeout;
+  // Internal helper
+  _savePlayRecord: (updates?: Partial<PlayRecord>) => void;
 }
 
 const usePlayerStore = create<PlayerState>((set, get) => ({
@@ -65,6 +72,8 @@ const usePlayerStore = create<PlayerState>((set, get) => ({
   seekPosition: 0,
   progressPosition: 0,
   initialPosition: 0,
+  introEndTime: undefined,
+  outroStartTime: undefined,
   _seekTimeout: undefined,
 
   setVideoRef: (ref) => set({ videoRef: ref }),
@@ -85,6 +94,7 @@ const usePlayerStore = create<PlayerState>((set, get) => ({
       const searchResults = await api.searchVideos(videoDetail.videoInfo.title);
       const sources = searchResults.results.filter((r) => r.title === videoDetail.videoInfo.title);
       const currentSourceIndex = sources.findIndex((s) => s.source === source && s.id.toString() === id);
+      const playRecord = await PlayRecordManager.get(source, id);
 
       set({
         detail: { videoInfo: videoDetail.videoInfo, episodes, sources },
@@ -93,6 +103,8 @@ const usePlayerStore = create<PlayerState>((set, get) => ({
         currentSourceIndex: currentSourceIndex !== -1 ? currentSourceIndex : 0,
         currentEpisodeIndex: episodeIndex,
         isLoading: false,
+        introEndTime: playRecord?.introEndTime,
+        outroStartTime: playRecord?.outroStartTime,
       });
     } catch (error) {
       console.error("Failed to load video details", error);
@@ -175,6 +187,56 @@ const usePlayerStore = create<PlayerState>((set, get) => ({
     set({ _seekTimeout: timeoutId });
   },
 
+  setIntroEndTime: () => {
+    const { status, detail } = get();
+    if (status?.isLoaded && detail) {
+      const introEndTime = status.positionMillis;
+      set({ introEndTime });
+      get()._savePlayRecord({ introEndTime });
+      Toast.show({
+        type: "success",
+        text1: "设置成功",
+        text2: "片头时间已记录。",
+      });
+    }
+  },
+
+  setOutroStartTime: () => {
+    const { status, detail } = get();
+    if (status?.isLoaded && detail) {
+      const outroStartTime = status.positionMillis;
+      set({ outroStartTime });
+      get()._savePlayRecord({ outroStartTime });
+      Toast.show({
+        type: "success",
+        text1: "设置成功",
+        text2: "片尾时间已记录。",
+      });
+    }
+  },
+
+  _savePlayRecord: (updates = {}) => {
+    const { detail, currentEpisodeIndex, episodes, status, introEndTime, outroStartTime } = get();
+    if (detail && status?.isLoaded) {
+      const { videoInfo } = detail;
+      const existingRecord = {
+        introEndTime,
+        outroStartTime,
+      };
+      PlayRecordManager.save(videoInfo.source, videoInfo.id, {
+        title: videoInfo.title,
+        cover: videoInfo.cover || "",
+        index: currentEpisodeIndex,
+        total_episodes: episodes.length,
+        play_time: status.positionMillis,
+        total_time: status.durationMillis || 0,
+        source_name: videoInfo.source_name,
+        ...existingRecord,
+        ...updates,
+      });
+    }
+  },
+
   handlePlaybackStatusUpdate: (newStatus) => {
     if (!newStatus.isLoaded) {
       if (newStatus.error) {
@@ -184,35 +246,34 @@ const usePlayerStore = create<PlayerState>((set, get) => ({
       return;
     }
 
-    const progressPosition = newStatus.durationMillis ? newStatus.positionMillis / newStatus.durationMillis : 0;
-    set({ status: newStatus, progressPosition });
+    const { detail, currentEpisodeIndex, episodes, outroStartTime, playEpisode } = get();
 
-    const { detail, currentEpisodeIndex, episodes } = get();
+    if (outroStartTime && newStatus.positionMillis >= outroStartTime) {
+      if (currentEpisodeIndex < episodes.length - 1) {
+        playEpisode(currentEpisodeIndex + 1);
+        return; // Stop further processing for this update
+      }
+    }
+
     if (detail && newStatus.durationMillis) {
-      const { videoInfo } = detail;
-      PlayRecordManager.save(videoInfo.source, videoInfo.id, {
-        title: videoInfo.title,
-        cover: videoInfo.cover || "",
-        index: currentEpisodeIndex,
-        total_episodes: episodes.length,
-        play_time: newStatus.positionMillis,
-        total_time: newStatus.durationMillis,
-        source_name: videoInfo.source_name,
-      });
+      get()._savePlayRecord();
 
       const isNearEnd = newStatus.positionMillis / newStatus.durationMillis > 0.95;
-      if (isNearEnd && currentEpisodeIndex < episodes.length - 1) {
+      if (isNearEnd && currentEpisodeIndex < episodes.length - 1 && !outroStartTime) {
         set({ showNextEpisodeOverlay: true });
       } else {
         set({ showNextEpisodeOverlay: false });
       }
     }
+
     if (newStatus.didJustFinish) {
-      const { playEpisode, currentEpisodeIndex, episodes } = get();
       if (currentEpisodeIndex < episodes.length - 1) {
         playEpisode(currentEpisodeIndex + 1);
       }
     }
+
+    const progressPosition = newStatus.durationMillis ? newStatus.positionMillis / newStatus.durationMillis : 0;
+    set({ status: newStatus, progressPosition });
   },
 
   setLoading: (loading) => set({ isLoading: loading }),
@@ -235,6 +296,8 @@ const usePlayerStore = create<PlayerState>((set, get) => ({
       showSourceModal: false,
       showNextEpisodeOverlay: false,
       initialPosition: 0,
+      introEndTime: undefined,
+      outroStartTime: undefined,
     });
   },
 }));

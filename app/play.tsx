@@ -34,6 +34,7 @@ export default function PlayScreen() {
     showSourceModal,
     showNextEpisodeOverlay,
     initialPosition,
+    introEndTime,
     setVideoRef,
     loadVideo,
     playEpisode,
@@ -102,8 +103,9 @@ export default function PlayScreen() {
           resizeMode={ResizeMode.CONTAIN}
           onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
           onLoad={() => {
-            if (initialPosition > 0) {
-              videoRef.current?.setPositionAsync(initialPosition);
+            const jumpPosition = introEndTime || initialPosition;
+            if (jumpPosition > 0) {
+              videoRef.current?.setPositionAsync(jumpPosition);
             }
             usePlayerStore.setState({ isLoading: false });
           }}

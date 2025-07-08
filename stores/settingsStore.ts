@@ -14,7 +14,7 @@ interface SettingsState {
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
-  apiBaseUrl: '',
+  apiBaseUrl: 'https://orion-tv.edu.deal',
   isModalVisible: false,
   loadSettings: async () => {
     const settings = await SettingsManager.get();

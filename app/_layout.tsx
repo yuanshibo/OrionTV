@@ -4,6 +4,7 @@ import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
 import { Platform } from "react-native";
+import Toast from "react-native-toast-message";
 
 import { useSettingsStore } from "@/stores/settingsStore";
 
@@ -43,6 +44,7 @@ export default function RootLayout() {
         <Stack.Screen name="search" options={{ headerShown: false }} />
         <Stack.Screen name="+not-found" />
       </Stack>
+      <Toast />
     </ThemeProvider>
   );
 }
