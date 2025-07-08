@@ -8,6 +8,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useColorScheme } from "react-native";
 import { Search, Settings } from "lucide-react-native";
 import { SettingsModal } from "@/components/SettingsModal";
+import { StyledButton } from "@/components/StyledButton";
 import useHomeStore, { RowItem, Category } from "@/stores/homeStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 
@@ -53,16 +54,14 @@ export default function HomeScreen() {
   const renderCategory = ({ item }: { item: Category }) => {
     const isSelected = selectedCategory?.title === item.title;
     return (
-      <Pressable
-        style={({ focused }) => [
-          styles.categoryButton,
-          isSelected && styles.categoryButtonSelected,
-          focused && styles.categoryButtonFocused,
-        ]}
+      <StyledButton
+        text={item.title}
         onPress={() => handleCategorySelect(item)}
-      >
-        <ThemedText style={[styles.categoryText, isSelected && styles.categoryTextSelected]}>{item.title}</ThemedText>
-      </Pressable>
+        isSelected={isSelected}
+        variant="primary"
+        style={styles.categoryButton}
+        textStyle={styles.categoryText}
+      />
     );
   };
 
@@ -97,18 +96,16 @@ export default function HomeScreen() {
       <View style={styles.headerContainer}>
         <ThemedText style={styles.headerTitle}>首页</ThemedText>
         <View style={styles.rightHeaderButtons}>
-          <Pressable
-            style={({ focused }) => [styles.searchButton, focused && styles.searchButtonFocused]}
+          <StyledButton
+            style={styles.searchButton}
             onPress={() => router.push({ pathname: "/search" })}
+            variant="ghost"
           >
             <Search color={colorScheme === "dark" ? "white" : "black"} size={24} />
-          </Pressable>
-          <Pressable
-            style={({ focused }) => [styles.searchButton, focused && styles.searchButtonFocused]}
-            onPress={showSettingsModal}
-          >
+          </StyledButton>
+          <StyledButton style={styles.searchButton} onPress={showSettingsModal} variant="ghost">
             <Settings color={colorScheme === "dark" ? "white" : "black"} size={24} />
-          </Pressable>
+          </StyledButton>
         </View>
       </View>
 
@@ -191,10 +188,6 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     marginLeft: 10,
   },
-  searchButtonFocused: {
-    backgroundColor: "#007AFF",
-    transform: [{ scale: 1.1 }],
-  },
   // Category Selector
   categoryContainer: {
     paddingBottom: 10,
@@ -208,19 +201,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginHorizontal: 5,
   },
-  categoryButtonSelected: {
-    backgroundColor: "#007AFF", // A bright blue for selected state
-  },
-  categoryButtonFocused: {
-    backgroundColor: "#0056b3", // A darker blue for focused state
-    elevation: 5,
-  },
   categoryText: {
     fontSize: 16,
     fontWeight: "500",
-  },
-  categoryTextSelected: {
-    color: "#FFFFFF",
   },
   // Content Grid
   listContent: {

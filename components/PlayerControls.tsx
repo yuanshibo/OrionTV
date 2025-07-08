@@ -88,7 +88,7 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
             )}
           </MediaButton>
 
-          <MediaButton onPress={onPlayNextEpisode} isDisabled={!hasNextEpisode}>
+          <MediaButton onPress={onPlayNextEpisode} disabled={!hasNextEpisode}>
             <SkipForward color={hasNextEpisode ? "white" : "#666"} size={24} />
           </MediaButton>
 

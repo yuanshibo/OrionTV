@@ -1,11 +1,11 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, Image, ScrollView, ActivityIndicator } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ThemedView } from '@/components/ThemedView';
-import { ThemedText } from '@/components/ThemedText';
-import { api, SearchResult } from '@/services/api';
-import { getResolutionFromM3U8 } from '@/services/m3u8';
-import { DetailButton } from '@/components/DetailButton';
+import React, { useEffect, useState, useRef } from "react";
+import { View, Text, StyleSheet, Image, ScrollView, ActivityIndicator } from "react-native";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { ThemedView } from "@/components/ThemedView";
+import { ThemedText } from "@/components/ThemedText";
+import { api, SearchResult } from "@/services/api";
+import { getResolutionFromM3U8 } from "@/services/m3u8";
+import { StyledButton } from "@/components/StyledButton";
 
 export default function DetailScreen() {
   const { source, q } = useLocalSearchParams();
@@ -24,7 +24,7 @@ export default function DetailScreen() {
     controllerRef.current = new AbortController();
     const signal = controllerRef.current.signal;
 
-    if (typeof q === 'string') {
+    if (typeof q === "string") {
       const fetchDetailData = async () => {
         setLoading(true);
         setSearchResults([]);
@@ -35,15 +35,15 @@ export default function DetailScreen() {
         try {
           const resources = await api.getResources(signal);
           if (!resources || resources.length === 0) {
-            setError('没有可用的播放源');
+            setError("没有可用的播放源");
             setLoading(false);
             return;
           }
 
           let foundFirstResult = false;
           // Prioritize source from params if available
-          if (typeof source === 'string') {
-            const index = resources.findIndex(r => r.key === source);
+          if (typeof source === "string") {
+            const index = resources.findIndex((r) => r.key === source);
             if (index > 0) {
               resources.unshift(resources.splice(index, 1)[0]);
             }
@@ -61,14 +61,14 @@ export default function DetailScreen() {
                     resolution = await getResolutionFromM3U8(searchResult.episodes[0], signal);
                   }
                 } catch (e) {
-                  if ((e as Error).name !== 'AbortError') {
+                  if ((e as Error).name !== "AbortError") {
                     console.error(`Failed to get resolution for ${resource.name}`, e);
                   }
                 }
 
                 const resultWithResolution = { ...searchResult, resolution };
 
-                setSearchResults(prev => [...prev, resultWithResolution]);
+                setSearchResults((prev) => [...prev, resultWithResolution]);
 
                 if (!foundFirstResult) {
                   setDetail(resultWithResolution);
@@ -77,19 +77,19 @@ export default function DetailScreen() {
                 }
               }
             } catch (e) {
-              if ((e as Error).name !== 'AbortError') {
+              if ((e as Error).name !== "AbortError") {
                 console.error(`Error searching in resource ${resource.name}:`, e);
               }
             }
           }
 
           if (!foundFirstResult) {
-            setError('未找到播放源');
+            setError("未找到播放源");
             setLoading(false);
           }
         } catch (e) {
-          if ((e as Error).name !== 'AbortError') {
-            setError(e instanceof Error ? e.message : '获取资源列表失败');
+          if ((e as Error).name !== "AbortError") {
+            setError(e instanceof Error ? e.message : "获取资源列表失败");
             setLoading(false);
           }
         } finally {
@@ -108,7 +108,7 @@ export default function DetailScreen() {
     if (!detail) return;
     controllerRef.current?.abort(); // Cancel any ongoing fetches
     router.push({
-      pathname: '/play',
+      pathname: "/play",
       params: {
         source: detail.source,
         id: detail.id.toString(),
@@ -171,26 +171,27 @@ export default function DetailScreen() {
             </View>
             <View style={styles.sourceList}>
               {searchResults.map((item, index) => (
-                <DetailButton
+                <StyledButton
                   key={index}
                   onPress={() => setDetail(item)}
                   hasTVPreferredFocus={index === 0}
-                  style={[styles.sourceButton, detail?.source === item.source && styles.sourceButtonSelected]}
+                  isSelected={detail?.source === item.source}
+                  style={styles.sourceButton}
                 >
                   <ThemedText style={styles.sourceButtonText}>{item.source_name}</ThemedText>
                   {item.episodes.length > 1 && (
                     <View style={styles.badge}>
                       <Text style={styles.badgeText}>
-                        {item.episodes.length > 99 ? '99+' : `${item.episodes.length}`}
+                        {item.episodes.length > 99 ? "99+" : `${item.episodes.length}`}
                       </Text>
                     </View>
                   )}
                   {item.resolution && (
-                    <View style={[styles.badge, { backgroundColor: '#28a745' }]}>
+                    <View style={[styles.badge, { backgroundColor: "#28a745" }]}>
                       <Text style={styles.badgeText}>{item.resolution}</Text>
                     </View>
                   )}
-                </DetailButton>
+                </StyledButton>
               ))}
             </View>
           </View>
@@ -198,9 +199,13 @@ export default function DetailScreen() {
             <ThemedText style={styles.episodesTitle}>播放列表</ThemedText>
             <ScrollView contentContainerStyle={styles.episodeList}>
               {detail.episodes.map((episode, index) => (
-                <DetailButton key={index} style={styles.episodeButton} onPress={() => handlePlay(episode, index)}>
-                  <ThemedText style={styles.episodeButtonText}>{`第 ${index + 1} 集`}</ThemedText>
-                </DetailButton>
+                <StyledButton
+                  key={index}
+                  style={styles.episodeButton}
+                  onPress={() => handlePlay(episode, index)}
+                  text={`第 ${index + 1} 集`}
+                  textStyle={styles.episodeButtonText}
+                />
               ))}
             </ScrollView>
           </View>
@@ -212,9 +217,9 @@ export default function DetailScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  centered: { flex: 1, justifyContent: "center", alignItems: "center" },
   topContainer: {
-    flexDirection: 'row',
+    flexDirection: "row",
     padding: 20,
   },
   poster: {
@@ -225,20 +230,20 @@ const styles = StyleSheet.create({
   infoContainer: {
     flex: 1,
     marginLeft: 20,
-    justifyContent: 'flex-start',
+    justifyContent: "flex-start",
   },
   title: {
     fontSize: 28,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginBottom: 10,
     paddingTop: 20,
   },
   metaContainer: {
-    flexDirection: 'row',
+    flexDirection: "row",
     marginBottom: 10,
   },
   metaText: {
-    color: '#aaa',
+    color: "#aaa",
     marginRight: 10,
     fontSize: 14,
   },
@@ -247,7 +252,7 @@ const styles = StyleSheet.create({
   },
   description: {
     fontSize: 14,
-    color: '#ccc',
+    color: "#ccc",
     lineHeight: 22,
   },
   bottomContainer: {
@@ -257,70 +262,53 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   sourcesTitleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 10,
   },
   sourcesTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   sourceList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
   },
   sourceButton: {
-    backgroundColor: '#333',
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-    borderRadius: 8,
     margin: 5,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  sourceButtonSelected: {
-    backgroundColor: '#007bff',
   },
   sourceButtonText: {
-    color: 'white',
+    color: "white",
     fontSize: 16,
   },
   badge: {
-    backgroundColor: 'red',
+    backgroundColor: "red",
     borderRadius: 10,
     paddingHorizontal: 6,
     paddingVertical: 2,
     marginLeft: 8,
   },
   badgeText: {
-    color: 'white',
+    color: "white",
     fontSize: 12,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   episodesContainer: {
     marginTop: 20,
   },
   episodesTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginBottom: 10,
   },
   episodeList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
   },
   episodeButton: {
-    backgroundColor: '#333',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
     margin: 5,
-    borderWidth: 2,
-    borderColor: 'transparent',
   },
   episodeButtonText: {
-    color: 'white',
+    color: "white",
   },
 });
