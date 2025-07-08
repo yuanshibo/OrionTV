@@ -34,7 +34,7 @@ export const StyledButton: React.FC<StyledButtonProps> = ({
   const colorScheme = useColorScheme() ?? "dark";
   const colors = Colors[colorScheme];
   const [isFocused, setIsFocused] = React.useState(false);
-  const animationStyle = useButtonAnimation(isSelected, isFocused);
+  const animationStyle = useButtonAnimation(isFocused);
 
   const variantStyles = {
     default: StyleSheet.create({
