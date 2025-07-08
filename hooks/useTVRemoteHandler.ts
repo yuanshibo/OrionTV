@@ -73,6 +73,9 @@ export const useTVRemoteHandler = () => {
           case "longRight":
             seek(60000); // 快进60秒
             break;
+          case "down":
+            setShowControls(true);
+            break;
         }
       }
     },

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from "react";
-import { View, StyleSheet, TouchableOpacity, ActivityIndicator } from "react-native";
-import { useLocalSearchParams } from "expo-router";
+import { View, StyleSheet, TouchableOpacity, ActivityIndicator, BackHandler } from "react-native";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { Video, ResizeMode } from "expo-av";
 import { useKeepAwake } from "expo-keep-awake";
 import { ThemedView } from "@/components/ThemedView";
@@ -14,6 +14,7 @@ import { useTVRemoteHandler } from "@/hooks/useTVRemoteHandler";
 
 export default function PlayScreen() {
   const videoRef = useRef<Video>(null);
+  const router = useRouter();
   useKeepAwake();
   const { source, id, episodeIndex, position } = useLocalSearchParams<{
     source: string;
@@ -54,6 +55,21 @@ export default function PlayScreen() {
   }, [source, id, episodeIndex, position, setVideoRef, loadVideo, reset]);
 
   const { onScreenPress } = useTVRemoteHandler();
+
+  useEffect(() => {
+    const backAction = () => {
+      if (showControls) {
+        setShowControls(false);
+        return true;
+      }
+      router.back();
+      return true;
+    };
+
+    const backHandler = BackHandler.addEventListener("hardwareBackPress", backAction);
+
+    return () => backHandler.remove();
+  }, [showControls, showEpisodeModal, setShowControls, setShowEpisodeModal, router]);
 
   if (!detail && isLoading) {
     return (
