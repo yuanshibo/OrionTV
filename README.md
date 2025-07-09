@@ -109,6 +109,10 @@ yarn android-tv
 
 在设置中可以使用 demo 地址：https://orion-tv.edu.deal 不保证稳定和可用性。
 
+## 其他
+ - 最低版本是android 7，可用，但是不推荐
+ - 如果使用https的后端接口无法访问，在确认服务没有问题的情况下，请检查https的TLS协议，Android 10 之后版本才支持 TLS1.3
+
 ## 📜 主要脚本
 
 - `yarn start`: 在手机模式下启动 Metro Bundler。
