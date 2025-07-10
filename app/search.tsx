@@ -1,11 +1,22 @@
 import React, { useState, useRef, useEffect } from "react";
-import { View, TextInput, StyleSheet, FlatList, ActivityIndicator, Text, Keyboard } from "react-native";
+import {
+  View,
+  TextInput,
+  StyleSheet,
+  FlatList,
+  ActivityIndicator,
+  Text,
+  Keyboard,
+  PermissionsAndroid,
+  Platform,
+} from "react-native";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
 import VideoCard from "@/components/VideoCard.tv";
 import { api, SearchResult } from "@/services/api";
-import { Search } from "lucide-react-native";
+import { Search, Mic } from "lucide-react-native";
 import { StyledButton } from "@/components/StyledButton";
+import Voice from "@react-native-voice/voice";
 
 export default function SearchScreen() {
   const [keyword, setKeyword] = useState("");
@@ -15,6 +26,32 @@ export default function SearchScreen() {
   const textInputRef = useRef<TextInput>(null);
   const colorScheme = "dark"; // Replace with useColorScheme() if needed
   const [isInputFocused, setIsInputFocused] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+
+  const onSpeechResults = (e: any) => {
+    if (e.value && e.value.length > 0) {
+      setKeyword(e.value[0]);
+    }
+  };
+
+  const onSpeechEnd = () => {
+    setIsListening(false);
+  };
+
+  const onSpeechError = (e: any) => {
+    console.error(e);
+    setIsListening(false);
+  };
+
+  useEffect(() => {
+    Voice.onSpeechResults = onSpeechResults;
+    Voice.onSpeechEnd = onSpeechEnd;
+    Voice.onSpeechError = onSpeechError;
+
+    return () => {
+      Voice.destroy().then(Voice.removeAllListeners);
+    };
+  }, []);
 
   useEffect(() => {
     // Focus the text input when the screen loads
@@ -23,6 +60,54 @@ export default function SearchScreen() {
     }, 200);
     return () => clearTimeout(timer);
   }, []);
+
+  const startListening = async () => {
+    if (Platform.OS === "android") {
+      const hasPermission = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
+      if (!hasPermission) {
+        try {
+          const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO, {
+            title: "Microphone Permission",
+            message: "App needs access to your microphone to enable voice search.",
+            buttonNeutral: "Ask Me Later",
+            buttonNegative: "Cancel",
+            buttonPositive: "OK",
+          });
+          if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+            console.log("Microphone permission denied");
+            return;
+          }
+        } catch (err) {
+          console.warn(err);
+          return;
+        }
+      }
+    }
+
+    try {
+      await Voice.start("zh-CN");
+      setIsListening(true);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const stopListening = async () => {
+    try {
+      await Voice.stop();
+      setIsListening(false);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleVoiceSearch = () => {
+    if (isListening) {
+      stopListening();
+    } else {
+      startListening();
+    }
+  };
 
   const handleSearch = async () => {
     if (!keyword.trim()) {
@@ -81,6 +166,9 @@ export default function SearchScreen() {
           onSubmitEditing={handleSearch} // Allow searching with remote 'enter' button
           returnKeyType="search"
         />
+        <StyledButton style={styles.searchButton} onPress={handleVoiceSearch}>
+          <Mic size={24} color={isListening ? "#007bff" : colorScheme === "dark" ? "white" : "black"} />
+        </StyledButton>
         <StyledButton style={styles.searchButton} onPress={handleSearch}>
           <Search size={24} color={colorScheme === "dark" ? "white" : "black"} />
         </StyledButton>
