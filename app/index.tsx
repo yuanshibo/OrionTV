@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useRef } from "react";
+import React, { useEffect, useCallback, useRef, useState } from "react";
 import { View, StyleSheet, ActivityIndicator, FlatList, Pressable, Dimensions } from "react-native";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
@@ -19,6 +19,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const colorScheme = "dark";
   const flatListRef = useRef<FlatList>(null);
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
 
   const {
     categories,
@@ -42,12 +43,36 @@ export default function HomeScreen() {
   );
 
   useEffect(() => {
-    fetchInitialData();
-    flatListRef.current?.scrollToOffset({ animated: false, offset: 0 });
+    if (selectedCategory && !selectedCategory.tags) {
+      fetchInitialData();
+      flatListRef.current?.scrollToOffset({ animated: false, offset: 0 });
+    } else if (selectedCategory?.tags && !selectedCategory.tag) {
+      // Category with tags selected, but no specific tag yet. Select the first one.
+      const defaultTag = selectedCategory.tags[0];
+      setSelectedTag(defaultTag);
+      selectCategory({ ...selectedCategory, tag: defaultTag });
+    }
   }, [selectedCategory, fetchInitialData]);
 
+  useEffect(() => {
+    if (selectedCategory && selectedCategory.tag) {
+      fetchInitialData();
+      flatListRef.current?.scrollToOffset({ animated: false, offset: 0 });
+    }
+  }, [selectedCategory?.tag]);
+
   const handleCategorySelect = (category: Category) => {
+    setSelectedTag(null);
     selectCategory(category);
+  };
+
+  const handleTagSelect = (tag: string) => {
+    setSelectedTag(tag);
+    if (selectedCategory) {
+      // Create a new category object with the selected tag
+      const categoryWithTag = { ...selectedCategory, tag: tag };
+      selectCategory(categoryWithTag);
+    }
   };
 
   const renderCategory = ({ item }: { item: Category }) => {
@@ -119,6 +144,33 @@ export default function HomeScreen() {
         />
       </View>
 
+      {/* Sub-category Tags */}
+      {selectedCategory && selectedCategory.tags && (
+        <View style={styles.categoryContainer}>
+          <FlatList
+            data={selectedCategory.tags}
+            renderItem={({ item, index }) => {
+              const isSelected = selectedTag === item;
+              return (
+                <StyledButton
+                  hasTVPreferredFocus={index === 0} // Focus the first tag by default
+                  text={item}
+                  onPress={() => handleTagSelect(item)}
+                  isSelected={isSelected}
+                  style={styles.categoryButton}
+                  textStyle={styles.categoryText}
+                  variant="ghost"
+                />
+              );
+            }}
+            keyExtractor={(item) => item}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.categoryListContent}
+          />
+        </View>
+      )}
+
       {/* 内容网格 */}
       {loading ? (
         <View style={styles.centerContainer}>
@@ -143,7 +195,7 @@ export default function HomeScreen() {
           ListFooterComponent={renderFooter}
           ListEmptyComponent={
             <View style={styles.centerContainer}>
-              <ThemedText>该分类下暂无内容</ThemedText>
+              <ThemedText>{selectedCategory?.tags ? "请选择一个子分类" : "该分类下暂无内容"}</ThemedText>
             </View>
           }
         />

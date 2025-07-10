@@ -21,19 +21,16 @@ export interface Category {
   title: string;
   type?: 'movie' | 'tv' | 'record';
   tag?: string;
+  tags?: string[];
 }
 
 const initialCategories: Category[] = [
   { title: '最近播放', type: 'record' },
   { title: '热门剧集', type: 'tv', tag: '热门' },
+  { title: '电视剧', type: 'tv', tags: [ '国产剧', '美剧', '英剧', '韩剧', '日剧', '港剧', '日本动画', '动画'] },
+  { title: '电影', type: 'movie', tags: ['热门', '最新', '经典', '豆瓣高分', '冷门佳片', '华语', '欧美', '韩国', '日本', '动作', '喜剧', '爱情', '科幻', '悬疑', '恐怖'] },
   { title: '综艺', type: 'tv', tag: '综艺' },
-  { title: '热门电影', type: 'movie', tag: '热门' },
   { title: '豆瓣 Top250', type: 'movie', tag: 'top250' },
-  { title: '儿童', type: 'movie', tag: '少儿' },
-  { title: '美剧', type: 'tv', tag: '美剧' },
-  { title: '韩剧', type: 'tv', tag: '韩剧' },
-  { title: '日剧', type: 'tv', tag: '日剧' },
-  { title: '日漫', type: 'tv', tag: '日本动画' },
 ];
 
 interface HomeState {
@@ -102,6 +99,9 @@ const useHomeStore = create<HomeState>((set, get) => ({
             hasMore: true,
           }));
         }
+      } else if (selectedCategory.tags) {
+        // It's a container category, do not load content, but clear current content
+        set({ contentData: [], hasMore: false });
       } else {
         set({ hasMore: false });
       }
@@ -117,8 +117,12 @@ const useHomeStore = create<HomeState>((set, get) => ({
   },
 
   selectCategory: (category: Category) => {
-    set({ selectedCategory: category });
-    get().fetchInitialData();
+    const currentCategory = get().selectedCategory;
+    // Only fetch new data if the category or tag actually changes
+    if (currentCategory.title !== category.title || currentCategory.tag !== category.tag) {
+      set({ selectedCategory: category, contentData: [], pageStart: 0, hasMore: true, error: null });
+      get().fetchInitialData();
+    }
   },
 
   refreshPlayRecords: async () => {
