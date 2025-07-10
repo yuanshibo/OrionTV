@@ -117,7 +117,14 @@ export default function HomeScreen() {
     <ThemedView style={styles.container}>
       {/* 顶部导航 */}
       <View style={styles.headerContainer}>
-        <ThemedText style={styles.headerTitle}>首页</ThemedText>
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
+          <ThemedText style={styles.headerTitle}>首页</ThemedText>
+          <Pressable style={{ marginLeft: 20 }} onPress={() => router.push("/live")}>
+            {({ focused }) => (
+              <ThemedText style={[styles.headerTitle, { color: focused ? "white" : "grey" }]}>直播</ThemedText>
+            )}
+          </Pressable>
+        </View>
         <View style={styles.rightHeaderButtons}>
           <StyledButton
             style={styles.searchButton}

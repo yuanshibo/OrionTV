@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   View,
   TextInput,
@@ -28,20 +28,20 @@ export default function SearchScreen() {
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [isListening, setIsListening] = useState(false);
 
-  const onSpeechResults = (e: any) => {
+  const onSpeechResults = useCallback((e: any) => {
     if (e.value && e.value.length > 0) {
       setKeyword(e.value[0]);
     }
-  };
+  }, []);
 
-  const onSpeechEnd = () => {
+  const onSpeechEnd = useCallback(() => {
     setIsListening(false);
-  };
+  }, []);
 
-  const onSpeechError = (e: any) => {
+  const onSpeechError = useCallback((e: any) => {
     console.error(e);
     setIsListening(false);
-  };
+  }, []);
 
   useEffect(() => {
     Voice.onSpeechResults = onSpeechResults;
@@ -49,9 +49,9 @@ export default function SearchScreen() {
     Voice.onSpeechError = onSpeechError;
 
     return () => {
-      Voice.destroy().then(Voice.removeAllListeners);
+      Voice.destroy().then(() => Voice.removeAllListeners());
     };
-  }, []);
+  }, [onSpeechResults, onSpeechEnd, onSpeechError]);
 
   useEffect(() => {
     // Focus the text input when the screen loads
