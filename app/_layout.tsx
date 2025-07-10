@@ -7,6 +7,8 @@ import { Platform } from "react-native";
 import Toast from "react-native-toast-message";
 
 import { useSettingsStore } from "@/stores/settingsStore";
+import { useRemoteControlStore } from "@/stores/remoteControlStore";
+import { remoteControlService } from "@/services/remoteControlService";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -30,6 +32,23 @@ export default function RootLayout() {
       }
     }
   }, [loaded, error]);
+
+  useEffect(() => {
+    // Initialize the service with store actions to break require cycle
+    const { setMessage, hideModal } = useRemoteControlStore.getState();
+    remoteControlService.init({
+      onMessage: setMessage,
+      onHandshake: hideModal,
+    });
+
+    // Start the remote control server on app launch
+    useRemoteControlStore.getState().startServer();
+
+    return () => {
+      // Stop the server on app close
+      useRemoteControlStore.getState().stopServer();
+    };
+  }, []);
 
   if (!loaded && !error) {
     return null;

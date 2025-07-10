@@ -6,7 +6,7 @@ import { ThemedView } from "@/components/ThemedView";
 import { StyledButton } from "@/components/StyledButton";
 import { AVPlaybackStatus } from "expo-av";
 
-const M3U_URL = "https://raw.githubusercontent.com/fanmingming/live/refs/heads/main/tv/m3u/ipv6.m3u";
+const M3U_URL = "https://raw.githubusercontent.com/sjnhnp/adblock/refs/heads/main/filtered_http_only_valid.m3u";
 
 export default function LiveScreen() {
   const [channels, setChannels] = useState<Channel[]>([]);

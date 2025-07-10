@@ -4,8 +4,10 @@ import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
 import VideoCard from "@/components/VideoCard.tv";
 import { api, SearchResult } from "@/services/api";
-import { Search } from "lucide-react-native";
+import { Search, QrCode } from "lucide-react-native";
 import { StyledButton } from "@/components/StyledButton";
+import { useRemoteControlStore } from "@/stores/remoteControlStore";
+import { RemoteControlModal } from "@/components/RemoteControlModal";
 
 export default function SearchScreen() {
   const [keyword, setKeyword] = useState("");
@@ -15,6 +17,15 @@ export default function SearchScreen() {
   const textInputRef = useRef<TextInput>(null);
   const colorScheme = "dark"; // Replace with useColorScheme() if needed
   const [isInputFocused, setIsInputFocused] = useState(false);
+  const { showModal: showRemoteModal, lastMessage } = useRemoteControlStore();
+
+  useEffect(() => {
+    if (lastMessage) {
+      const realMessage = lastMessage.split("_")[0];
+      setKeyword(realMessage);
+      handleSearch(realMessage);
+    }
+  }, [lastMessage]);
 
   useEffect(() => {
     // Focus the text input when the screen loads
@@ -24,8 +35,9 @@ export default function SearchScreen() {
     return () => clearTimeout(timer);
   }, []);
 
-  const handleSearch = async () => {
-    if (!keyword.trim()) {
+  const handleSearch = async (searchText?: string) => {
+    const term = typeof searchText === "string" ? searchText : keyword;
+    if (!term.trim()) {
       Keyboard.dismiss();
       return;
     }
@@ -33,7 +45,7 @@ export default function SearchScreen() {
     setLoading(true);
     setError(null);
     try {
-      const response = await api.searchVideos(keyword);
+      const response = await api.searchVideos(term);
       if (response.results.length > 0) {
         setResults(response.results);
       } else {
@@ -46,6 +58,8 @@ export default function SearchScreen() {
       setLoading(false);
     }
   };
+
+  const onSearchPress = () => handleSearch();
 
   const renderItem = ({ item }: { item: SearchResult }) => (
     <VideoCard
@@ -78,11 +92,14 @@ export default function SearchScreen() {
           onChangeText={setKeyword}
           onFocus={() => setIsInputFocused(true)}
           onBlur={() => setIsInputFocused(false)}
-          onSubmitEditing={handleSearch} // Allow searching with remote 'enter' button
+          onSubmitEditing={onSearchPress}
           returnKeyType="search"
         />
-        <StyledButton style={styles.searchButton} onPress={handleSearch}>
+        <StyledButton style={styles.searchButton} onPress={onSearchPress}>
           <Search size={24} color={colorScheme === "dark" ? "white" : "black"} />
+        </StyledButton>
+        <StyledButton style={styles.qrButton} onPress={showRemoteModal}>
+          <QrCode size={24} color={colorScheme === "dark" ? "white" : "black"} />
         </StyledButton>
       </View>
 
@@ -108,6 +125,7 @@ export default function SearchScreen() {
           }
         />
       )}
+      <RemoteControlModal />
     </ThemedView>
   );
 }
@@ -139,6 +157,11 @@ const styles = StyleSheet.create({
     padding: 12,
     // backgroundColor is now set dynamically
     borderRadius: 8,
+  },
+  qrButton: {
+    padding: 12,
+    borderRadius: 8,
+    marginLeft: 10,
   },
   centerContainer: {
     flex: 1,
