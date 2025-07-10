@@ -16,7 +16,6 @@ export default function LiveScreen() {
 
   const [currentChannelIndex, setCurrentChannelIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
-  const [isPlayerLoading, setIsPlayerLoading] = useState(true);
   const [isChannelListVisible, setIsChannelListVisible] = useState(false);
   const [channelTitle, setChannelTitle] = useState<string | null>(null);
   const titleTimer = useRef<NodeJS.Timeout | null>(null);
@@ -50,14 +49,6 @@ export default function LiveScreen() {
     };
     loadChannels();
   }, []);
-
-  const handlePlaybackStatusUpdate = (status: AVPlaybackStatus) => {
-    if (status.isLoaded) {
-      setIsPlayerLoading(!status.isPlaying && !status.isBuffering);
-    } else {
-      setIsPlayerLoading(true);
-    }
-  };
 
   const showChannelTitle = (title: string) => {
     setChannelTitle(title);
@@ -98,16 +89,7 @@ export default function LiveScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <LivePlayer
-        streamUrl={selectedChannelUrl}
-        channelTitle={channelTitle}
-        onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
-      />
-      {isPlayerLoading && (
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#fff" />
-        </View>
-      )}
+      <LivePlayer streamUrl={selectedChannelUrl} channelTitle={channelTitle} onPlaybackStatusUpdate={() => {}} />
       <Modal
         animationType="slide"
         transparent={true}

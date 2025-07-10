@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { View, StyleSheet, Text, ActivityIndicator } from "react-native";
 import { Video, ResizeMode, AVPlaybackStatus } from "expo-av";
 
@@ -8,13 +8,73 @@ interface LivePlayerProps {
   onPlaybackStatusUpdate: (status: AVPlaybackStatus) => void;
 }
 
+const PLAYBACK_TIMEOUT = 15000; // 15 seconds
+
 export default function LivePlayer({ streamUrl, channelTitle, onPlaybackStatusUpdate }: LivePlayerProps) {
   const video = useRef<Video>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isTimeout, setIsTimeout] = useState(false);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+
+    if (streamUrl) {
+      setIsLoading(true);
+      setIsTimeout(false);
+      timeoutRef.current = setTimeout(() => {
+        setIsTimeout(true);
+        setIsLoading(false);
+      }, PLAYBACK_TIMEOUT);
+    } else {
+      setIsLoading(false);
+      setIsTimeout(false);
+    }
+
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, [streamUrl]);
+
+  const handlePlaybackStatusUpdate = (status: AVPlaybackStatus) => {
+    if (status.isLoaded) {
+      if (status.isPlaying) {
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+        }
+        setIsLoading(false);
+        setIsTimeout(false);
+      } else if (status.isBuffering) {
+        setIsLoading(true);
+      }
+    } else {
+      if (status.error) {
+        setIsLoading(false);
+        setIsTimeout(true);
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+        }
+      }
+    }
+    onPlaybackStatusUpdate(status);
+  };
 
   if (!streamUrl) {
     return (
       <View style={styles.container}>
-        <Text>Select a channel to play.</Text>
+        <Text style={styles.messageText}>Select a channel to play.</Text>
+      </View>
+    );
+  }
+
+  if (isTimeout) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.messageText}>Failed to load stream. It might be offline or unavailable.</Text>
       </View>
     );
   }
@@ -29,9 +89,19 @@ export default function LivePlayer({ streamUrl, channelTitle, onPlaybackStatusUp
         }}
         resizeMode={ResizeMode.CONTAIN}
         shouldPlay
-        onPlaybackStatusUpdate={onPlaybackStatusUpdate}
+        onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
+        onError={(e) => {
+          setIsTimeout(true);
+          setIsLoading(false);
+        }}
       />
-      {channelTitle && (
+      {isLoading && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color="#fff" />
+          <Text style={styles.messageText}>Loading...</Text>
+        </View>
+      )}
+      {channelTitle && !isLoading && !isTimeout && (
         <View style={styles.overlay}>
           <Text style={styles.title}>{channelTitle}</Text>
         </View>
@@ -62,5 +132,16 @@ const styles = StyleSheet.create({
   title: {
     color: "#fff",
     fontSize: 18,
+  },
+  messageText: {
+    color: "#fff",
+    fontSize: 16,
+    marginTop: 10,
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
   },
 });
