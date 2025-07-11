@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find:*)",
+      "Bash(rm:*)",
+      "Bash(yarn install)",
+      "Bash(yarn lint)",
+      "Bash(yarn prebuild-tv:*)",
+      "Bash(mkdir:*)",
+      "Bash(yarn lint:*)"
+    ],
+    "deny": []
+  }
+}

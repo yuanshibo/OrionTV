@@ -25,10 +25,15 @@ export interface FavoriteItem {
 }
 
 export interface AppSettings {
-  theme: "light" | "dark" | "auto";
-  autoPlay: boolean;
-  playbackSpeed: number;
   apiBaseUrl: string;
+  remoteInputEnabled: boolean;
+  videoSource: {
+    enabledAll: boolean;
+    sources: {
+      [key: string]: boolean;
+    };
+  },
+  m3uUrl: string;
 }
 
 // --- Helper ---
@@ -178,10 +183,13 @@ export class SearchHistoryManager {
 export class SettingsManager {
   static async get(): Promise<AppSettings> {
     const defaultSettings: AppSettings = {
-      theme: "auto",
-      autoPlay: true,
-      playbackSpeed: 1.0,
       apiBaseUrl: "",
+      remoteInputEnabled: true,
+      videoSource: {
+        enabledAll: true,
+        sources: {},
+      },
+      m3uUrl: "https://ghfast.top/https://raw.githubusercontent.com/sjnhnp/adblock/refs/heads/main/filtered_http_only_valid.m3u",
     };
     try {
       const data = await AsyncStorage.getItem(STORAGE_KEYS.SETTINGS);

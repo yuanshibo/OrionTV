@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react";
-import { View, StyleSheet, TouchableOpacity, ActivityIndicator, BackHandler } from "react-native";
+import { StyleSheet, TouchableOpacity, ActivityIndicator, BackHandler } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Video, ResizeMode } from "expo-av";
 import { useKeepAwake } from "expo-keep-awake";
@@ -37,9 +37,6 @@ export default function PlayScreen() {
     introEndTime,
     setVideoRef,
     loadVideo,
-    playEpisode,
-    togglePlayPause,
-    seek,
     handlePlaybackStatusUpdate,
     setShowControls,
     setShowEpisodeModal,
@@ -100,6 +97,8 @@ export default function PlayScreen() {
           ref={videoRef}
           style={styles.videoPlayer}
           source={{ uri: currentEpisode?.url }}
+          usePoster
+          posterSource={{ uri: detail?.videoInfo.cover ?? "" }}
           resizeMode={ResizeMode.CONTAIN}
           onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
           onLoad={() => {

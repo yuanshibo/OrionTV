@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useRef } from "react";
+import React, { useEffect, useCallback, useRef, useState } from "react";
 import { View, StyleSheet, ActivityIndicator, FlatList, Pressable, Dimensions } from "react-native";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
@@ -6,10 +6,8 @@ import { api } from "@/services/api";
 import VideoCard from "@/components/VideoCard.tv";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Search, Settings } from "lucide-react-native";
-import { SettingsModal } from "@/components/SettingsModal";
 import { StyledButton } from "@/components/StyledButton";
 import useHomeStore, { RowItem, Category } from "@/stores/homeStore";
-import { useSettingsStore } from "@/stores/settingsStore";
 
 const NUM_COLUMNS = 5;
 const { width } = Dimensions.get("window");
@@ -19,6 +17,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const colorScheme = "dark";
   const flatListRef = useRef<FlatList>(null);
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
 
   const {
     categories,
@@ -33,8 +32,6 @@ export default function HomeScreen() {
     refreshPlayRecords,
   } = useHomeStore();
 
-  const showSettingsModal = useSettingsStore((state) => state.showModal);
-
   useFocusEffect(
     useCallback(() => {
       refreshPlayRecords();
@@ -42,12 +39,36 @@ export default function HomeScreen() {
   );
 
   useEffect(() => {
-    fetchInitialData();
-    flatListRef.current?.scrollToOffset({ animated: false, offset: 0 });
-  }, [selectedCategory, fetchInitialData]);
+    if (selectedCategory && !selectedCategory.tags) {
+      fetchInitialData();
+      flatListRef.current?.scrollToOffset({ animated: false, offset: 0 });
+    } else if (selectedCategory?.tags && !selectedCategory.tag) {
+      // Category with tags selected, but no specific tag yet. Select the first one.
+      const defaultTag = selectedCategory.tags[0];
+      setSelectedTag(defaultTag);
+      selectCategory({ ...selectedCategory, tag: defaultTag });
+    }
+  }, [selectedCategory, fetchInitialData, selectCategory]);
+
+  useEffect(() => {
+    if (selectedCategory && selectedCategory.tag) {
+      fetchInitialData();
+      flatListRef.current?.scrollToOffset({ animated: false, offset: 0 });
+    }
+  }, [fetchInitialData, selectedCategory, selectedCategory.tag]);
 
   const handleCategorySelect = (category: Category) => {
+    setSelectedTag(null);
     selectCategory(category);
+  };
+
+  const handleTagSelect = (tag: string) => {
+    setSelectedTag(tag);
+    if (selectedCategory) {
+      // Create a new category object with the selected tag
+      const categoryWithTag = { ...selectedCategory, tag: tag };
+      selectCategory(categoryWithTag);
+    }
   };
 
   const renderCategory = ({ item }: { item: Category }) => {
@@ -92,7 +113,14 @@ export default function HomeScreen() {
     <ThemedView style={styles.container}>
       {/* 顶部导航 */}
       <View style={styles.headerContainer}>
-        <ThemedText style={styles.headerTitle}>首页</ThemedText>
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
+          <ThemedText style={styles.headerTitle}>首页</ThemedText>
+          <Pressable style={{ marginLeft: 20 }} onPress={() => router.push("/live")}>
+            {({ focused }) => (
+              <ThemedText style={[styles.headerTitle, { color: focused ? "white" : "grey" }]}>直播</ThemedText>
+            )}
+          </Pressable>
+        </View>
         <View style={styles.rightHeaderButtons}>
           <StyledButton
             style={styles.searchButton}
@@ -101,7 +129,7 @@ export default function HomeScreen() {
           >
             <Search color={colorScheme === "dark" ? "white" : "black"} size={24} />
           </StyledButton>
-          <StyledButton style={styles.searchButton} onPress={showSettingsModal} variant="ghost">
+          <StyledButton style={styles.searchButton} onPress={() => router.push("/settings")} variant="ghost">
             <Settings color={colorScheme === "dark" ? "white" : "black"} size={24} />
           </StyledButton>
         </View>
@@ -118,6 +146,33 @@ export default function HomeScreen() {
           contentContainerStyle={styles.categoryListContent}
         />
       </View>
+
+      {/* Sub-category Tags */}
+      {selectedCategory && selectedCategory.tags && (
+        <View style={styles.categoryContainer}>
+          <FlatList
+            data={selectedCategory.tags}
+            renderItem={({ item, index }) => {
+              const isSelected = selectedTag === item;
+              return (
+                <StyledButton
+                  hasTVPreferredFocus={index === 0} // Focus the first tag by default
+                  text={item}
+                  onPress={() => handleTagSelect(item)}
+                  isSelected={isSelected}
+                  style={styles.categoryButton}
+                  textStyle={styles.categoryText}
+                  variant="ghost"
+                />
+              );
+            }}
+            keyExtractor={(item) => item}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.categoryListContent}
+          />
+        </View>
+      )}
 
       {/* 内容网格 */}
       {loading ? (
@@ -143,12 +198,11 @@ export default function HomeScreen() {
           ListFooterComponent={renderFooter}
           ListEmptyComponent={
             <View style={styles.centerContainer}>
-              <ThemedText>该分类下暂无内容</ThemedText>
+              <ThemedText>{selectedCategory?.tags ? "请选择一个子分类" : "该分类下暂无内容"}</ThemedText>
             </View>
           }
         />
       )}
-      <SettingsModal />
     </ThemedView>
   );
 }

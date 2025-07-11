@@ -1,18 +1,6 @@
-import React, { useCallback, useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Pressable } from "react-native";
-import { useRouter } from "expo-router";
-import { AVPlaybackStatus } from "expo-av";
-import {
-  Pause,
-  Play,
-  SkipForward,
-  List,
-  ChevronsRight,
-  ChevronsLeft,
-  Tv,
-  ArrowDownToDot,
-  ArrowUpFromDot,
-} from "lucide-react-native";
+import React from "react";
+import { View, Text, StyleSheet, Pressable } from "react-native";
+import { Pause, Play, SkipForward, List, Tv, ArrowDownToDot, ArrowUpFromDot } from "lucide-react-native";
 import { ThemedText } from "@/components/ThemedText";
 import { MediaButton } from "@/components/MediaButton";
 
@@ -24,7 +12,6 @@ interface PlayerControlsProps {
 }
 
 export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, setShowControls }) => {
-  const router = useRouter();
   const {
     detail,
     currentEpisodeIndex,
@@ -33,7 +20,6 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
     isSeeking,
     seekPosition,
     progressPosition,
-    seek,
     togglePlayPause,
     playEpisode,
     setShowEpisodeModal,

@@ -1,11 +1,15 @@
 import React, { useState, useRef, useEffect } from "react";
-import { View, TextInput, StyleSheet, FlatList, ActivityIndicator, Text, Keyboard } from "react-native";
+import { View, TextInput, StyleSheet, FlatList, ActivityIndicator, Alert, Keyboard } from "react-native";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
 import VideoCard from "@/components/VideoCard.tv";
 import { api, SearchResult } from "@/services/api";
-import { Search } from "lucide-react-native";
+import { Search, QrCode } from "lucide-react-native";
 import { StyledButton } from "@/components/StyledButton";
+import { useRemoteControlStore } from "@/stores/remoteControlStore";
+import { RemoteControlModal } from "@/components/RemoteControlModal";
+import { useSettingsStore } from "@/stores/settingsStore";
+import { useRouter } from "expo-router";
 
 export default function SearchScreen() {
   const [keyword, setKeyword] = useState("");
@@ -15,6 +19,19 @@ export default function SearchScreen() {
   const textInputRef = useRef<TextInput>(null);
   const colorScheme = "dark"; // Replace with useColorScheme() if needed
   const [isInputFocused, setIsInputFocused] = useState(false);
+  const { showModal: showRemoteModal, lastMessage } = useRemoteControlStore();
+  const { remoteInputEnabled } = useSettingsStore();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (lastMessage) {
+      console.log("Received remote input:", lastMessage);
+      const realMessage = lastMessage.split("_")[0];
+      setKeyword(realMessage);
+      handleSearch(realMessage);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastMessage]);
 
   useEffect(() => {
     // Focus the text input when the screen loads
@@ -24,8 +41,9 @@ export default function SearchScreen() {
     return () => clearTimeout(timer);
   }, []);
 
-  const handleSearch = async () => {
-    if (!keyword.trim()) {
+  const handleSearch = async (searchText?: string) => {
+    const term = typeof searchText === "string" ? searchText : keyword;
+    if (!term.trim()) {
       Keyboard.dismiss();
       return;
     }
@@ -33,7 +51,7 @@ export default function SearchScreen() {
     setLoading(true);
     setError(null);
     try {
-      const response = await api.searchVideos(keyword);
+      const response = await api.searchVideos(term);
       if (response.results.length > 0) {
         setResults(response.results);
       } else {
@@ -45,6 +63,19 @@ export default function SearchScreen() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const onSearchPress = () => handleSearch();
+
+  const handleQrPress = () => {
+    if (!remoteInputEnabled) {
+      Alert.alert("远程输入未启用", "请先在设置页面中启用远程输入功能", [
+        { text: "取消", style: "cancel" },
+        { text: "去设置", onPress: () => router.push("/settings") },
+      ]);
+      return;
+    }
+    showRemoteModal();
   };
 
   const renderItem = ({ item }: { item: SearchResult }) => (
@@ -78,11 +109,14 @@ export default function SearchScreen() {
           onChangeText={setKeyword}
           onFocus={() => setIsInputFocused(true)}
           onBlur={() => setIsInputFocused(false)}
-          onSubmitEditing={handleSearch} // Allow searching with remote 'enter' button
+          onSubmitEditing={onSearchPress}
           returnKeyType="search"
         />
-        <StyledButton style={styles.searchButton} onPress={handleSearch}>
+        <StyledButton style={styles.searchButton} onPress={onSearchPress}>
           <Search size={24} color={colorScheme === "dark" ? "white" : "black"} />
+        </StyledButton>
+        <StyledButton style={styles.qrButton} onPress={handleQrPress}>
+          <QrCode size={24} color={colorScheme === "dark" ? "white" : "black"} />
         </StyledButton>
       </View>
 
@@ -108,6 +142,7 @@ export default function SearchScreen() {
           }
         />
       )}
+      <RemoteControlModal />
     </ThemedView>
   );
 }
@@ -139,6 +174,11 @@ const styles = StyleSheet.create({
     padding: 12,
     // backgroundColor is now set dynamically
     borderRadius: 8,
+  },
+  qrButton: {
+    padding: 12,
+    borderRadius: 8,
+    marginLeft: 10,
   },
   centerContainer: {
     flex: 1,

@@ -7,6 +7,8 @@ import { Platform } from "react-native";
 import Toast from "react-native-toast-message";
 
 import { useSettingsStore } from "@/stores/settingsStore";
+import { useRemoteControlStore } from "@/stores/remoteControlStore";
+import { remoteControlService } from "@/services/remoteControlService";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -16,11 +18,12 @@ export default function RootLayout() {
   const [loaded, error] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
-  const initializeSettings = useSettingsStore((state) => state.loadSettings);
+  const { loadSettings, remoteInputEnabled } = useSettingsStore();
+  const { startServer, stopServer } = useRemoteControlStore();
 
   useEffect(() => {
-    initializeSettings();
-  }, [initializeSettings]);
+    loadSettings();
+  }, [loadSettings]);
 
   useEffect(() => {
     if (loaded || error) {
@@ -30,6 +33,14 @@ export default function RootLayout() {
       }
     }
   }, [loaded, error]);
+
+  useEffect(() => {
+    if (remoteInputEnabled) {
+      startServer();
+    } else {
+      stopServer();
+    }
+  }, [remoteInputEnabled, startServer, stopServer]);
 
   if (!loaded && !error) {
     return null;
@@ -42,6 +53,8 @@ export default function RootLayout() {
         <Stack.Screen name="detail" options={{ headerShown: false }} />
         {Platform.OS !== "web" && <Stack.Screen name="play" options={{ headerShown: false }} />}
         <Stack.Screen name="search" options={{ headerShown: false }} />
+        <Stack.Screen name="live" options={{ headerShown: false }} />
+        <Stack.Screen name="settings" options={{ headerShown: false }} />
         <Stack.Screen name="+not-found" />
       </Stack>
       <Toast />
