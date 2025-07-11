@@ -1,7 +1,4 @@
-import httpBridge from 'react-native-http-bridge';
-import NetInfo from '@react-native-community/netinfo';
-
-const PORT = 12346;
+import TCPHttpServer from './tcpHttpServer';
 
 const getRemotePageHTML = () => {
   return `
@@ -49,9 +46,70 @@ const getRemotePageHTML = () => {
 };
 
 class RemoteControlService {
-  private isRunning = false;
+  private httpServer: TCPHttpServer;
   private onMessage: (message: string) => void = () => {};
   private onHandshake: () => void = () => {};
+
+  constructor() {
+    this.httpServer = new TCPHttpServer();
+    this.setupRequestHandler();
+  }
+
+  private setupRequestHandler() {
+    this.httpServer.setRequestHandler((request) => {
+      console.log('[RemoteControl] Received request:', request.method, request.url);
+      
+      try {
+        if (request.method === 'GET' && request.url === '/') {
+          return {
+            statusCode: 200,
+            headers: { 'Content-Type': 'text/html' },
+            body: getRemotePageHTML()
+          };
+        } else if (request.method === 'POST' && request.url === '/message') {
+          try {
+            const parsedBody = JSON.parse(request.body || '{}');
+            const message = parsedBody.message;
+            if (message) {
+              this.onMessage(message);
+            }
+            return {
+              statusCode: 200,
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ status: 'ok' })
+            };
+          } catch (parseError) {
+            console.error('[RemoteControl] Failed to parse message body:', parseError);
+            return {
+              statusCode: 400,
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ error: 'Invalid JSON' })
+            };
+          }
+        } else if (request.method === 'POST' && request.url === '/handshake') {
+          this.onHandshake();
+          return {
+            statusCode: 200,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'ok' })
+          };
+        } else {
+          return {
+            statusCode: 404,
+            headers: { 'Content-Type': 'text/plain' },
+            body: 'Not Found'
+          };
+        }
+      } catch (error) {
+        console.error('[RemoteControl] Request handler error:', error);
+        return {
+          statusCode: 500,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ error: 'Internal Server Error' })
+        };
+      }
+    });
+  }
 
   public init(actions: { onMessage: (message: string) => void; onHandshake: () => void }) {
     this.onMessage = actions.onMessage;
@@ -60,72 +118,29 @@ class RemoteControlService {
 
   public async startServer(): Promise<string> {
     console.log('[RemoteControl] Attempting to start server...');
-    if (this.isRunning) {
+    
+    if (this.httpServer.getIsRunning()) {
       console.log('[RemoteControl] Server is already running.');
       throw new Error('Server is already running.');
     }
 
-    const netState = await NetInfo.fetch();
-    console.log('[RemoteControl] NetInfo state:', JSON.stringify(netState, null, 2));
-    let ipAddress: string | null = null;
-    if (netState.type === 'wifi' || netState.type === 'ethernet') {
-      ipAddress = (netState.details as any)?.ipAddress ?? null;
-    }
-
-    if (!ipAddress) {
-      console.error('[RemoteControl] Could not get IP address.');
-      throw new Error('无法获取IP地址，请确认设备已连接到WiFi或以太网。');
-    }
-    console.log(`[RemoteControl] Got IP address: ${ipAddress}`);
-
     try {
-      // The third argument to start() is the request handler, not a startup callback.
-      httpBridge.start(
-        PORT,
-        'OrionTVRemoteService',
-        (request: { url: string; type: string; requestId: string; postData: string }) => {
-          const { url, type: method, requestId, postData: body } = request;
-
-          if (method === 'GET' && url === '/') {
-            const html = getRemotePageHTML();
-            httpBridge.respond(requestId, 200, 'text/html', html);
-          } else if (method === 'POST' && url === '/message') {
-            try {
-              const parsedBody = JSON.parse(body);
-              const message = parsedBody.message;
-              if (message) {
-                this.onMessage(message);
-              }
-              httpBridge.respond(requestId, 200, 'application/json', JSON.stringify({ status: 'ok' }));
-            } catch (e) {
-              httpBridge.respond(requestId, 400, 'application/json', JSON.stringify({ error: 'Bad Request' }));
-            }
-          } else if (method === 'POST' && url === '/handshake') {
-            this.onHandshake();
-            httpBridge.respond(requestId, 200, 'application/json', JSON.stringify({ status: 'ok' }));
-          } else {
-            httpBridge.respond(requestId, 404, 'text/plain', 'Not Found');
-          }
-        }
-      );
-
-      console.log('[RemoteControl] http-bridge start command issued.');
-      this.isRunning = true;
-      const url = `http://${ipAddress}:${PORT}`;
-      console.log(`[RemoteControl] Server should be running at: ${url}`);
+      const url = await this.httpServer.start();
+      console.log(`[RemoteControl] Server started successfully at: ${url}`);
       return url;
     } catch (error) {
-      console.error('[RemoteControl] Failed to issue start command to http-bridge.', error);
-      this.isRunning = false;
+      console.error('[RemoteControl] Failed to start server:', error);
       throw new Error(error instanceof Error ? error.message : 'Failed to start server');
     }
   }
 
   public stopServer() {
-    if (this.isRunning) {
-      httpBridge.stop();
-      this.isRunning = false;
-    }
+    console.log('[RemoteControl] Stopping server...');
+    this.httpServer.stop();
+  }
+
+  public isRunning(): boolean {
+    return this.httpServer.getIsRunning();
   }
 }
 
