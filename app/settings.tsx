@@ -11,6 +11,7 @@ import { APIConfigSection } from "@/components/settings/APIConfigSection";
 import { LiveStreamSection } from "@/components/settings/LiveStreamSection";
 import { RemoteInputSection } from "@/components/settings/RemoteInputSection";
 import { VideoSourceSection } from "@/components/settings/VideoSourceSection";
+import Toast from "react-native-toast-message";
 
 export default function SettingsScreen() {
   const { loadSettings, saveSettings, setApiBaseUrl, setM3uUrl } = useSettingsStore();
@@ -20,6 +21,7 @@ export default function SettingsScreen() {
   const [hasChanges, setHasChanges] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [currentFocusIndex, setCurrentFocusIndex] = useState(0);
+  const [currentSection, setCurrentSection] = useState<string | null>(null);
 
   const saveButtonRef = useRef<any>(null);
   const apiSectionRef = useRef<any>(null);
@@ -39,10 +41,10 @@ export default function SettingsScreen() {
 
   const handleRemoteInput = (message: string) => {
     // Handle remote input based on currently focused section
-    if (currentFocusIndex === 1 && apiSectionRef.current) {
+    if (currentSection === "api" && apiSectionRef.current) {
       // API Config Section
       setApiBaseUrl(message);
-    } else if (currentFocusIndex === 2 && liveStreamSectionRef.current) {
+    } else if (currentSection === "livestream" && liveStreamSectionRef.current) {
       // Live Stream Section
       setM3uUrl(message);
     }
@@ -53,6 +55,10 @@ export default function SettingsScreen() {
     try {
       await saveSettings();
       setHasChanges(false);
+      Toast.show({
+        type: "success",
+        text1: "保存成功",
+      });
     } catch {
       Alert.alert("错误", "保存设置失败");
     } finally {
@@ -66,12 +72,27 @@ export default function SettingsScreen() {
 
   const sections = [
     {
-      component: <RemoteInputSection onChanged={markAsChanged} onFocus={() => setCurrentFocusIndex(0)} />,
+      component: (
+        <RemoteInputSection
+          onChanged={markAsChanged}
+          onFocus={() => {
+            setCurrentFocusIndex(0);
+            setCurrentSection("remote");
+          }}
+        />
+      ),
       key: "remote",
     },
     {
       component: (
-        <APIConfigSection ref={apiSectionRef} onChanged={markAsChanged} onFocus={() => setCurrentFocusIndex(1)} />
+        <APIConfigSection
+          ref={apiSectionRef}
+          onChanged={markAsChanged}
+          onFocus={() => {
+            setCurrentFocusIndex(1);
+            setCurrentSection("api");
+          }}
+        />
       ),
       key: "api",
     },
@@ -80,14 +101,25 @@ export default function SettingsScreen() {
         <LiveStreamSection
           ref={liveStreamSectionRef}
           onChanged={markAsChanged}
-          onFocus={() => setCurrentFocusIndex(2)}
+          onFocus={() => {
+            setCurrentFocusIndex(2);
+            setCurrentSection("livestream");
+          }}
         />
       ),
       key: "livestream",
     },
     {
-      component: <VideoSourceSection onChanged={markAsChanged} onFocus={() => setCurrentFocusIndex(3)} />,
-      key: "playback",
+      component: (
+        <VideoSourceSection
+          onChanged={markAsChanged}
+          onFocus={() => {
+            setCurrentFocusIndex(3);
+            setCurrentSection("videoSource");
+          }}
+        />
+      ),
+      key: "videoSource",
     },
   ];
 

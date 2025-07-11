@@ -183,13 +183,13 @@ export class SearchHistoryManager {
 export class SettingsManager {
   static async get(): Promise<AppSettings> {
     const defaultSettings: AppSettings = {
-      apiBaseUrl: "https://orion-tv.edu.deal",
+      apiBaseUrl: "",
       remoteInputEnabled: true,
       videoSource: {
         enabledAll: true,
         sources: {},
       },
-      m3uUrl: "https://raw.githubusercontent.com/sjnhnp/adblock/refs/heads/main/filtered_http_only_valid.m3u",
+      m3uUrl: "https://ghfast.top/https://raw.githubusercontent.com/sjnhnp/adblock/refs/heads/main/filtered_http_only_valid.m3u",
     };
     try {
       const data = await AsyncStorage.getItem(STORAGE_KEYS.SETTINGS);

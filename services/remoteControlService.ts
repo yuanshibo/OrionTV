@@ -18,9 +18,9 @@ const getRemotePageHTML = () => {
   </head>
   <body>
     <div id="container">
-      <h3>Send a message to TV</h3>
-      <input id="text" placeholder="Type here..." />
-      <button onclick="send()">Send</button>
+      <h3>向电视发送文本</h3>
+      <input id="text" placeholder="请输入..." />
+      <button onclick="send()">发送</button>
     </div>
     <script>
       window.addEventListener('DOMContentLoaded', () => {
