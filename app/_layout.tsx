@@ -18,11 +18,12 @@ export default function RootLayout() {
   const [loaded, error] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
-  const initializeSettings = useSettingsStore((state) => state.loadSettings);
+  const { loadSettings, remoteInputEnabled } = useSettingsStore();
+  const { startServer, stopServer } = useRemoteControlStore();
 
   useEffect(() => {
-    initializeSettings();
-  }, [initializeSettings]);
+    loadSettings();
+  }, [loadSettings]);
 
   useEffect(() => {
     if (loaded || error) {
@@ -34,21 +35,12 @@ export default function RootLayout() {
   }, [loaded, error]);
 
   useEffect(() => {
-    // Initialize the service with store actions to break require cycle
-    const { setMessage, hideModal } = useRemoteControlStore.getState();
-    remoteControlService.init({
-      onMessage: setMessage,
-      onHandshake: hideModal,
-    });
-
-    // Start the remote control server on app launch
-    useRemoteControlStore.getState().startServer();
-
-    return () => {
-      // Stop the server on app close
-      useRemoteControlStore.getState().stopServer();
-    };
-  }, []);
+    if (remoteInputEnabled) {
+      startServer();
+    } else {
+      stopServer();
+    }
+  }, [remoteInputEnabled, startServer, stopServer]);
 
   if (!loaded && !error) {
     return null;
@@ -62,6 +54,7 @@ export default function RootLayout() {
         {Platform.OS !== "web" && <Stack.Screen name="play" options={{ headerShown: false }} />}
         <Stack.Screen name="search" options={{ headerShown: false }} />
         <Stack.Screen name="live" options={{ headerShown: false }} />
+        <Stack.Screen name="settings" options={{ headerShown: false }} />
         <Stack.Screen name="+not-found" />
       </Stack>
       <Toast />

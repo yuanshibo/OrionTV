@@ -96,10 +96,6 @@ class TCPHttpServer {
   }
 
   public async start(): Promise<string> {
-    if (this.isRunning) {
-      throw new Error('Server is already running');
-    }
-
     const netState = await NetInfo.fetch();
     let ipAddress: string | null = null;
     
@@ -109,6 +105,11 @@ class TCPHttpServer {
 
     if (!ipAddress) {
       throw new Error('无法获取IP地址，请确认设备已连接到WiFi或以太网。');
+    }
+
+    if (this.isRunning) {
+      console.log('[TCPHttpServer] Server is already running.');
+      return `http://${ipAddress}:${PORT}`;
     }
 
     return new Promise((resolve, reject) => {

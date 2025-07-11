@@ -119,11 +119,6 @@ class RemoteControlService {
   public async startServer(): Promise<string> {
     console.log('[RemoteControl] Attempting to start server...');
     
-    if (this.httpServer.getIsRunning()) {
-      console.log('[RemoteControl] Server is already running.');
-      throw new Error('Server is already running.');
-    }
-
     try {
       const url = await this.httpServer.start();
       console.log(`[RemoteControl] Server started successfully at: ${url}`);

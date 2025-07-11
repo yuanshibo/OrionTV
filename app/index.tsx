@@ -6,10 +6,8 @@ import { api } from "@/services/api";
 import VideoCard from "@/components/VideoCard.tv";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Search, Settings } from "lucide-react-native";
-import { SettingsModal } from "@/components/SettingsModal";
 import { StyledButton } from "@/components/StyledButton";
 import useHomeStore, { RowItem, Category } from "@/stores/homeStore";
-import { useSettingsStore } from "@/stores/settingsStore";
 
 const NUM_COLUMNS = 5;
 const { width } = Dimensions.get("window");
@@ -34,8 +32,6 @@ export default function HomeScreen() {
     refreshPlayRecords,
   } = useHomeStore();
 
-  const showSettingsModal = useSettingsStore((state) => state.showModal);
-
   useFocusEffect(
     useCallback(() => {
       refreshPlayRecords();
@@ -52,14 +48,14 @@ export default function HomeScreen() {
       setSelectedTag(defaultTag);
       selectCategory({ ...selectedCategory, tag: defaultTag });
     }
-  }, [selectedCategory, fetchInitialData]);
+  }, [selectedCategory, fetchInitialData, selectCategory]);
 
   useEffect(() => {
     if (selectedCategory && selectedCategory.tag) {
       fetchInitialData();
       flatListRef.current?.scrollToOffset({ animated: false, offset: 0 });
     }
-  }, [selectedCategory?.tag]);
+  }, [fetchInitialData, selectedCategory, selectedCategory.tag]);
 
   const handleCategorySelect = (category: Category) => {
     setSelectedTag(null);
@@ -133,7 +129,7 @@ export default function HomeScreen() {
           >
             <Search color={colorScheme === "dark" ? "white" : "black"} size={24} />
           </StyledButton>
-          <StyledButton style={styles.searchButton} onPress={showSettingsModal} variant="ghost">
+          <StyledButton style={styles.searchButton} onPress={() => router.push("/settings")} variant="ghost">
             <Settings color={colorScheme === "dark" ? "white" : "black"} size={24} />
           </StyledButton>
         </View>
@@ -207,7 +203,6 @@ export default function HomeScreen() {
           }
         />
       )}
-      <SettingsModal />
     </ThemedView>
   );
 }
