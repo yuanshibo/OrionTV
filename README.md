@@ -107,7 +107,7 @@ yarn android-tv
 
 
 ## 其他
- - 最低版本是android 7，可用，但是不推荐
+ - 最低版本是android 6.0，可用，但是不推荐
  - 如果使用https的后端接口无法访问，在确认服务没有问题的情况下，请检查https的TLS协议，Android 10 之后版本才支持 TLS1.3
 
 ## 📜 主要脚本
