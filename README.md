@@ -105,9 +105,6 @@ yarn android-tv
 
 2. `docker run -d -p 3001:3001 zimpel1/tv-host`
 
-#### 使用 demo 地址
-
-在设置中可以使用 demo 地址：https://orion-tv.edu.deal 不保证稳定和可用性。
 
 ## 其他
  - 最低版本是android 7，可用，但是不推荐
