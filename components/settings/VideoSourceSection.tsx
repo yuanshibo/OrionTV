@@ -31,7 +31,7 @@ export const VideoSourceSection: React.FC<VideoSourceSectionProps> = ({ onChange
       const resourcesList = await api.getResources();
       setResources(resourcesList);
 
-      if (videoSource.enabledAll && resourcesList.length === 0) {
+      if (videoSource.enabledAll && Object.keys(videoSource.sources).length === 0) {
         const allResourceKeys: { [key: string]: boolean } = {};
         for (const resource of resourcesList) {
           allResourceKeys[resource.key] = true;

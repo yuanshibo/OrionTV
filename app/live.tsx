@@ -4,7 +4,6 @@ import LivePlayer from "@/components/LivePlayer";
 import { fetchAndParseM3u, getPlayableUrl, Channel } from "@/services/m3u";
 import { ThemedView } from "@/components/ThemedView";
 import { StyledButton } from "@/components/StyledButton";
-import { AVPlaybackStatus } from "expo-av";
 import { useSettingsStore } from "@/stores/settingsStore";
 
 export default function LiveScreen() {
@@ -66,15 +65,18 @@ export default function LiveScreen() {
     }
   };
 
-  const changeChannel = (direction: "next" | "prev") => {
-    if (channels.length === 0) return;
-    let newIndex =
-      direction === "next"
-        ? (currentChannelIndex + 1) % channels.length
-        : (currentChannelIndex - 1 + channels.length) % channels.length;
-    setCurrentChannelIndex(newIndex);
-    showChannelTitle(channels[newIndex].name);
-  };
+  const changeChannel = useCallback(
+    (direction: "next" | "prev") => {
+      if (channels.length === 0) return;
+      let newIndex =
+        direction === "next"
+          ? (currentChannelIndex + 1) % channels.length
+          : (currentChannelIndex - 1 + channels.length) % channels.length;
+      setCurrentChannelIndex(newIndex);
+      showChannelTitle(channels[newIndex].name);
+    },
+    [channels, currentChannelIndex]
+  );
 
   const handleTVEvent = useCallback(
     (event: HWEvent) => {
@@ -83,7 +85,7 @@ export default function LiveScreen() {
       else if (event.eventType === "left") changeChannel("prev");
       else if (event.eventType === "right") changeChannel("next");
     },
-    [channels, currentChannelIndex, isChannelListVisible]
+    [changeChannel, isChannelListVisible]
   );
 
   useTVEventHandler(handleTVEvent);
