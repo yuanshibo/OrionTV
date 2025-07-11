@@ -34,7 +34,7 @@ interface SettingsState {
   // 新增配置项
   liveStreamSources: LiveStreamSource[];  // 直播源配置
   remoteInputEnabled: boolean;            // 远程输入开关
-  playbackSourceConfig: PlaybackSourceConfig; // 播放源配置
+  videoSourceConfig: VideoSourceConfig; // 播放源配置
 }
 
 interface LiveStreamSource {
@@ -44,7 +44,7 @@ interface LiveStreamSource {
   enabled: boolean;
 }
 
-interface PlaybackSourceConfig {
+interface VideoSourceConfig {
   primarySource: string;
   fallbackSources: string[];
   enabledSources: string[];

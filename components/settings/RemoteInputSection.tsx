@@ -1,36 +1,70 @@
-import React from "react";
-import { View, Switch, StyleSheet } from "react-native";
+import React, { useCallback } from "react";
+import { View, Switch, StyleSheet, Pressable, Animated } from "react-native";
+import { useTVEventHandler } from "react-native";
 import { ThemedText } from "@/components/ThemedText";
-import { ThemedView } from "@/components/ThemedView";
+import { SettingsSection } from "./SettingsSection";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useRemoteControlStore } from "@/stores/remoteControlStore";
+import { useButtonAnimation } from "@/hooks/useAnimation";
 
 interface RemoteInputSectionProps {
   onChanged: () => void;
+  onFocus?: () => void;
+  onBlur?: () => void;
 }
 
-export const RemoteInputSection: React.FC<RemoteInputSectionProps> = ({ onChanged }) => {
+export const RemoteInputSection: React.FC<RemoteInputSectionProps> = ({ onChanged, onFocus, onBlur }) => {
   const { remoteInputEnabled, setRemoteInputEnabled } = useSettingsStore();
   const { isServerRunning, serverUrl, error } = useRemoteControlStore();
+  const [isFocused, setIsFocused] = React.useState(false);
+  const animationStyle = useButtonAnimation(isFocused, 1.2);
 
-  const handleToggle = async (enabled: boolean) => {
-    setRemoteInputEnabled(enabled);
-    onChanged();
+  const handleToggle = useCallback(
+    (enabled: boolean) => {
+      setRemoteInputEnabled(enabled);
+      onChanged();
+    },
+    [setRemoteInputEnabled, onChanged]
+  );
+
+  const handleSectionFocus = () => {
+    setIsFocused(true);
+    onFocus?.();
   };
 
+  const handleSectionBlur = () => {
+    setIsFocused(false);
+    onBlur?.();
+  };
+
+  // TV遥控器事件处理
+  const handleTVEvent = React.useCallback(
+    (event: any) => {
+      if (isFocused && event.eventType === "select") {
+        handleToggle(!remoteInputEnabled);
+      }
+    },
+    [isFocused, remoteInputEnabled, handleToggle]
+  );
+
+  useTVEventHandler(handleTVEvent);
+
   return (
-    <ThemedView style={styles.section}>
-      <View style={styles.settingItem}>
+    <SettingsSection focusable onFocus={handleSectionFocus} onBlur={handleSectionBlur}>
+      <Pressable style={styles.settingItem} onFocus={handleSectionFocus} onBlur={handleSectionBlur}>
         <View style={styles.settingInfo}>
           <ThemedText style={styles.settingName}>启用远程输入</ThemedText>
         </View>
-        <Switch
-          value={remoteInputEnabled}
-          onValueChange={handleToggle}
-          trackColor={{ false: "#767577", true: "#007AFF" }}
-          thumbColor={remoteInputEnabled ? "#ffffff" : "#f4f3f4"}
-        />
-      </View>
+        <Animated.View style={animationStyle}>
+          <Switch
+            value={remoteInputEnabled}
+            onValueChange={() => {}} // 禁用Switch的直接交互
+            trackColor={{ false: "#767577", true: "#007AFF" }}
+            thumbColor={remoteInputEnabled ? "#ffffff" : "#f4f3f4"}
+            pointerEvents="none"
+          />
+        </Animated.View>
+      </Pressable>
 
       {remoteInputEnabled && (
         <View style={styles.statusContainer}>
@@ -56,23 +90,11 @@ export const RemoteInputSection: React.FC<RemoteInputSectionProps> = ({ onChange
           )}
         </View>
       )}
-    </ThemedView>
+    </SettingsSection>
   );
 };
 
 const styles = StyleSheet.create({
-  section: {
-    padding: 20,
-    marginBottom: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#333",
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    marginBottom: 16,
-  },
   settingItem: {
     flexDirection: "row",
     justifyContent: "space-between",

@@ -1,19 +1,25 @@
-import React, { useState, useEffect } from "react";
-import { View, StyleSheet, ScrollView, Alert } from "react-native";
+import React, { useState, useEffect, useRef } from "react";
+import { View, StyleSheet, FlatList, Alert, KeyboardAvoidingView, Platform } from "react-native";
+import { useTVEventHandler } from "react-native";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { StyledButton } from "@/components/StyledButton";
+import { useThemeColor } from "@/hooks/useThemeColor";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { APIConfigSection } from "@/components/settings/APIConfigSection";
 import { LiveStreamSection } from "@/components/settings/LiveStreamSection";
 import { RemoteInputSection } from "@/components/settings/RemoteInputSection";
-import { PlaySourceSection } from "@/components/settings/PlaybackSourceSection";
+import { VideoSourceSection } from "@/components/settings/VideoSourceSection";
 
 export default function SettingsScreen() {
   const { loadSettings, saveSettings } = useSettingsStore();
+  const backgroundColor = useThemeColor({}, "background");
 
   const [hasChanges, setHasChanges] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [currentFocusIndex, setCurrentFocusIndex] = useState(0);
+
+  const saveButtonRef = useRef<any>(null);
 
   useEffect(() => {
     loadSettings();
@@ -24,7 +30,6 @@ export default function SettingsScreen() {
     try {
       await saveSettings();
       setHasChanges(false);
-      Alert.alert("成功", "设置已保存");
     } catch {
       Alert.alert("错误", "保存设置失败");
     } finally {
@@ -36,36 +41,78 @@ export default function SettingsScreen() {
     setHasChanges(true);
   };
 
+  const sections = [
+    {
+      component: <RemoteInputSection onChanged={markAsChanged} onFocus={() => setCurrentFocusIndex(0)} />,
+      key: "remote",
+    },
+    {
+      component: <APIConfigSection onChanged={markAsChanged} onFocus={() => setCurrentFocusIndex(1)} />,
+      key: "api",
+    },
+    {
+      component: <LiveStreamSection onChanged={markAsChanged} onFocus={() => setCurrentFocusIndex(2)} />,
+      key: "livestream",
+    },
+    {
+      component: <VideoSourceSection onChanged={markAsChanged} onFocus={() => setCurrentFocusIndex(3)} />,
+      key: "playback",
+    },
+  ];
+
+  // TV遥控器事件处理
+  const handleTVEvent = React.useCallback(
+    (event: any) => {
+      if (event.eventType === "down") {
+        const nextIndex = Math.min(currentFocusIndex + 1, sections.length);
+        setCurrentFocusIndex(nextIndex);
+        if (nextIndex === sections.length) {
+          saveButtonRef.current?.focus();
+        }
+      } else if (event.eventType === "up") {
+        const prevIndex = Math.max(currentFocusIndex - 1, 0);
+        setCurrentFocusIndex(prevIndex);
+      }
+    },
+    [currentFocusIndex, sections.length]
+  );
+
+  useTVEventHandler(handleTVEvent);
+
   return (
-    <ThemedView style={styles.container}>
-      <View style={styles.header}>
-        <ThemedText style={styles.title}>设置</ThemedText>
-      </View>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+      <ThemedView style={styles.container}>
+        <View style={styles.header}>
+          <ThemedText style={styles.title}>设置</ThemedText>
+        </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        <RemoteInputSection onChanged={markAsChanged} />
-        <APIConfigSection onChanged={markAsChanged} />
-        <LiveStreamSection onChanged={markAsChanged} />
-        <PlaySourceSection onChanged={markAsChanged} />
-      </ScrollView>
+        <View style={styles.scrollView}>
+          <FlatList
+            data={sections}
+            renderItem={({ item }) => item.component}
+            keyExtractor={(item) => item.key}
+            showsVerticalScrollIndicator={false}
+          />
+        </View>
 
-      <View style={styles.footer}>
-        <StyledButton
-          text={isLoading ? "保存中..." : "保存设置"}
-          onPress={handleSave}
-          variant="primary"
-          disabled={!hasChanges || isLoading}
-          style={[styles.saveButton, (!hasChanges || isLoading) && styles.disabledButton]}
-        />
-      </View>
-    </ThemedView>
+        <View style={styles.footer}>
+          <StyledButton
+            text={isLoading ? "保存中..." : "保存设置"}
+            onPress={handleSave}
+            variant="primary"
+            disabled={!hasChanges || isLoading}
+            style={[styles.saveButton, (!hasChanges || isLoading) && styles.disabledButton]}
+          />
+        </View>
+      </ThemedView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 24,
+    padding: 12,
   },
   header: {
     flexDirection: "row",
@@ -85,12 +132,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   footer: {
-    paddingTop: 24,
-    borderTopWidth: 1,
-    borderTopColor: "#333",
+    paddingTop: 12,
+    alignItems: "flex-end",
   },
   saveButton: {
     minHeight: 50,
+    width: 120,
   },
   disabledButton: {
     opacity: 0.5,

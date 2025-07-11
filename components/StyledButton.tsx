@@ -2,7 +2,7 @@ import React from "react";
 import { Animated, Pressable, StyleSheet, StyleProp, ViewStyle, PressableProps, TextStyle } from "react-native";
 import { ThemedText } from "./ThemedText";
 import { Colors } from "@/constants/Colors";
-import { useButtonAnimation } from "@/hooks/useButtonAnimation";
+import { useButtonAnimation } from "@/hooks/useAnimation";
 
 interface StyledButtonProps extends PressableProps {
   children?: React.ReactNode;

@@ -5,10 +5,10 @@ import { fetchAndParseM3u, getPlayableUrl, Channel } from "@/services/m3u";
 import { ThemedView } from "@/components/ThemedView";
 import { StyledButton } from "@/components/StyledButton";
 import { AVPlaybackStatus } from "expo-av";
-
-const M3U_URL = "https://raw.githubusercontent.com/sjnhnp/adblock/refs/heads/main/filtered_http_only_valid.m3u";
+import { useSettingsStore } from "@/stores/settingsStore";
 
 export default function LiveScreen() {
+  const { m3uUrl } = useSettingsStore();
   const [channels, setChannels] = useState<Channel[]>([]);
   const [groupedChannels, setGroupedChannels] = useState<Record<string, Channel[]>>({});
   const [channelGroups, setChannelGroups] = useState<string[]>([]);
@@ -24,8 +24,9 @@ export default function LiveScreen() {
 
   useEffect(() => {
     const loadChannels = async () => {
+      if (!m3uUrl) return;
       setIsLoading(true);
-      const parsedChannels = await fetchAndParseM3u(M3U_URL);
+      const parsedChannels = await fetchAndParseM3u(m3uUrl);
       setChannels(parsedChannels);
 
       const groups: Record<string, Channel[]> = parsedChannels.reduce((acc, channel) => {
@@ -48,7 +49,7 @@ export default function LiveScreen() {
       setIsLoading(false);
     };
     loadChannels();
-  }, []);
+  }, [m3uUrl]);
 
   const showChannelTitle = (title: string) => {
     setChannelTitle(title);

@@ -6,6 +6,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { api, SearchResult } from "@/services/api";
 import { getResolutionFromM3U8 } from "@/services/m3u8";
 import { StyledButton } from "@/components/StyledButton";
+import { useSettingsStore } from "@/stores/settingsStore";
 
 export default function DetailScreen() {
   const { source, q } = useLocalSearchParams();
@@ -16,6 +17,7 @@ export default function DetailScreen() {
   const [error, setError] = useState<string | null>(null);
   const [allSourcesLoaded, setAllSourcesLoaded] = useState(false);
   const controllerRef = useRef<AbortController | null>(null);
+  const { videoSource } = useSettingsStore();
 
   useEffect(() => {
     if (controllerRef.current) {
@@ -33,9 +35,20 @@ export default function DetailScreen() {
         setAllSourcesLoaded(false);
 
         try {
-          const resources = await api.getResources(signal);
-          if (!resources || resources.length === 0) {
+          const allResources = await api.getResources(signal);
+          if (!allResources || allResources.length === 0) {
             setError("没有可用的播放源");
+            setLoading(false);
+            return;
+          }
+
+          // Filter resources based on enabled sources in settings
+          const resources = videoSource.enabledAll
+            ? allResources
+            : allResources.filter((resource) => videoSource.sources[resource.key]);
+
+          if (!videoSource.enabledAll && resources.length === 0) {
+            setError("请到设置页面启用的播放源");
             setLoading(false);
             return;
           }
@@ -102,7 +115,7 @@ export default function DetailScreen() {
     return () => {
       controllerRef.current?.abort();
     };
-  }, [q, source]);
+  }, [q, source, videoSource.enabledAll, videoSource.sources]);
 
   const handlePlay = (episodeName: string, episodeIndex: number) => {
     if (!detail) return;
@@ -131,7 +144,9 @@ export default function DetailScreen() {
   if (error) {
     return (
       <ThemedView style={styles.centered}>
-        <ThemedText type="subtitle">{error}</ThemedText>
+        <ThemedText type="subtitle" style={styles.text}>
+          {error}
+        </ThemedText>
       </ThemedView>
     );
   }
@@ -221,6 +236,10 @@ const styles = StyleSheet.create({
   topContainer: {
     flexDirection: "row",
     padding: 20,
+  },
+  text: {
+    padding: 20,
+    textAlign: "center",
   },
   poster: {
     width: 200,
