@@ -25,6 +25,16 @@ export const useRemoteControlStore = create<RemoteControlState>((set, get) => ({
     if (get().isServerRunning) {
       return;
     }
+    remoteControlService.init({
+      onMessage: (message: string) => {
+        console.log('[RemoteControlStore] Received message:', message);
+        set({ lastMessage: message });
+      },
+      onHandshake: () => {
+        console.log('[RemoteControlStore] Handshake successful');
+        set({ isModalVisible: false })
+      },
+    });
     try {
       const url = await remoteControlService.startServer();
       console.log(`[RemoteControlStore] Server started, URL: ${url}`);

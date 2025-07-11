@@ -6,13 +6,15 @@ import { ThemedView } from "@/components/ThemedView";
 import { StyledButton } from "@/components/StyledButton";
 import { useThemeColor } from "@/hooks/useThemeColor";
 import { useSettingsStore } from "@/stores/settingsStore";
+import { useRemoteControlStore } from "@/stores/remoteControlStore";
 import { APIConfigSection } from "@/components/settings/APIConfigSection";
 import { LiveStreamSection } from "@/components/settings/LiveStreamSection";
 import { RemoteInputSection } from "@/components/settings/RemoteInputSection";
 import { VideoSourceSection } from "@/components/settings/VideoSourceSection";
 
 export default function SettingsScreen() {
-  const { loadSettings, saveSettings } = useSettingsStore();
+  const { loadSettings, saveSettings, setApiBaseUrl, setM3uUrl } = useSettingsStore();
+  const { lastMessage } = useRemoteControlStore();
   const backgroundColor = useThemeColor({}, "background");
 
   const [hasChanges, setHasChanges] = useState(false);
@@ -20,10 +22,31 @@ export default function SettingsScreen() {
   const [currentFocusIndex, setCurrentFocusIndex] = useState(0);
 
   const saveButtonRef = useRef<any>(null);
+  const apiSectionRef = useRef<any>(null);
+  const liveStreamSectionRef = useRef<any>(null);
 
   useEffect(() => {
     loadSettings();
   }, [loadSettings]);
+
+  useEffect(() => {
+    if (lastMessage) {
+      const realMessage = lastMessage.split("_")[0];
+      handleRemoteInput(realMessage);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastMessage]);
+
+  const handleRemoteInput = (message: string) => {
+    // Handle remote input based on currently focused section
+    if (currentFocusIndex === 1 && apiSectionRef.current) {
+      // API Config Section
+      setApiBaseUrl(message);
+    } else if (currentFocusIndex === 2 && liveStreamSectionRef.current) {
+      // Live Stream Section
+      setM3uUrl(message);
+    }
+  };
 
   const handleSave = async () => {
     setIsLoading(true);
@@ -47,11 +70,19 @@ export default function SettingsScreen() {
       key: "remote",
     },
     {
-      component: <APIConfigSection onChanged={markAsChanged} onFocus={() => setCurrentFocusIndex(1)} />,
+      component: (
+        <APIConfigSection ref={apiSectionRef} onChanged={markAsChanged} onFocus={() => setCurrentFocusIndex(1)} />
+      ),
       key: "api",
     },
     {
-      component: <LiveStreamSection onChanged={markAsChanged} onFocus={() => setCurrentFocusIndex(2)} />,
+      component: (
+        <LiveStreamSection
+          ref={liveStreamSectionRef}
+          onChanged={markAsChanged}
+          onFocus={() => setCurrentFocusIndex(2)}
+        />
+      ),
       key: "livestream",
     },
     {

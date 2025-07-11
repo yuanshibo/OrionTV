@@ -184,7 +184,7 @@ export class SettingsManager {
   static async get(): Promise<AppSettings> {
     const defaultSettings: AppSettings = {
       apiBaseUrl: "https://orion-tv.edu.deal",
-      remoteInputEnabled: false,
+      remoteInputEnabled: true,
       videoSource: {
         enabledAll: true,
         sources: {},

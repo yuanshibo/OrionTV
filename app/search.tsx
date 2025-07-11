@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { View, TextInput, StyleSheet, FlatList, ActivityIndicator, Text, Keyboard } from "react-native";
+import { View, TextInput, StyleSheet, FlatList, ActivityIndicator, Alert, Keyboard } from "react-native";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
 import VideoCard from "@/components/VideoCard.tv";
@@ -8,6 +8,8 @@ import { Search, QrCode } from "lucide-react-native";
 import { StyledButton } from "@/components/StyledButton";
 import { useRemoteControlStore } from "@/stores/remoteControlStore";
 import { RemoteControlModal } from "@/components/RemoteControlModal";
+import { useSettingsStore } from "@/stores/settingsStore";
+import { useRouter } from "expo-router";
 
 export default function SearchScreen() {
   const [keyword, setKeyword] = useState("");
@@ -18,13 +20,17 @@ export default function SearchScreen() {
   const colorScheme = "dark"; // Replace with useColorScheme() if needed
   const [isInputFocused, setIsInputFocused] = useState(false);
   const { showModal: showRemoteModal, lastMessage } = useRemoteControlStore();
+  const { remoteInputEnabled } = useSettingsStore();
+  const router = useRouter();
 
   useEffect(() => {
     if (lastMessage) {
+      console.log("Received remote input:", lastMessage);
       const realMessage = lastMessage.split("_")[0];
       setKeyword(realMessage);
       handleSearch(realMessage);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastMessage]);
 
   useEffect(() => {
@@ -60,6 +66,17 @@ export default function SearchScreen() {
   };
 
   const onSearchPress = () => handleSearch();
+
+  const handleQrPress = () => {
+    if (!remoteInputEnabled) {
+      Alert.alert("远程输入未启用", "请先在设置页面中启用远程输入功能", [
+        { text: "取消", style: "cancel" },
+        { text: "去设置", onPress: () => router.push("/settings") },
+      ]);
+      return;
+    }
+    showRemoteModal();
+  };
 
   const renderItem = ({ item }: { item: SearchResult }) => (
     <VideoCard
@@ -98,7 +115,7 @@ export default function SearchScreen() {
         <StyledButton style={styles.searchButton} onPress={onSearchPress}>
           <Search size={24} color={colorScheme === "dark" ? "white" : "black"} />
         </StyledButton>
-        <StyledButton style={styles.qrButton} onPress={showRemoteModal}>
+        <StyledButton style={styles.qrButton} onPress={handleQrPress}>
           <QrCode size={24} color={colorScheme === "dark" ? "white" : "black"} />
         </StyledButton>
       </View>
