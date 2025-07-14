@@ -1,28 +1,18 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { PlayRecord as ApiPlayRecord } from "./api"; // Use a consistent type
+import { api, PlayRecord as ApiPlayRecord, Favorite as ApiFavorite } from "./api";
 
 // --- Storage Keys ---
 const STORAGE_KEYS = {
-  FAVORITES: "mytv_favorites",
-  PLAY_RECORDS: "mytv_play_records",
-  SEARCH_HISTORY: "mytv_search_history",
   SETTINGS: "mytv_settings",
 } as const;
 
 // --- Type Definitions (aligned with api.ts) ---
-export interface PlayRecord extends ApiPlayRecord {
+// Re-exporting for consistency, though they are now primarily API types
+export type PlayRecord = ApiPlayRecord & {
   introEndTime?: number;
   outroStartTime?: number;
-}
-
-export interface FavoriteItem {
-  id: string;
-  source: string;
-  title: string;
-  poster: string;
-  source_name: string;
-  save_time: number;
-}
+};
+export type Favorite = ApiFavorite;
 
 export interface AppSettings {
   apiBaseUrl: string;
@@ -32,59 +22,36 @@ export interface AppSettings {
     sources: {
       [key: string]: boolean;
     };
-  },
+  };
   m3uUrl: string;
 }
 
 // --- Helper ---
 const generateKey = (source: string, id: string) => `${source}+${id}`;
 
-// --- FavoriteManager ---
+// --- FavoriteManager (Refactored to use API) ---
 export class FavoriteManager {
-  static async getAll(): Promise<Record<string, FavoriteItem>> {
-    try {
-      const data = await AsyncStorage.getItem(STORAGE_KEYS.FAVORITES);
-      return data ? JSON.parse(data) : {};
-    } catch (error) {
-      console.error("Failed to get favorites:", error);
-      return {};
-    }
+  static async getAll(): Promise<Record<string, Favorite>> {
+    return (await api.getFavorites()) as Record<string, Favorite>;
   }
 
-  static async save(
-    source: string,
-    id: string,
-    item: Omit<FavoriteItem, "id" | "source" | "save_time">
-  ): Promise<void> {
-    const favorites = await this.getAll();
+  static async save(source: string, id: string, item: Omit<Favorite, "save_time">): Promise<void> {
     const key = generateKey(source, id);
-    favorites[key] = { ...item, id, source, save_time: Date.now() };
-    await AsyncStorage.setItem(
-      STORAGE_KEYS.FAVORITES,
-      JSON.stringify(favorites)
-    );
+    await api.addFavorite(key, item);
   }
 
   static async remove(source: string, id: string): Promise<void> {
-    const favorites = await this.getAll();
     const key = generateKey(source, id);
-    delete favorites[key];
-    await AsyncStorage.setItem(
-      STORAGE_KEYS.FAVORITES,
-      JSON.stringify(favorites)
-    );
+    await api.deleteFavorite(key);
   }
 
   static async isFavorited(source: string, id: string): Promise<boolean> {
-    const favorites = await this.getAll();
-    return generateKey(source, id) in favorites;
+    const key = generateKey(source, id);
+    const favorite = await api.getFavorites(key);
+    return favorite !== null;
   }
 
-  static async toggle(
-    source: string,
-    id: string,
-    item: Omit<FavoriteItem, "id" | "source" | "save_time">
-  ): Promise<boolean> {
+  static async toggle(source: string, id: string, item: Omit<Favorite, "save_time">): Promise<boolean> {
     const isFav = await this.isFavorited(source, id);
     if (isFav) {
       await this.remove(source, id);
@@ -96,34 +63,20 @@ export class FavoriteManager {
   }
 
   static async clearAll(): Promise<void> {
-    await AsyncStorage.removeItem(STORAGE_KEYS.FAVORITES);
+    await api.deleteFavorite();
   }
 }
 
-// --- PlayRecordManager ---
+// --- PlayRecordManager (Refactored to use API) ---
 export class PlayRecordManager {
   static async getAll(): Promise<Record<string, PlayRecord>> {
-    try {
-      const data = await AsyncStorage.getItem(STORAGE_KEYS.PLAY_RECORDS);
-      return data ? JSON.parse(data) : {};
-    } catch (error) {
-      console.error("Failed to get play records:", error);
-      return {};
-    }
+    return (await api.getPlayRecords()) as Record<string, PlayRecord>;
   }
 
-  static async save(
-    source: string,
-    id: string,
-    record: Omit<PlayRecord, "user_id" | "save_time">
-  ): Promise<void> {
-    const records = await this.getAll();
+  static async save(source: string, id: string, record: Omit<PlayRecord, "save_time">): Promise<void> {
     const key = generateKey(source, id);
-    records[key] = { ...record, user_id: 0, save_time: Date.now() };
-    await AsyncStorage.setItem(
-      STORAGE_KEYS.PLAY_RECORDS,
-      JSON.stringify(records)
-    );
+    // The API will handle setting the save_time
+    await api.savePlayRecord(key, record);
   }
 
   static async get(source: string, id: string): Promise<PlayRecord | null> {
@@ -132,54 +85,33 @@ export class PlayRecordManager {
   }
 
   static async remove(source: string, id: string): Promise<void> {
-    const records = await this.getAll();
-    delete records[generateKey(source, id)];
-    await AsyncStorage.setItem(
-      STORAGE_KEYS.PLAY_RECORDS,
-      JSON.stringify(records)
-    );
+    const key = generateKey(source, id);
+    await api.deletePlayRecord(key);
   }
 
   static async clearAll(): Promise<void> {
-    await AsyncStorage.removeItem(STORAGE_KEYS.PLAY_RECORDS);
+    await api.deletePlayRecord();
   }
 }
 
-// --- SearchHistoryManager ---
-const SEARCH_HISTORY_LIMIT = 20;
-
+// --- SearchHistoryManager (Refactored to use API) ---
 export class SearchHistoryManager {
   static async get(): Promise<string[]> {
-    try {
-      const data = await AsyncStorage.getItem(STORAGE_KEYS.SEARCH_HISTORY);
-      return data ? JSON.parse(data) : [];
-    } catch (error) {
-      console.error("Failed to get search history:", error);
-      return [];
-    }
+    return api.getSearchHistory();
   }
 
   static async add(keyword: string): Promise<void> {
     const trimmed = keyword.trim();
     if (!trimmed) return;
-
-    const history = await this.get();
-    const newHistory = [trimmed, ...history.filter((k) => k !== trimmed)];
-    if (newHistory.length > SEARCH_HISTORY_LIMIT) {
-      newHistory.length = SEARCH_HISTORY_LIMIT;
-    }
-    await AsyncStorage.setItem(
-      STORAGE_KEYS.SEARCH_HISTORY,
-      JSON.stringify(newHistory)
-    );
+    await api.addSearchHistory(trimmed);
   }
 
   static async clear(): Promise<void> {
-    await AsyncStorage.removeItem(STORAGE_KEYS.SEARCH_HISTORY);
+    await api.deleteSearchHistory();
   }
 }
 
-// --- SettingsManager ---
+// --- SettingsManager (Remains unchanged, uses AsyncStorage) ---
 export class SettingsManager {
   static async get(): Promise<AppSettings> {
     const defaultSettings: AppSettings = {
@@ -189,13 +121,12 @@ export class SettingsManager {
         enabledAll: true,
         sources: {},
       },
-      m3uUrl: "https://ghfast.top/https://raw.githubusercontent.com/sjnhnp/adblock/refs/heads/main/filtered_http_only_valid.m3u",
+      m3uUrl:
+        "https://ghfast.top/https://raw.githubusercontent.com/sjnhnp/adblock/refs/heads/main/filtered_http_only_valid.m3u",
     };
     try {
       const data = await AsyncStorage.getItem(STORAGE_KEYS.SETTINGS);
-      return data
-        ? { ...defaultSettings, ...JSON.parse(data) }
-        : defaultSettings;
+      return data ? { ...defaultSettings, ...JSON.parse(data) } : defaultSettings;
     } catch (error) {
       console.error("Failed to get settings:", error);
       return defaultSettings;
@@ -205,10 +136,7 @@ export class SettingsManager {
   static async save(settings: Partial<AppSettings>): Promise<void> {
     const currentSettings = await this.get();
     const updatedSettings = { ...currentSettings, ...settings };
-    await AsyncStorage.setItem(
-      STORAGE_KEYS.SETTINGS,
-      JSON.stringify(updatedSettings)
-    );
+    await AsyncStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(updatedSettings));
   }
 
   static async reset(): Promise<void> {

@@ -1,5 +1,7 @@
 import { SettingsManager } from "./storage";
+import useAuthStore from "@/stores/authStore";
 
+// region: --- Interface Definitions ---
 export interface DoubanItem {
   title: string;
   poster: string;
@@ -13,23 +15,18 @@ export interface DoubanResponse {
 }
 
 export interface VideoDetail {
-  code: number;
-  episodes: string[];
-  detailUrl: string;
-  videoInfo: {
-    title: string;
-    cover?: string;
-    desc?: string;
-    type?: string;
-    year?: string;
-    area?: string;
-    director?: string;
-    actor?: string;
-    remarks?: string;
-    source_name: string;
-    source: string;
-    id: string;
-  };
+  id: string;
+  title: string;
+  poster: string;
+  source: string;
+  source_name: string;
+  desc?: string;
+  type?: string;
+  year?: string;
+  area?: string;
+  director?: string;
+  actor?: string;
+  remarks?: string;
 }
 
 export interface SearchResult {
@@ -45,17 +42,22 @@ export interface SearchResult {
   type_name?: string;
 }
 
-// Data structure for play records
+export interface Favorite {
+  title: string;
+  poster: string;
+  source_name: string;
+  save_time: number;
+}
+
 export interface PlayRecord {
   title: string;
   source_name: string;
-  cover: string;
-  index: number; // Episode number
-  total_episodes: number; // Total number of episodes
-  play_time: number; // Play progress in seconds
-  total_time: number; // Total duration in seconds
-  save_time: number; // Timestamp of when the record was saved
-  user_id: number; // User ID, always 0 in this version
+  poster: string;
+  index: number;
+  total_episodes: number;
+  play_time: number;
+  total_time: number;
+  save_time: number;
 }
 
 export interface ApiSite {
@@ -64,6 +66,12 @@ export interface ApiSite {
   name: string;
   detail?: string;
 }
+
+export interface ServerConfig {
+  SiteName: string;
+  StorageType: "localstorage" | "redis" | string;
+}
+// endregion
 
 export class API {
   public baseURL: string = "";
@@ -78,84 +86,142 @@ export class API {
     this.baseURL = url;
   }
 
-  /**
-   * 生成图片代理 URL
-   */
-  getImageProxyUrl(imageUrl: string): string {
-    return `${this.baseURL}/api/image-proxy?url=${encodeURIComponent(
-      imageUrl
-    )}`;
+  private async _fetch(url: string, options: RequestInit = {}): Promise<Response> {
+    if (!this.baseURL) {
+      throw new Error("API_URL_NOT_SET");
+    }
+
+    const response = await fetch(`${this.baseURL}${url}`, options);
+
+    if (response.status === 401) {
+      useAuthStore.getState().showLoginModal();
+      throw new Error("UNAUTHORIZED");
+    }
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    return response;
   }
 
-  /**
-   * 获取豆瓣数据
-   */
+  // region: --- New API Methods ---
+  async getServerConfig(): Promise<ServerConfig> {
+    const response = await this._fetch("/api/server-config");
+    return response.json();
+  }
+
+  async login(password: string): Promise<{ ok: boolean }> {
+    const response = await this._fetch("/api/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password }),
+    });
+    return response.json();
+  }
+
+  async getFavorites(key?: string): Promise<Record<string, Favorite> | Favorite | null> {
+    const url = key ? `/api/favorites?key=${key}` : "/api/favorites";
+    const response = await this._fetch(url);
+    return response.json();
+  }
+
+  async addFavorite(key: string, favorite: Omit<Favorite, "save_time">): Promise<{ success: boolean }> {
+    const response = await this._fetch("/api/favorites", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key, favorite }),
+    });
+    return response.json();
+  }
+
+  async deleteFavorite(key?: string): Promise<{ success: boolean }> {
+    const url = key ? `/api/favorites?key=${key}` : "/api/favorites";
+    const response = await this._fetch(url, { method: "DELETE" });
+    return response.json();
+  }
+
+  async getPlayRecords(): Promise<Record<string, PlayRecord>> {
+    const response = await this._fetch("/api/playrecords");
+    return response.json();
+  }
+
+  async savePlayRecord(key: string, record: Omit<PlayRecord, "save_time">): Promise<{ success: boolean }> {
+    const response = await this._fetch("/api/playrecords", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key, record }),
+    });
+    return response.json();
+  }
+
+  async deletePlayRecord(key?: string): Promise<{ success: boolean }> {
+    const url = key ? `/api/playrecords?key=${key}` : "/api/playrecords";
+    const response = await this._fetch(url, { method: "DELETE" });
+    return response.json();
+  }
+
+  async getSearchHistory(): Promise<string[]> {
+    const response = await this._fetch("/api/searchhistory");
+    return response.json();
+  }
+
+  async addSearchHistory(keyword: string): Promise<string[]> {
+    const response = await this._fetch("/api/searchhistory", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ keyword }),
+    });
+    return response.json();
+  }
+
+  async deleteSearchHistory(keyword?: string): Promise<{ success: boolean }> {
+    const url = keyword ? `/api/searchhistory?keyword=${keyword}` : "/api/searchhistory";
+    const response = await this._fetch(url, { method: "DELETE" });
+    return response.json();
+  }
+  // endregion
+
+  // region: --- Existing API Methods (Refactored) ---
+  getImageProxyUrl(imageUrl: string): string {
+    return `${this.baseURL}/api/image-proxy?url=${encodeURIComponent(imageUrl)}`;
+  }
+
   async getDoubanData(
     type: "movie" | "tv",
     tag: string,
     pageSize: number = 16,
     pageStart: number = 0
   ): Promise<DoubanResponse> {
-    if (!this.baseURL) {
-      throw new Error("API_URL_NOT_SET");
-    }
-    const url = `${
-      this.baseURL
-    }/api/douban?type=${type}&tag=${encodeURIComponent(
-      tag
-    )}&pageSize=${pageSize}&pageStart=${pageStart}`;
-
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    const url = `/api/douban?type=${type}&tag=${encodeURIComponent(tag)}&pageSize=${pageSize}&pageStart=${pageStart}`;
+    const response = await this._fetch(url);
     return response.json();
   }
 
-  /**
-   * 搜索视频
-   */
   async searchVideos(query: string): Promise<{ results: SearchResult[] }> {
-    if (!this.baseURL) {
-      throw new Error("API_URL_NOT_SET");
-    }
-    const url = `${this.baseURL}/api/search?q=${encodeURIComponent(query)}`;
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    const url = `/api/search?q=${encodeURIComponent(query)}`;
+    const response = await this._fetch(url);
     return response.json();
   }
 
   async searchVideo(query: string, resourceId: string, signal?: AbortSignal): Promise<{ results: SearchResult[] }> {
-    if (!this.baseURL) {
-      throw new Error("API_URL_NOT_SET");
-    }
-    const url = `${this.baseURL}/api/search/one?q=${encodeURIComponent(query)}&resourceId=${encodeURIComponent(resourceId)}`;
-    const response = await fetch(url, { signal });
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    const url = `/api/search/one?q=${encodeURIComponent(query)}&resourceId=${encodeURIComponent(resourceId)}`;
+    const response = await this._fetch(url, { signal });
     return response.json();
   }
 
   async getResources(signal?: AbortSignal): Promise<ApiSite[]> {
-   if (!this.baseURL) {
-      throw new Error("API_URL_NOT_SET");
-    }
-    const url = `${this.baseURL}/api/search/resources`;
-    const response = await fetch(url, { signal });
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    const url = `/api/search/resources`;
+    const response = await this._fetch(url, { signal });
     return response.json();
   }
 
-
-  /**
-   * 获取视频详情
-   */
   async getVideoDetail(source: string, id: string): Promise<VideoDetail> {
-    if (!this.baseURL) {
-      throw new Error("API_URL_NOT_SET");
-    }
-    const url = `${this.baseURL}/api/detail?source=${source}&id=${id}`;
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    const url = `/api/detail?source=${source}&id=${id}`;
+    const response = await this._fetch(url);
     return response.json();
   }
+  // endregion
 }
 
 // 默认实例

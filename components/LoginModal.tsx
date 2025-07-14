@@ -1,0 +1,100 @@
+import React, { useState } from "react";
+import { Modal, View, Text, TextInput, StyleSheet, ActivityIndicator } from "react-native";
+import Toast from "react-native-toast-message";
+import useAuthStore from "@/stores/authStore";
+import { api } from "@/services/api";
+import { ThemedView } from "./ThemedView";
+import { ThemedText } from "./ThemedText";
+import { StyledButton } from "./StyledButton";
+
+const LoginModal = () => {
+  const { isLoginModalVisible, hideLoginModal } = useAuthStore();
+  const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleLogin = async () => {
+    if (!password) {
+      Toast.show({ type: "error", text1: "请输入密码" });
+      return;
+    }
+    setIsLoading(true);
+    try {
+      await api.login(password);
+      Toast.show({ type: "success", text1: "登录成功" });
+      hideLoginModal();
+      setPassword("");
+    } catch (error) {
+      Toast.show({ type: "error", text1: "登录失败", text2: "密码错误或服务器无法连接" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <Modal transparent={true} visible={isLoginModalVisible} animationType="fade" onRequestClose={hideLoginModal}>
+      <View style={styles.overlay}>
+        <ThemedView style={styles.container}>
+          <ThemedText style={styles.title}>需要登录</ThemedText>
+          <ThemedText style={styles.subtitle}>服务器需要验证您的身份</ThemedText>
+          <TextInput
+            style={styles.input}
+            placeholder="请输入密码"
+            placeholderTextColor="#888"
+            secureTextEntry
+            value={password}
+            onChangeText={setPassword}
+            autoFocus
+          />
+          <StyledButton text={isLoading ? "" : "登录"} onPress={handleLogin} disabled={isLoading} style={styles.button}>
+            {isLoading && <ActivityIndicator color="#fff" />}
+          </StyledButton>
+        </ThemedView>
+      </View>
+    </Modal>
+  );
+};
+
+const styles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  container: {
+    width: "80%",
+    maxWidth: 400,
+    padding: 24,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: "bold",
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: "#ccc",
+    marginBottom: 20,
+    textAlign: "center",
+  },
+  input: {
+    width: "100%",
+    height: 50,
+    backgroundColor: "#333",
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    color: "#fff",
+    fontSize: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#555",
+  },
+  button: {
+    width: "100%",
+    height: 50,
+  },
+});
+
+export default LoginModal;

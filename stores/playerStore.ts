@@ -11,7 +11,7 @@ interface Episode {
 }
 
 interface VideoDetail {
-  videoInfo: ApiVideoDetail["videoInfo"];
+  videoInfo: ApiVideoDetail;
   episodes: Episode[];
   sources: SearchResult[];
 }
@@ -89,15 +89,16 @@ const usePlayerStore = create<PlayerState>((set, get) => ({
     });
     try {
       const videoDetail = await api.getVideoDetail(source, id);
-      const episodes = videoDetail.episodes.map((ep, index) => ({ url: ep, title: `第 ${index + 1} 集` }));
-
-      const searchResults = await api.searchVideos(videoDetail.videoInfo.title);
-      const sources = searchResults.results.filter((r) => r.title === videoDetail.videoInfo.title);
-      const currentSourceIndex = sources.findIndex((s) => s.source === source && s.id.toString() === id);
+      const [{ results: sources }, resources] = await Promise.all([
+        api.searchVideo(videoDetail.title, source),
+        api.getResources(),
+      ]);
+      const currentSourceIndex = resources.findIndex((s) => s.key === source);
+      const episodes = sources.map((ep, index) => ({ url: ep.episodes[index], title: `第 ${index + 1} 集` }));
       const playRecord = await PlayRecordManager.get(source, id);
 
       set({
-        detail: { videoInfo: videoDetail.videoInfo, episodes, sources },
+        detail: { videoInfo: videoDetail, episodes, sources },
         episodes,
         sources,
         currentSourceIndex: currentSourceIndex !== -1 ? currentSourceIndex : 0,
@@ -123,12 +124,17 @@ const usePlayerStore = create<PlayerState>((set, get) => ({
 
     try {
       const videoDetail = await api.getVideoDetail(newSource.source, newSource.id.toString());
-      const episodes = videoDetail.episodes.map((ep, index) => ({ url: ep, title: `第 ${index + 1} 集` }));
+      const searchResults = await api.searchVideo(videoDetail.title, newSource.source);
+      if (!searchResults.results || searchResults.results.length === 0) {
+        throw new Error("No episodes found for this source.");
+      }
+      const sourceDetail = searchResults.results[0];
+      const episodes = sourceDetail.episodes.map((ep, index) => ({ url: ep, title: `第 ${index + 1} 集` }));
 
       set({
         detail: {
           ...detail,
-          videoInfo: videoDetail.videoInfo,
+          videoInfo: videoDetail,
           episodes,
         },
         episodes,
@@ -248,7 +254,7 @@ const usePlayerStore = create<PlayerState>((set, get) => ({
       };
       PlayRecordManager.save(videoInfo.source, videoInfo.id, {
         title: videoInfo.title,
-        cover: videoInfo.cover || "",
+        poster: videoInfo.poster || "",
         index: currentEpisodeIndex,
         total_episodes: episodes.length,
         play_time: status.positionMillis,

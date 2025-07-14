@@ -8,7 +8,7 @@ import Toast from "react-native-toast-message";
 
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useRemoteControlStore } from "@/stores/remoteControlStore";
-import { remoteControlService } from "@/services/remoteControlService";
+import LoginModal from "@/components/LoginModal";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -58,6 +58,7 @@ export default function RootLayout() {
         <Stack.Screen name="+not-found" />
       </Stack>
       <Toast />
+      <LoginModal />
     </ThemeProvider>
   );
 }

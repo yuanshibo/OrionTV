@@ -98,7 +98,7 @@ export default function PlayScreen() {
           style={styles.videoPlayer}
           source={{ uri: currentEpisode?.url }}
           usePoster
-          posterSource={{ uri: detail?.videoInfo.cover ?? "" }}
+          posterSource={{ uri: detail?.videoInfo.poster ?? "" }}
           resizeMode={ResizeMode.CONTAIN}
           onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
           onLoad={() => {
