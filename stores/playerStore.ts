@@ -226,7 +226,8 @@ const usePlayerStore = create<PlayerState>((set, get) => ({
       });
     } else {
       // Set the time
-      const newOutroStartTime = status.positionMillis;
+      if (!status.durationMillis) return;
+      const newOutroStartTime = status.durationMillis - status.positionMillis;
       set({ outroStartTime: newOutroStartTime });
       get()._savePlayRecord({ outroStartTime: newOutroStartTime });
       Toast.show({
@@ -270,7 +271,11 @@ const usePlayerStore = create<PlayerState>((set, get) => ({
 
     const { detail, currentEpisodeIndex, episodes, outroStartTime, playEpisode } = get();
 
-    if (outroStartTime && newStatus.positionMillis >= outroStartTime) {
+    if (
+      outroStartTime &&
+      newStatus.durationMillis &&
+      newStatus.positionMillis >= newStatus.durationMillis - outroStartTime
+    ) {
       if (currentEpisodeIndex < episodes.length - 1) {
         playEpisode(currentEpisodeIndex + 1);
         return; // Stop further processing for this update
