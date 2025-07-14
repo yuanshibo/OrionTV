@@ -99,16 +99,18 @@ yarn android-tv
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fzimplexing%2FOrionTV&root-directory=backend)
 
+如果 vercel 部署后遇到 `404: NOT_FOUNDCode: NOT_FOUND`，请检查 vercel 项目的根目录是否是 `beackend`
+
 #### Docker 部署
 
 1. `docker pull zimpel1/tv-host`
 
 2. `docker run -d -p 3001:3001 zimpel1/tv-host`
 
-
 ## 其他
- - 最低版本是android 6.0，可用，但是不推荐
- - 如果使用https的后端接口无法访问，在确认服务没有问题的情况下，请检查https的TLS协议，Android 10 之后版本才支持 TLS1.3
+
+- 最低版本是 android 6.0，可用，但是不推荐
+- 如果使用 https 的后端接口无法访问，在确认服务没有问题的情况下，请检查 https 的 TLS 协议，Android 10 之后版本才支持 TLS1.3
 
 ## 📜 主要脚本
 
@@ -135,6 +137,10 @@ yarn android-tv
 OrionTV 仅作为视频搜索工具，不存储、上传或分发任何视频内容。所有视频均来自第三方 API 接口提供的搜索结果。如有侵权内容，请联系相应的内容提供方。
 
 本项目开发者不对使用本项目产生的任何后果负责。使用本项目时，您必须遵守当地的法律法规。
+
+## 🌟 Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=zimplexing/OrionTV&type=Date)](https://www.star-history.com/#zimplexing/OrionTV&Date)
 
 ## 🙏 致谢
 
