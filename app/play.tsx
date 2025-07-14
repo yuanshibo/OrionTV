@@ -102,7 +102,7 @@ export default function PlayScreen() {
           resizeMode={ResizeMode.CONTAIN}
           onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
           onLoad={() => {
-            const jumpPosition = introEndTime || initialPosition;
+            const jumpPosition = initialPosition || introEndTime || 0;
             if (jumpPosition > 0) {
               videoRef.current?.setPositionAsync(jumpPosition);
             }
