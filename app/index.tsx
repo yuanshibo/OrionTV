@@ -5,9 +5,10 @@ import { ThemedText } from "@/components/ThemedText";
 import { api } from "@/services/api";
 import VideoCard from "@/components/VideoCard.tv";
 import { useFocusEffect, useRouter } from "expo-router";
-import { Search, Settings } from "lucide-react-native";
+import { Search, Settings, LogOut } from "lucide-react-native";
 import { StyledButton } from "@/components/StyledButton";
 import useHomeStore, { RowItem, Category } from "@/stores/homeStore";
+import useAuthStore from "@/stores/authStore";
 
 const NUM_COLUMNS = 5;
 const { width } = Dimensions.get("window");
@@ -31,6 +32,7 @@ export default function HomeScreen() {
     selectCategory,
     refreshPlayRecords,
   } = useHomeStore();
+  const { isLoggedIn, logout } = useAuthStore();
 
   useFocusEffect(
     useCallback(() => {
@@ -132,6 +134,11 @@ export default function HomeScreen() {
           <StyledButton style={styles.searchButton} onPress={() => router.push("/settings")} variant="ghost">
             <Settings color={colorScheme === "dark" ? "white" : "black"} size={24} />
           </StyledButton>
+          {isLoggedIn && (
+            <StyledButton style={styles.searchButton} onPress={logout} variant="ghost">
+              <LogOut color={colorScheme === "dark" ? "white" : "black"} size={24} />
+            </StyledButton>
+          )}
         </View>
       </View>
 

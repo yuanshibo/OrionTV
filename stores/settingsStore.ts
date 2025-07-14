@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { SettingsManager } from '@/services/storage';
-import { api } from '@/services/api';
+import { api, ServerConfig } from '@/services/api';
 import useHomeStore from './homeStore';
 
 
@@ -15,7 +15,9 @@ interface SettingsState {
     };
   };
   isModalVisible: boolean;
+  serverConfig: ServerConfig | null;
   loadSettings: () => Promise<void>;
+  fetchServerConfig: () => Promise<void>;
   setApiBaseUrl: (url: string) => void;
   setM3uUrl: (url: string) => void;
   setRemoteInputEnabled: (enabled: boolean) => void;
@@ -31,13 +33,14 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   liveStreamSources: [],
   remoteInputEnabled: false,
   isModalVisible: false,
+  serverConfig: null,
   videoSource: {
     enabledAll: true,
     sources: {},
   },
   loadSettings: async () => {
     const settings = await SettingsManager.get();
-    set({ 
+    set({
       apiBaseUrl: settings.apiBaseUrl,
       m3uUrl: settings.m3uUrl,
       remoteInputEnabled: settings.remoteInputEnabled || false,
@@ -47,6 +50,15 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       },
     });
     api.setBaseUrl(settings.apiBaseUrl);
+    await get().fetchServerConfig();
+  },
+  fetchServerConfig: async () => {
+    try {
+      const config = await api.getServerConfig();
+      set({ serverConfig: config });
+    } catch (error) {
+      console.error("Failed to fetch server config:", error);
+    }
   },
   setApiBaseUrl: (url) => set({ apiBaseUrl: url }),
   setM3uUrl: (url) => set({ m3uUrl: url }),

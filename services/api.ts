@@ -1,4 +1,3 @@
-import { SettingsManager } from "./storage";
 import useAuthStore from "@/stores/authStore";
 
 // region: --- Interface Definitions ---
@@ -52,7 +51,7 @@ export interface Favorite {
 export interface PlayRecord {
   title: string;
   source_name: string;
-  poster: string;
+  cover: string;
   index: number;
   total_episodes: number;
   play_time: number;
@@ -71,7 +70,6 @@ export interface ServerConfig {
   SiteName: string;
   StorageType: "localstorage" | "redis" | string;
 }
-// endregion
 
 export class API {
   public baseURL: string = "";
@@ -105,17 +103,16 @@ export class API {
     return response;
   }
 
-  // region: --- New API Methods ---
   async getServerConfig(): Promise<ServerConfig> {
     const response = await this._fetch("/api/server-config");
     return response.json();
   }
 
-  async login(password: string): Promise<{ ok: boolean }> {
+  async login(username: string | undefined, password: string): Promise<{ ok: boolean }> {
     const response = await this._fetch("/api/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password }),
+      body: JSON.stringify({ username, password }),
     });
     return response.json();
   }
@@ -180,9 +177,7 @@ export class API {
     const response = await this._fetch(url, { method: "DELETE" });
     return response.json();
   }
-  // endregion
 
-  // region: --- Existing API Methods (Refactored) ---
   getImageProxyUrl(imageUrl: string): string {
     return `${this.baseURL}/api/image-proxy?url=${encodeURIComponent(imageUrl)}`;
   }
@@ -221,14 +216,7 @@ export class API {
     const response = await this._fetch(url);
     return response.json();
   }
-  // endregion
 }
 
 // 默认实例
 export let api = new API();
-
-// 初始化 API
-export const initializeApi = async () => {
-  const settings = await SettingsManager.get();
-  api.setBaseUrl(settings.apiBaseUrl);
-};

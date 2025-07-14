@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { api, SearchResult, PlayRecord } from '@/services/api';
 import { PlayRecordManager } from '@/services/storage';
+import useAuthStore from './authStore';
 
 export type RowItem = (SearchResult | PlayRecord) & {
   id: string;
@@ -73,6 +74,11 @@ const useHomeStore = create<HomeState>((set, get) => ({
 
     try {
       if (selectedCategory.type === 'record') {
+        const { isLoggedIn } = useAuthStore.getState();
+        if (!isLoggedIn) {
+          set({ contentData: [], hasMore: false });
+          return;
+        }
         const records = await PlayRecordManager.getAll();
         const rowItems = Object.entries(records)
           .map(([key, record]) => {
@@ -126,6 +132,21 @@ const useHomeStore = create<HomeState>((set, get) => ({
   },
 
   refreshPlayRecords: async () => {
+    const { isLoggedIn } = useAuthStore.getState();
+    if (!isLoggedIn) {
+      set(state => {
+        const recordCategoryExists = state.categories.some(c => c.type === 'record');
+        if (recordCategoryExists) {
+          const newCategories = state.categories.filter(c => c.type !== 'record');
+          if (state.selectedCategory.type === 'record') {
+              get().selectCategory(newCategories[0] || null);
+          }
+          return { categories: newCategories };
+        }
+        return {};
+      });
+      return;
+    }
     const records = await PlayRecordManager.getAll();
     const hasRecords = Object.keys(records).length > 0;
     set(state => {

@@ -2,29 +2,38 @@ import React, { useState } from "react";
 import { Modal, View, Text, TextInput, StyleSheet, ActivityIndicator } from "react-native";
 import Toast from "react-native-toast-message";
 import useAuthStore from "@/stores/authStore";
+import { useSettingsStore } from "@/stores/settingsStore";
+import useHomeStore from "@/stores/homeStore";
 import { api } from "@/services/api";
 import { ThemedView } from "./ThemedView";
 import { ThemedText } from "./ThemedText";
 import { StyledButton } from "./StyledButton";
 
 const LoginModal = () => {
-  const { isLoginModalVisible, hideLoginModal } = useAuthStore();
+  const { isLoginModalVisible, hideLoginModal, checkLoginStatus } = useAuthStore();
+  const { serverConfig } = useSettingsStore();
+  const { refreshPlayRecords } = useHomeStore();
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   const handleLogin = async () => {
-    if (!password) {
-      Toast.show({ type: "error", text1: "请输入密码" });
+    const isLocalStorage = serverConfig?.StorageType === "localstorage";
+    if (!password || (!isLocalStorage && !username)) {
+      Toast.show({ type: "error", text1: "请输入用户名和密码" });
       return;
     }
     setIsLoading(true);
     try {
-      await api.login(password);
+      await api.login(isLocalStorage ? undefined : username, password);
+      await checkLoginStatus();
+      await refreshPlayRecords();
       Toast.show({ type: "success", text1: "登录成功" });
       hideLoginModal();
+      setUsername("");
       setPassword("");
     } catch (error) {
-      Toast.show({ type: "error", text1: "登录失败", text2: "密码错误或服务器无法连接" });
+      Toast.show({ type: "error", text1: "登录失败", text2: "用户名或密码错误" });
     } finally {
       setIsLoading(false);
     }
@@ -36,6 +45,16 @@ const LoginModal = () => {
         <ThemedView style={styles.container}>
           <ThemedText style={styles.title}>需要登录</ThemedText>
           <ThemedText style={styles.subtitle}>服务器需要验证您的身份</ThemedText>
+          {serverConfig?.StorageType !== "localstorage" && (
+            <TextInput
+              style={styles.input}
+              placeholder="请输入用户名"
+              placeholderTextColor="#888"
+              value={username}
+              onChangeText={setUsername}
+              autoFocus
+            />
+          )}
           <TextInput
             style={styles.input}
             placeholder="请输入密码"
@@ -43,7 +62,6 @@ const LoginModal = () => {
             secureTextEntry
             value={password}
             onChangeText={setPassword}
-            autoFocus
           />
           <StyledButton text={isLoading ? "" : "登录"} onPress={handleLogin} disabled={isLoading} style={styles.button}>
             {isLoading && <ActivityIndicator color="#fff" />}

@@ -10,50 +10,51 @@ import { SourceSelectionModal } from "@/components/SourceSelectionModal";
 import { SeekingBar } from "@/components/SeekingBar";
 import { NextEpisodeOverlay } from "@/components/NextEpisodeOverlay";
 import { LoadingOverlay } from "@/components/LoadingOverlay";
-import usePlayerStore from "@/stores/playerStore";
+import useDetailStore from "@/stores/detailStore";
 import { useTVRemoteHandler } from "@/hooks/useTVRemoteHandler";
+import Toast from "react-native-toast-message";
+import usePlayerStore from "@/stores/playerStore";
 
 export default function PlayScreen() {
   const videoRef = useRef<Video>(null);
   const router = useRouter();
   useKeepAwake();
-  const { source, id, episodeIndex, position } = useLocalSearchParams<{
-    source: string;
-    id: string;
+  const { episodeIndex: episodeIndexStr } = useLocalSearchParams<{
     episodeIndex: string;
-    position: string;
   }>();
+  const episodeIndex = parseInt(episodeIndexStr || "0", 10);
 
+  const { detail } = useDetailStore();
   const {
-    detail,
-    episodes,
-    currentEpisodeIndex,
+    status,
     isLoading,
     showControls,
-    showEpisodeModal,
-    showSourceModal,
     showNextEpisodeOverlay,
     initialPosition,
     introEndTime,
     setVideoRef,
-    loadVideo,
     handlePlaybackStatusUpdate,
     setShowControls,
-    setShowEpisodeModal,
-    setShowSourceModal,
     setShowNextEpisodeOverlay,
     reset,
+    playEpisode,
+    togglePlayPause,
+    seek,
   } = usePlayerStore();
 
   useEffect(() => {
     setVideoRef(videoRef);
-    if (source && id) {
-      loadVideo(source, id, parseInt(episodeIndex || "0", 10), parseInt(position || "0", 10));
-    }
+    // The detail is already in the detailStore, no need to load it again.
+    // We just need to set the current episode in the player store.
+    usePlayerStore.setState({
+      currentEpisodeIndex: episodeIndex,
+      episodes: detail?.episodes.map((ep, index) => ({ url: ep, title: `第 ${index + 1} 集` })) || [],
+    });
+
     return () => {
       reset(); // Reset state when component unmounts
     };
-  }, [source, id, episodeIndex, position, setVideoRef, loadVideo, reset]);
+  }, [episodeIndex, detail, setVideoRef, reset]);
 
   const { onScreenPress } = useTVRemoteHandler();
 
@@ -70,17 +71,9 @@ export default function PlayScreen() {
     const backHandler = BackHandler.addEventListener("hardwareBackPress", backAction);
 
     return () => backHandler.remove();
-  }, [
-    showControls,
-    showEpisodeModal,
-    showSourceModal,
-    setShowControls,
-    setShowEpisodeModal,
-    setShowSourceModal,
-    router,
-  ]);
+  }, [showControls, setShowControls, router]);
 
-  if (!detail && isLoading) {
+  if (!detail) {
     return (
       <ThemedView style={[styles.container, styles.centered]}>
         <ActivityIndicator size="large" color="#fff" />
@@ -88,7 +81,7 @@ export default function PlayScreen() {
     );
   }
 
-  const currentEpisode = episodes[currentEpisodeIndex];
+  const currentEpisode = detail.episodes[episodeIndex];
 
   return (
     <ThemedView focusable style={styles.container}>
@@ -96,9 +89,9 @@ export default function PlayScreen() {
         <Video
           ref={videoRef}
           style={styles.videoPlayer}
-          source={{ uri: currentEpisode?.url }}
+          source={{ uri: currentEpisode }}
           usePoster
-          posterSource={{ uri: detail?.videoInfo.poster ?? "" }}
+          posterSource={{ uri: detail?.poster ?? "" }}
           resizeMode={ResizeMode.CONTAIN}
           onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
           onLoad={() => {
@@ -107,6 +100,10 @@ export default function PlayScreen() {
               videoRef.current?.setPositionAsync(jumpPosition);
             }
             usePlayerStore.setState({ isLoading: false });
+          }}
+          onError={() => {
+            usePlayerStore.setState({ isLoading: false });
+            Toast.show({ type: "error", text1: "播放失败，请更换源后重试" });
           }}
           onLoadStart={() => usePlayerStore.setState({ isLoading: true })}
           useNativeControls={false}

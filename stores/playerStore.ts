@@ -2,27 +2,18 @@ import { create } from "zustand";
 import Toast from "react-native-toast-message";
 import { AVPlaybackStatus, Video } from "expo-av";
 import { RefObject } from "react";
-import { api, VideoDetail as ApiVideoDetail, SearchResult } from "@/services/api";
 import { PlayRecord, PlayRecordManager } from "@/services/storage";
+import useDetailStore, { episodesSelectorBySource } from "./detailStore";
 
 interface Episode {
   url: string;
   title: string;
 }
 
-interface VideoDetail {
-  videoInfo: ApiVideoDetail;
-  episodes: Episode[];
-  sources: SearchResult[];
-}
-
 interface PlayerState {
   videoRef: RefObject<Video> | null;
-  detail: VideoDetail | null;
-  episodes: Episode[];
-  sources: SearchResult[];
-  currentSourceIndex: number;
   currentEpisodeIndex: number;
+  episodes: Episode[];
   status: AVPlaybackStatus | null;
   isLoading: boolean;
   showControls: boolean;
@@ -36,8 +27,11 @@ interface PlayerState {
   introEndTime?: number;
   outroStartTime?: number;
   setVideoRef: (ref: RefObject<Video>) => void;
-  loadVideo: (source: string, id: string, episodeIndex: number, position?: number) => Promise<void>;
-  switchSource: (newSourceIndex: number) => Promise<void>;
+  loadVideo: (
+    source: string,
+    episodeIndex: number,
+    position?: number
+  ) => Promise<void>;
   playEpisode: (index: number) => void;
   togglePlayPause: () => void;
   seek: (duration: number) => void;
@@ -57,10 +51,7 @@ interface PlayerState {
 
 const usePlayerStore = create<PlayerState>((set, get) => ({
   videoRef: null,
-  detail: null,
   episodes: [],
-  sources: [],
-  currentSourceIndex: 0,
   currentEpisodeIndex: 0,
   status: null,
   isLoading: true,
@@ -78,76 +69,38 @@ const usePlayerStore = create<PlayerState>((set, get) => ({
 
   setVideoRef: (ref) => set({ videoRef: ref }),
 
-  loadVideo: async (source, id, episodeIndex, position) => {
+  loadVideo: async (source, episodeIndex, position) => {
+    const detail = useDetailStore.getState().detail;
+    const episodes = episodesSelectorBySource(source)(useDetailStore.getState());
+
+    if (!detail || !episodes || episodes.length === 0) return;
+
     set({
       isLoading: true,
-      detail: null,
-      episodes: [],
-      sources: [],
-      currentEpisodeIndex: 0,
+      currentEpisodeIndex: episodeIndex,
       initialPosition: position || 0,
+      episodes: episodes.map((ep, index) => ({
+        url: ep,
+        title: `第 ${index + 1} 集`,
+      })),
     });
-    try {
-      const videoDetail = await api.getVideoDetail(source, id);
-      const [{ results: sources }, resources] = await Promise.all([
-        api.searchVideo(videoDetail.title, source),
-        api.getResources(),
-      ]);
-      const currentSourceIndex = resources.findIndex((s) => s.key === source);
-      const episodes = sources.map((ep, index) => ({ url: ep.episodes[index], title: `第 ${index + 1} 集` }));
-      const playRecord = await PlayRecordManager.get(source, id);
 
+    try {
+      const playRecord = await PlayRecordManager.get(
+        detail.source,
+        detail.id.toString()
+      );
       set({
-        detail: { videoInfo: videoDetail, episodes, sources },
-        episodes,
-        sources,
-        currentSourceIndex: currentSourceIndex !== -1 ? currentSourceIndex : 0,
-        currentEpisodeIndex: episodeIndex,
         isLoading: false,
         introEndTime: playRecord?.introEndTime,
         outroStartTime: playRecord?.outroStartTime,
       });
     } catch (error) {
-      console.error("Failed to load video details", error);
+      console.error("Failed to load play record", error);
       set({ isLoading: false });
     }
   },
 
-  switchSource: async (newSourceIndex: number) => {
-    const { sources, currentEpisodeIndex, status, detail } = get();
-    if (!detail || newSourceIndex < 0 || newSourceIndex >= sources.length) return;
-
-    const newSource = sources[newSourceIndex];
-    const position = status?.isLoaded ? status.positionMillis : 0;
-
-    set({ isLoading: true, showSourceModal: false });
-
-    try {
-      const videoDetail = await api.getVideoDetail(newSource.source, newSource.id.toString());
-      const searchResults = await api.searchVideo(videoDetail.title, newSource.source);
-      if (!searchResults.results || searchResults.results.length === 0) {
-        throw new Error("No episodes found for this source.");
-      }
-      const sourceDetail = searchResults.results[0];
-      const episodes = sourceDetail.episodes.map((ep, index) => ({ url: ep, title: `第 ${index + 1} 集` }));
-
-      set({
-        detail: {
-          ...detail,
-          videoInfo: videoDetail,
-          episodes,
-        },
-        episodes,
-        currentSourceIndex: newSourceIndex,
-        currentEpisodeIndex: currentEpisodeIndex < episodes.length ? currentEpisodeIndex : 0,
-        initialPosition: position,
-        isLoading: false,
-      });
-    } catch (error) {
-      console.error("Failed to switch source", error);
-      set({ isLoading: false });
-    }
-  },
 
   playEpisode: (index) => {
     const { episodes, videoRef } = get();
@@ -194,7 +147,8 @@ const usePlayerStore = create<PlayerState>((set, get) => ({
   },
 
   setIntroEndTime: () => {
-    const { status, detail, introEndTime: existingIntroEndTime } = get();
+    const { status, introEndTime: existingIntroEndTime } = get();
+    const detail = useDetailStore.getState().detail;
     if (!status?.isLoaded || !detail) return;
 
     if (existingIntroEndTime) {
@@ -219,7 +173,8 @@ const usePlayerStore = create<PlayerState>((set, get) => ({
   },
 
   setOutroStartTime: () => {
-    const { status, detail, outroStartTime: existingOutroStartTime } = get();
+    const { status, outroStartTime: existingOutroStartTime } = get();
+    const detail = useDetailStore.getState().detail;
     if (!status?.isLoaded || !detail) return;
 
     if (existingOutroStartTime) {
@@ -245,21 +200,21 @@ const usePlayerStore = create<PlayerState>((set, get) => ({
   },
 
   _savePlayRecord: (updates = {}) => {
-    const { detail, currentEpisodeIndex, episodes, status, introEndTime, outroStartTime } = get();
+    const { detail } = useDetailStore.getState();
+    const { currentEpisodeIndex, episodes, status, introEndTime, outroStartTime } = get();
     if (detail && status?.isLoaded) {
-      const { videoInfo } = detail;
       const existingRecord = {
         introEndTime,
         outroStartTime,
       };
-      PlayRecordManager.save(videoInfo.source, videoInfo.id, {
-        title: videoInfo.title,
-        poster: videoInfo.poster || "",
+      PlayRecordManager.save(detail.source, detail.id.toString(), {
+        title: detail.title,
+        poster: detail.poster || "",
         index: currentEpisodeIndex,
         total_episodes: episodes.length,
         play_time: status.positionMillis,
         total_time: status.durationMillis || 0,
-        source_name: videoInfo.source_name,
+        source_name: detail.source_name,
         ...existingRecord,
         ...updates,
       });
@@ -275,7 +230,8 @@ const usePlayerStore = create<PlayerState>((set, get) => ({
       return;
     }
 
-    const { detail, currentEpisodeIndex, episodes, outroStartTime, playEpisode } = get();
+    const { currentEpisodeIndex, episodes, outroStartTime, playEpisode } = get();
+    const detail = useDetailStore.getState().detail;
 
     if (
       outroStartTime &&
@@ -317,10 +273,7 @@ const usePlayerStore = create<PlayerState>((set, get) => ({
 
   reset: () => {
     set({
-      detail: null,
       episodes: [],
-      sources: [],
-      currentSourceIndex: 0,
       currentEpisodeIndex: 0,
       status: null,
       isLoading: true,

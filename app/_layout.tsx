@@ -9,6 +9,7 @@ import Toast from "react-native-toast-message";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useRemoteControlStore } from "@/stores/remoteControlStore";
 import LoginModal from "@/components/LoginModal";
+import useAuthStore from "@/stores/authStore";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -20,10 +21,13 @@ export default function RootLayout() {
   });
   const { loadSettings, remoteInputEnabled } = useSettingsStore();
   const { startServer, stopServer } = useRemoteControlStore();
+  const { checkLoginStatus } = useAuthStore();
 
   useEffect(() => {
-    loadSettings();
-  }, [loadSettings]);
+    loadSettings().then(() => {
+      checkLoginStatus();
+    });
+  }, [loadSettings, checkLoginStatus]);
 
   useEffect(() => {
     if (loaded || error) {

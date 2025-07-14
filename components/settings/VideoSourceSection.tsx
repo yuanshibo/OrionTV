@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { StyleSheet, View, Switch, ActivityIndicator, FlatList, Pressable, Animated } from "react-native";
+import React, { useState, useCallback } from "react";
+import { StyleSheet, Switch, FlatList, Pressable, Animated } from "react-native";
 import { useTVEventHandler } from "react-native";
 import { ThemedText } from "@/components/ThemedText";
 import { SettingsSection } from "./SettingsSection";
-import { api, ApiSite } from "@/services/api";
 import { useSettingsStore } from "@/stores/settingsStore";
+import useSourceStore, { useSources } from "@/stores/sourceStore";
 
 interface VideoSourceSectionProps {
   onChanged: () => void;
@@ -13,56 +13,18 @@ interface VideoSourceSectionProps {
 }
 
 export const VideoSourceSection: React.FC<VideoSourceSectionProps> = ({ onChanged, onFocus, onBlur }) => {
-  const [resources, setResources] = useState<ApiSite[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
   const [isSectionFocused, setIsSectionFocused] = useState(false);
-  const { videoSource, setVideoSource } = useSettingsStore();
+  const { videoSource } = useSettingsStore();
+  const resources = useSources();
+  const { toggleResourceEnabled } = useSourceStore();
 
-  useEffect(() => {
-    fetchResources();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const fetchResources = async () => {
-    try {
-      setLoading(true);
-      const resourcesList = await api.getResources();
-      setResources(resourcesList);
-
-      if (videoSource.enabledAll && Object.keys(videoSource.sources).length === 0) {
-        const allResourceKeys: { [key: string]: boolean } = {};
-        for (const resource of resourcesList) {
-          allResourceKeys[resource.key] = true;
-        }
-        setVideoSource({
-          enabledAll: true,
-          sources: allResourceKeys,
-        });
-      }
-    } catch (err) {
-      setError("获取播放源失败");
-      console.error("Failed to fetch resources:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const toggleResourceEnabled = useCallback(
+  const handleToggle = useCallback(
     (resourceKey: string) => {
-      const isEnabled = videoSource.sources[resourceKey];
-
-      const newEnabledSources = { ...videoSource.sources, [resourceKey]: !isEnabled };
-
-      setVideoSource({
-        enabledAll: Object.values(newEnabledSources).every((enabled) => enabled),
-        sources: newEnabledSources,
-      });
-
+      toggleResourceEnabled(resourceKey);
       onChanged();
     },
-    [videoSource.sources, setVideoSource, onChanged]
+    [onChanged, toggleResourceEnabled]
   );
 
   const handleSectionFocus = () => {
@@ -83,20 +45,20 @@ export const VideoSourceSection: React.FC<VideoSourceSectionProps> = ({ onChange
         if (focusedIndex !== null) {
           const resource = resources[focusedIndex];
           if (resource) {
-            toggleResourceEnabled(resource.key);
+            handleToggle(resource.source);
           }
         } else if (isSectionFocused) {
           setFocusedIndex(0);
         }
       }
     },
-    [isSectionFocused, focusedIndex, resources, toggleResourceEnabled]
+    [isSectionFocused, focusedIndex, resources, handleToggle]
   );
 
   useTVEventHandler(handleTVEvent);
 
-  const renderResourceItem = ({ item, index }: { item: ApiSite; index: number }) => {
-    const isEnabled = videoSource.enabledAll || videoSource.sources[item.key];
+  const renderResourceItem = ({ item, index }: { item: { source: string; source_name: string }; index: number }) => {
+    const isEnabled = videoSource.enabledAll || videoSource.sources[item.source];
     const isFocused = focusedIndex === index;
 
     return (
@@ -107,7 +69,7 @@ export const VideoSourceSection: React.FC<VideoSourceSectionProps> = ({ onChange
           onFocus={() => setFocusedIndex(index)}
           onBlur={() => setFocusedIndex(null)}
         >
-          <ThemedText style={styles.resourceName}>{item.name}</ThemedText>
+          <ThemedText style={styles.resourceName}>{item.source_name}</ThemedText>
           <Switch
             value={isEnabled}
             onValueChange={() => {}} // 禁用Switch的直接交互
@@ -124,20 +86,11 @@ export const VideoSourceSection: React.FC<VideoSourceSectionProps> = ({ onChange
     <SettingsSection focusable onFocus={handleSectionFocus} onBlur={handleSectionBlur}>
       <ThemedText style={styles.sectionTitle}>播放源配置</ThemedText>
 
-      {loading && (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="small" />
-          <ThemedText style={styles.loadingText}>加载中...</ThemedText>
-        </View>
-      )}
-
-      {error && <ThemedText style={styles.errorText}>{error}</ThemedText>}
-
-      {!loading && !error && resources.length > 0 && (
+      {resources.length > 0 && (
         <FlatList
           data={resources}
           renderItem={renderResourceItem}
-          keyExtractor={(item) => item.key}
+          keyExtractor={(item) => item.source}
           numColumns={3}
           columnWrapperStyle={styles.row}
           contentContainerStyle={styles.flatListContainer}
@@ -153,22 +106,6 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "bold",
     marginBottom: 16,
-  },
-  loadingContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 16,
-  },
-  loadingText: {
-    marginLeft: 8,
-    color: "#888",
-  },
-  errorText: {
-    color: "#ff4444",
-    fontSize: 14,
-    textAlign: "center",
-    padding: 16,
   },
   flatListContainer: {
     gap: 12,

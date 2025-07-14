@@ -6,6 +6,7 @@ import { ThemedView } from "@/components/ThemedView";
 import { StyledButton } from "@/components/StyledButton";
 import { useThemeColor } from "@/hooks/useThemeColor";
 import { useSettingsStore } from "@/stores/settingsStore";
+import useAuthStore from "@/stores/authStore";
 import { useRemoteControlStore } from "@/stores/remoteControlStore";
 import { APIConfigSection } from "@/components/settings/APIConfigSection";
 import { LiveStreamSection } from "@/components/settings/LiveStreamSection";
@@ -16,6 +17,7 @@ import Toast from "react-native-toast-message";
 export default function SettingsScreen() {
   const { loadSettings, saveSettings, setApiBaseUrl, setM3uUrl } = useSettingsStore();
   const { lastMessage } = useRemoteControlStore();
+  const { isLoggedIn, logout } = useAuthStore();
   const backgroundColor = useThemeColor({}, "background");
 
   const [hasChanges, setHasChanges] = useState(false);
