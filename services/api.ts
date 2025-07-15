@@ -42,10 +42,13 @@ export interface SearchResult {
 }
 
 export interface Favorite {
+  cover: string;
   title: string;
   poster: string;
   source_name: string;
-  save_time: number;
+  total_episodes: number;
+  search_title: string;
+  year: string;
 }
 
 export interface PlayRecord {

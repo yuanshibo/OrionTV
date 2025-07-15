@@ -82,7 +82,7 @@ export class FavoriteManager {
     return (await api.getFavorites()) as Record<string, Favorite>;
   }
 
-  static async save(source: string, id: string, item: Omit<Favorite, "save_time">): Promise<void> {
+  static async save(source: string, id: string, item: Favorite): Promise<void> {
     const key = generateKey(source, id);
     await api.addFavorite(key, item);
   }
@@ -98,7 +98,7 @@ export class FavoriteManager {
     return favorite !== null;
   }
 
-  static async toggle(source: string, id: string, item: Omit<Favorite, "save_time">): Promise<boolean> {
+  static async toggle(source: string, id: string, item: Favorite): Promise<boolean> {
     const isFav = await this.isFavorited(source, id);
     if (isFav) {
       await this.remove(source, id);

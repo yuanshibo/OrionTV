@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Modal, View, Text, TextInput, StyleSheet, ActivityIndicator } from "react-native";
+import React, { useState, useRef } from "react";
+import { Modal, View, TextInput, StyleSheet, ActivityIndicator } from "react-native";
 import Toast from "react-native-toast-message";
 import useAuthStore from "@/stores/authStore";
 import { useSettingsStore } from "@/stores/settingsStore";
@@ -16,6 +16,8 @@ const LoginModal = () => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const passwordInputRef = useRef<TextInput>(null);
+  const loginButtonRef = useRef<View>(null);
 
   const handleLogin = async () => {
     const isLocalStorage = serverConfig?.StorageType === "localstorage";
@@ -32,7 +34,7 @@ const LoginModal = () => {
       hideLoginModal();
       setUsername("");
       setPassword("");
-    } catch (error) {
+    } catch {
       Toast.show({ type: "error", text1: "登录失败", text2: "用户名或密码错误" });
     } finally {
       setIsLoading(false);
@@ -53,17 +55,28 @@ const LoginModal = () => {
               value={username}
               onChangeText={setUsername}
               autoFocus
+              returnKeyType="next"
+              onSubmitEditing={() => passwordInputRef.current?.focus()}
             />
           )}
           <TextInput
+            ref={passwordInputRef}
             style={styles.input}
             placeholder="请输入密码"
             placeholderTextColor="#888"
             secureTextEntry
             value={password}
             onChangeText={setPassword}
+            returnKeyType="next"
+            onSubmitEditing={() => loginButtonRef.current?.focus()}
           />
-          <StyledButton text={isLoading ? "" : "登录"} onPress={handleLogin} disabled={isLoading} style={styles.button}>
+          <StyledButton
+            ref={loginButtonRef}
+            text={isLoading ? "" : "登录"}
+            onPress={handleLogin}
+            disabled={isLoading}
+            style={styles.button}
+          >
             {isLoading && <ActivityIndicator color="#fff" />}
           </StyledButton>
         </ThemedView>

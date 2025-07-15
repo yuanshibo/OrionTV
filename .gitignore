@@ -23,5 +23,5 @@ expo-env.d.ts
 web/** 
 .bmad-core
 .kilocodemodes
-.roomode
+.roomodes
 yarn-errors.log
