@@ -122,7 +122,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
               }
             }
           } catch (error) {
-            console.warn(`Failed to fetch from ${resource.name}:`, error);
+            console.info(`Failed to fetch from ${resource.name}:`, error);
           }
         });
 
@@ -133,11 +133,11 @@ const useDetailStore = create<DetailState>((set, get) => ({
         set({ error: "未找到任何播放源" });
       }
 
-      if (get().detail) {
-        const { source, id } = get().detail!;
-        const isFavorited = await FavoriteManager.isFavorited(source, id.toString());
-        set({ isFavorited });
-      }
+      // if (get().detail) {
+      //   const { source, id } = get().detail!;
+      //   const isFavorited = await FavoriteManager.isFavorited(source, id.toString());
+      //   set({ isFavorited });
+      // }
     } catch (e) {
       if ((e as Error).name !== "AbortError") {
         set({ error: e instanceof Error ? e.message : "获取数据失败" });
@@ -151,9 +151,9 @@ const useDetailStore = create<DetailState>((set, get) => ({
 
   setDetail: async (detail) => {
     set({ detail });
-    const { source, id } = detail;
-    const isFavorited = await FavoriteManager.isFavorited(source, id.toString());
-    set({ isFavorited });
+    // const { source, id } = detail;
+    // const isFavorited = await FavoriteManager.isFavorited(source, id.toString());
+    // set({ isFavorited });
   },
 
   abort: () => {

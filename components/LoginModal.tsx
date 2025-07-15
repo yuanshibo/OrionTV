@@ -1,5 +1,5 @@
-import React, { useState, useRef } from "react";
-import { Modal, View, TextInput, StyleSheet, ActivityIndicator } from "react-native";
+import React, { useState, useRef, useEffect } from "react";
+import { Modal, View, TextInput, StyleSheet, ActivityIndicator, useTVEventHandler } from "react-native";
 import Toast from "react-native-toast-message";
 import useAuthStore from "@/stores/authStore";
 import { useSettingsStore } from "@/stores/settingsStore";
@@ -16,8 +16,49 @@ const LoginModal = () => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const usernameInputRef = useRef<TextInput>(null);
   const passwordInputRef = useRef<TextInput>(null);
   const loginButtonRef = useRef<View>(null);
+  const [focused, setFocused] = useState("username");
+
+  const tvEventHandler = (evt: any) => {
+    if (!evt || !isLoginModalVisible) {
+      return;
+    }
+
+    const isUsernameVisible = serverConfig?.StorageType !== "localstorage";
+
+    if (evt.eventType === "down") {
+      if (focused === "username" && isUsernameVisible) {
+        passwordInputRef.current?.focus();
+      } else if (focused === "password") {
+        loginButtonRef.current?.focus();
+      }
+    }
+
+    if (evt.eventType === "up") {
+      if (focused === "button") {
+        passwordInputRef.current?.focus();
+      } else if (focused === "password" && isUsernameVisible) {
+        usernameInputRef.current?.focus();
+      }
+    }
+  };
+
+  useTVEventHandler(tvEventHandler);
+
+  useEffect(() => {
+    if (isLoginModalVisible) {
+      const isUsernameVisible = serverConfig?.StorageType !== "localstorage";
+      setTimeout(() => {
+        if (isUsernameVisible) {
+          usernameInputRef.current?.focus();
+        } else {
+          passwordInputRef.current?.focus();
+        }
+      }, 200);
+    }
+  }, [isLoginModalVisible, serverConfig]);
 
   const handleLogin = async () => {
     const isLocalStorage = serverConfig?.StorageType === "localstorage";
@@ -49,14 +90,14 @@ const LoginModal = () => {
           <ThemedText style={styles.subtitle}>服务器需要验证您的身份</ThemedText>
           {serverConfig?.StorageType !== "localstorage" && (
             <TextInput
+              ref={usernameInputRef}
               style={styles.input}
               placeholder="请输入用户名"
               placeholderTextColor="#888"
               value={username}
               onChangeText={setUsername}
-              autoFocus
               returnKeyType="next"
-              onSubmitEditing={() => passwordInputRef.current?.focus()}
+              onFocus={() => setFocused("username")}
             />
           )}
           <TextInput
@@ -67,11 +108,13 @@ const LoginModal = () => {
             secureTextEntry
             value={password}
             onChangeText={setPassword}
-            returnKeyType="next"
-            onSubmitEditing={() => loginButtonRef.current?.focus()}
+            returnKeyType="go"
+            onFocus={() => setFocused("password")}
+            onSubmitEditing={handleLogin}
           />
           <StyledButton
             ref={loginButtonRef}
+            onFocus={() => setFocused("button")}
             text={isLoading ? "" : "登录"}
             onPress={handleLogin}
             disabled={isLoading}

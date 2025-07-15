@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import Cookies from "@react-native-cookies/cookies";
-import { api } from "@/services/api";
+import { api, ServerConfig } from "@/services/api";
 
 interface AuthState {
   isLoggedIn: boolean;
@@ -22,23 +22,18 @@ const useAuthStore = create<AuthState>((set) => ({
       return;
     }
     try {
-      await api.login();
-      set({ isLoginModalVisible: true });
-    } catch {
-      try {
-        const cookies = await Cookies.get(api.baseURL);
-        const isLoggedIn = cookies && !!cookies.auth;
-        set({ isLoggedIn });
-        if (!isLoggedIn) {
-          set({ isLoginModalVisible: true });
-        }
-      } catch (error) {
-        console.info("Failed to check login status:", error);
-        if (error instanceof Error && error.message === "UNAUTHORIZED") {
-          set({ isLoggedIn: false, isLoginModalVisible: true });
-        } else {
-          set({ isLoggedIn: false });
-        }
+      const cookies = await Cookies.get(api.baseURL);
+      const isLoggedIn = cookies && !!cookies.auth;
+      set({ isLoggedIn });
+      if (!isLoggedIn) {
+        set({ isLoginModalVisible: true });
+      }
+    } catch (error) {
+      console.info("Failed to check login status:", error);
+      if (error instanceof Error && error.message === "UNAUTHORIZED") {
+        set({ isLoggedIn: false, isLoginModalVisible: true });
+      } else {
+        set({ isLoggedIn: false });
       }
     }
   },
