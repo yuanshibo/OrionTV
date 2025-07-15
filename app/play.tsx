@@ -19,12 +19,20 @@ export default function PlayScreen() {
   const videoRef = useRef<Video>(null);
   const router = useRouter();
   useKeepAwake();
-  const { episodeIndex: episodeIndexStr } = useLocalSearchParams<{
+  const {
+    episodeIndex: episodeIndexStr,
+    position: positionStr,
+    source: sourceStr,
+  } = useLocalSearchParams<{
     episodeIndex: string;
+    position?: string;
+    source?: string;
   }>();
   const episodeIndex = parseInt(episodeIndexStr || "0", 10);
+  const position = positionStr ? parseInt(positionStr, 10) : undefined;
 
   const { detail } = useDetailStore();
+  const source = sourceStr || detail?.source;
   const {
     isLoading,
     showControls,
@@ -36,21 +44,19 @@ export default function PlayScreen() {
     setShowControls,
     setShowNextEpisodeOverlay,
     reset,
+    loadVideo,
   } = usePlayerStore();
 
   useEffect(() => {
     setVideoRef(videoRef);
-    // The detail is already in the detailStore, no need to load it again.
-    // We just need to set the current episode in the player store.
-    usePlayerStore.setState({
-      currentEpisodeIndex: episodeIndex,
-      episodes: detail?.episodes.map((ep, index) => ({ url: ep, title: `第 ${index + 1} 集` })) || [],
-    });
+    if (source) {
+      loadVideo(source, episodeIndex, position);
+    }
 
     return () => {
       reset(); // Reset state when component unmounts
     };
-  }, [episodeIndex, detail, setVideoRef, reset]);
+  }, [episodeIndex, source, position, setVideoRef, reset, loadVideo]);
 
   const { onScreenPress } = useTVRemoteHandler();
 

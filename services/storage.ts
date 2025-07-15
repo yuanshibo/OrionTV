@@ -1,10 +1,14 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api, PlayRecord as ApiPlayRecord, Favorite as ApiFavorite } from "./api";
+import { useSettingsStore } from "@/stores/settingsStore";
 
 // --- Storage Keys ---
 const STORAGE_KEYS = {
   SETTINGS: "mytv_settings",
   PLAYER_SETTINGS: "mytv_player_settings",
+  FAVORITES: "mytv_favorites",
+  PLAY_RECORDS: "mytv_play_records",
+  SEARCH_HISTORY: "mytv_search_history",
 } as const;
 
 // --- Type Definitions (aligned with api.ts) ---
@@ -76,24 +80,53 @@ export class PlayerSettingsManager {
   }
 }
 
-// --- FavoriteManager (Refactored to use API) ---
+// --- FavoriteManager (Dynamic: API or LocalStorage) ---
 export class FavoriteManager {
+  private static getStorageType() {
+    return useSettingsStore.getState().serverConfig?.StorageType;
+  }
+
   static async getAll(): Promise<Record<string, Favorite>> {
+    if (this.getStorageType() === "localstorage") {
+      try {
+        const data = await AsyncStorage.getItem(STORAGE_KEYS.FAVORITES);
+        return data ? JSON.parse(data) : {};
+      } catch (error) {
+        console.info("Failed to get all local favorites:", error);
+        return {};
+      }
+    }
     return (await api.getFavorites()) as Record<string, Favorite>;
   }
 
   static async save(source: string, id: string, item: Favorite): Promise<void> {
     const key = generateKey(source, id);
+    if (this.getStorageType() === "localstorage") {
+      const allFavorites = await this.getAll();
+      allFavorites[key] = { ...item, save_time: Date.now() };
+      await AsyncStorage.setItem(STORAGE_KEYS.FAVORITES, JSON.stringify(allFavorites));
+      return;
+    }
     await api.addFavorite(key, item);
   }
 
   static async remove(source: string, id: string): Promise<void> {
     const key = generateKey(source, id);
+    if (this.getStorageType() === "localstorage") {
+      const allFavorites = await this.getAll();
+      delete allFavorites[key];
+      await AsyncStorage.setItem(STORAGE_KEYS.FAVORITES, JSON.stringify(allFavorites));
+      return;
+    }
     await api.deleteFavorite(key);
   }
 
   static async isFavorited(source: string, id: string): Promise<boolean> {
     const key = generateKey(source, id);
+    if (this.getStorageType() === "localstorage") {
+      const allFavorites = await this.getAll();
+      return !!allFavorites[key];
+    }
     const favorite = await api.getFavorites(key);
     return favorite !== null;
   }
@@ -110,16 +143,35 @@ export class FavoriteManager {
   }
 
   static async clearAll(): Promise<void> {
+    if (this.getStorageType() === "localstorage") {
+      await AsyncStorage.removeItem(STORAGE_KEYS.FAVORITES);
+      return;
+    }
     await api.deleteFavorite();
   }
 }
 
-// --- PlayRecordManager (Refactored to use API and local settings) ---
+// --- PlayRecordManager (Dynamic: API or LocalStorage) ---
 export class PlayRecordManager {
-  static async getAll(): Promise<Record<string, PlayRecord>> {
-    const apiRecords = await api.getPlayRecords();
-    const localSettings = await PlayerSettingsManager.getAll();
+  private static getStorageType() {
+    return useSettingsStore.getState().serverConfig?.StorageType;
+  }
 
+  static async getAll(): Promise<Record<string, PlayRecord>> {
+    let apiRecords: Record<string, PlayRecord> = {};
+    if (this.getStorageType() === "localstorage") {
+      try {
+        const data = await AsyncStorage.getItem(STORAGE_KEYS.PLAY_RECORDS);
+        apiRecords = data ? JSON.parse(data) : {};
+      } catch (error) {
+        console.info("Failed to get all local play records:", error);
+        return {};
+      }
+    } else {
+      apiRecords = await api.getPlayRecords();
+    }
+
+    const localSettings = await PlayerSettingsManager.getAll();
     const mergedRecords: Record<string, PlayRecord> = {};
     for (const key in apiRecords) {
       mergedRecords[key] = {
@@ -134,49 +186,86 @@ export class PlayRecordManager {
     const key = generateKey(source, id);
     const { introEndTime, outroStartTime, ...apiRecord } = record;
 
-    // Save player settings locally
+    // Player settings are always saved locally
     await PlayerSettingsManager.save(source, id, { introEndTime, outroStartTime });
 
-    // Save core record to API
-    await api.savePlayRecord(key, apiRecord);
+    if (this.getStorageType() === "localstorage") {
+      const allRecords = await this.getAll();
+      const fullRecord = { ...apiRecord, save_time: Date.now() };
+      allRecords[key] = { ...allRecords[key], ...fullRecord };
+      await AsyncStorage.setItem(STORAGE_KEYS.PLAY_RECORDS, JSON.stringify(allRecords));
+    } else {
+      await api.savePlayRecord(key, apiRecord);
+    }
   }
 
   static async get(source: string, id: string): Promise<PlayRecord | null> {
     const key = generateKey(source, id);
-    // This can be optimized, but for consistency, we call getAll
     const records = await this.getAll();
     return records[key] || null;
   }
 
   static async remove(source: string, id: string): Promise<void> {
     const key = generateKey(source, id);
-    // Remove from API first
-    await api.deletePlayRecord(key);
-    // Then remove from local settings
-    await PlayerSettingsManager.remove(source, id);
+    await PlayerSettingsManager.remove(source, id); // Always remove local settings
+
+    if (this.getStorageType() === "localstorage") {
+      const allRecords = await this.getAll();
+      delete allRecords[key];
+      await AsyncStorage.setItem(STORAGE_KEYS.PLAY_RECORDS, JSON.stringify(allRecords));
+    } else {
+      await api.deletePlayRecord(key);
+    }
   }
 
   static async clearAll(): Promise<void> {
-    // Clear from API first
-    await api.deletePlayRecord();
-    // Then clear from local settings
-    await PlayerSettingsManager.clearAll();
+    await PlayerSettingsManager.clearAll(); // Always clear local settings
+
+    if (this.getStorageType() === "localstorage") {
+      await AsyncStorage.removeItem(STORAGE_KEYS.PLAY_RECORDS);
+    } else {
+      await api.deletePlayRecord();
+    }
   }
 }
 
-// --- SearchHistoryManager (Refactored to use API) ---
+// --- SearchHistoryManager (Dynamic: API or LocalStorage) ---
 export class SearchHistoryManager {
+  private static getStorageType() {
+    return useSettingsStore.getState().serverConfig?.StorageType;
+  }
+
   static async get(): Promise<string[]> {
+    if (this.getStorageType() === "localstorage") {
+      try {
+        const data = await AsyncStorage.getItem(STORAGE_KEYS.SEARCH_HISTORY);
+        return data ? JSON.parse(data) : [];
+      } catch (error) {
+        console.info("Failed to get local search history:", error);
+        return [];
+      }
+    }
     return api.getSearchHistory();
   }
 
   static async add(keyword: string): Promise<void> {
     const trimmed = keyword.trim();
     if (!trimmed) return;
+
+    if (this.getStorageType() === "localstorage") {
+      let history = await this.get();
+      history = [trimmed, ...history.filter((k) => k !== trimmed)].slice(0, 20); // Keep latest 20
+      await AsyncStorage.setItem(STORAGE_KEYS.SEARCH_HISTORY, JSON.stringify(history));
+      return;
+    }
     await api.addSearchHistory(trimmed);
   }
 
   static async clear(): Promise<void> {
+    if (this.getStorageType() === "localstorage") {
+      await AsyncStorage.removeItem(STORAGE_KEYS.SEARCH_HISTORY);
+      return;
+    }
     await api.deleteSearchHistory();
   }
 }
