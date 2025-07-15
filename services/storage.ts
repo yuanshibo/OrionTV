@@ -42,7 +42,7 @@ export class PlayerSettingsManager {
       const data = await AsyncStorage.getItem(STORAGE_KEYS.PLAYER_SETTINGS);
       return data ? JSON.parse(data) : {};
     } catch (error) {
-      console.error("Failed to get all player settings:", error);
+      console.info("Failed to get all player settings:", error);
       return {};
     }
   }
@@ -192,13 +192,13 @@ export class SettingsManager {
         sources: {},
       },
       m3uUrl:
-        "https://ghfast.top/https://raw.githubusercontent.com/sjnhnp/adblock/refs/heads/main/filtered_http_only_valid.m3u",
+        "",
     };
     try {
       const data = await AsyncStorage.getItem(STORAGE_KEYS.SETTINGS);
       return data ? { ...defaultSettings, ...JSON.parse(data) } : defaultSettings;
     } catch (error) {
-      console.error("Failed to get settings:", error);
+      console.info("Failed to get settings:", error);
       return defaultSettings;
     }
   }

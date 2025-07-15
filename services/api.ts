@@ -1,4 +1,3 @@
-import useAuthStore from "@/stores/authStore";
 
 // region: --- Interface Definitions ---
 export interface DoubanItem {
@@ -97,7 +96,6 @@ export class API {
     const response = await fetch(`${this.baseURL}${url}`, options);
 
     if (response.status === 401) {
-      useAuthStore.getState().showLoginModal();
       throw new Error("UNAUTHORIZED");
     }
 

@@ -112,7 +112,7 @@ export default function VideoCard({
               router.replace("/");
             }
           } catch (error) {
-            console.error("Failed to delete play record:", error);
+            console.info("Failed to delete play record:", error);
             Alert.alert("错误", "删除观看记录失败，请重试");
           }
         },

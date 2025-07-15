@@ -1,8 +1,7 @@
 import { create } from 'zustand';
 import { SettingsManager } from '@/services/storage';
 import { api, ServerConfig } from '@/services/api';
-import useHomeStore from './homeStore';
-import useAuthStore from './authStore';
+// import useHomeStore from './homeStore';
 
 
 interface SettingsState {
@@ -58,7 +57,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       const config = await api.getServerConfig();
       set({ serverConfig: config });
     } catch (error) {
-      console.error("Failed to fetch server config:", error);
+      console.info("Failed to fetch server config:", error);
     }
   },
   setApiBaseUrl: (url) => set({ apiBaseUrl: url }),
@@ -75,8 +74,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     });
     api.setBaseUrl(apiBaseUrl);
     set({ isModalVisible: false });
-    useHomeStore.getState().fetchInitialData();
-    useAuthStore.getState().checkLoginStatus();
+    // useHomeStore.getState().fetchInitialData();
   },
   showModal: () => set({ isModalVisible: true }),
   hideModal: () => set({ isModalVisible: false }),

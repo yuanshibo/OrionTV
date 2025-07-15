@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { api, SearchResult, PlayRecord } from "@/services/api";
 import { PlayRecordManager } from "@/services/storage";
 import useAuthStore from "./authStore";
+import { useSettingsStore } from "./settingsStore";
 
 export type RowItem = (SearchResult | PlayRecord) & {
   id: string;
@@ -80,6 +81,8 @@ const useHomeStore = create<HomeState>((set, get) => ({
   error: null,
 
   fetchInitialData: async () => {
+    const { apiBaseUrl } = useSettingsStore.getState();
+    await useAuthStore.getState().checkLoginStatus(apiBaseUrl);
     set({ loading: true, contentData: [], pageStart: 0, hasMore: true, error: null });
     await get().loadMoreData();
   },
@@ -163,6 +166,8 @@ const useHomeStore = create<HomeState>((set, get) => ({
   },
 
   refreshPlayRecords: async () => {
+    const { apiBaseUrl } = useSettingsStore.getState();
+    await useAuthStore.getState().checkLoginStatus(apiBaseUrl);
     const { isLoggedIn } = useAuthStore.getState();
     if (!isLoggedIn) {
       set((state) => {
@@ -194,9 +199,7 @@ const useHomeStore = create<HomeState>((set, get) => ({
       }
       return {};
     });
-    if (get().selectedCategory.type === "record") {
-      get().fetchInitialData();
-    }
+    get().fetchInitialData();
   },
 }));
 

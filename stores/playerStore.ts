@@ -89,7 +89,7 @@ const usePlayerStore = create<PlayerState>((set, get) => ({
         outroStartTime: playRecord?.outroStartTime,
       });
     } catch (error) {
-      console.error("Failed to load play record", error);
+      console.info("Failed to load play record", error);
       set({ isLoading: false });
     }
   },
@@ -217,7 +217,7 @@ const usePlayerStore = create<PlayerState>((set, get) => ({
   handlePlaybackStatusUpdate: (newStatus) => {
     if (!newStatus.isLoaded) {
       if (newStatus.error) {
-        console.error(`Playback Error: ${newStatus.error}`);
+        console.info(`Playback Error: ${newStatus.error}`);
       }
       set({ status: newStatus });
       return;

@@ -25,7 +25,7 @@ const getRemotePageHTML = () => {
     </div>
     <script>
       window.addEventListener('DOMContentLoaded', () => {
-        fetch('/handshake', { method: 'POST' }).catch(console.error);
+        fetch('/handshake', { method: 'POST' }).catch(console.info);
       });
       function send() {
         const input = document.getElementById("text");
@@ -36,7 +36,7 @@ const getRemotePageHTML = () => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ message: value })
           })
-          .catch(err => console.error(err));
+          .catch(err => console.info(err));
           input.value = '';
         }
       }
@@ -80,7 +80,7 @@ class RemoteControlService {
               body: JSON.stringify({ status: "ok" }),
             };
           } catch (parseError) {
-            console.error("[RemoteControl] Failed to parse message body:", parseError);
+            console.info("[RemoteControl] Failed to parse message body:", parseError);
             return {
               statusCode: 400,
               headers: { "Content-Type": "application/json" },
@@ -102,7 +102,7 @@ class RemoteControlService {
           };
         }
       } catch (error) {
-        console.error("[RemoteControl] Request handler error:", error);
+        console.info("[RemoteControl] Request handler error:", error);
         return {
           statusCode: 500,
           headers: { "Content-Type": "application/json" },
@@ -125,7 +125,7 @@ class RemoteControlService {
       console.log(`[RemoteControl] Server started successfully at: ${url}`);
       return url;
     } catch (error) {
-      console.error("[RemoteControl] Failed to start server:", error);
+      console.info("[RemoteControl] Failed to start server:", error);
       throw new Error(error instanceof Error ? error.message : "Failed to start server");
     }
   }

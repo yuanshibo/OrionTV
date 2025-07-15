@@ -64,7 +64,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
             }
           } catch (e) {
             if ((e as Error).name !== "AbortError") {
-              console.error(`Failed to get resolution for ${searchResult.source_name}`, e);
+              console.info(`Failed to get resolution for ${searchResult.source_name}`, e);
             }
           }
           return { ...searchResult, resolution };

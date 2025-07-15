@@ -19,15 +19,19 @@ export default function RootLayout() {
   const [loaded, error] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
-  const { loadSettings, remoteInputEnabled } = useSettingsStore();
+  const { loadSettings, remoteInputEnabled, apiBaseUrl } = useSettingsStore();
   const { startServer, stopServer } = useRemoteControlStore();
   const { checkLoginStatus } = useAuthStore();
 
   useEffect(() => {
-    loadSettings().then(() => {
-      checkLoginStatus();
-    });
-  }, [loadSettings, checkLoginStatus]);
+    loadSettings();
+  }, [loadSettings]);
+
+  useEffect(() => {
+    if (apiBaseUrl) {
+      checkLoginStatus(apiBaseUrl);
+    }
+  }, [apiBaseUrl, checkLoginStatus]);
 
   useEffect(() => {
     if (loaded || error) {

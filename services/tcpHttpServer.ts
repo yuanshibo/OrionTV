@@ -59,7 +59,7 @@ class TCPHttpServer {
 
       return { method, url, headers, body };
     } catch (error) {
-      console.error('[TCPHttpServer] Error parsing HTTP request:', error);
+      console.info('[TCPHttpServer] Error parsing HTTP request:', error);
       return null;
     }
   }
@@ -140,7 +140,7 @@ class TCPHttpServer {
                   socket.write(errorResponse);
                 }
               } catch (error) {
-                console.error('[TCPHttpServer] Error handling request:', error);
+                console.info('[TCPHttpServer] Error handling request:', error);
                 const errorResponse = this.formatHttpResponse({
                   statusCode: 500,
                   headers: { 'Content-Type': 'text/plain' },
@@ -155,7 +155,7 @@ class TCPHttpServer {
           });
 
           socket.on('error', (error: Error) => {
-            console.error('[TCPHttpServer] Socket error:', error);
+            console.info('[TCPHttpServer] Socket error:', error);
           });
 
           socket.on('close', () => {
@@ -170,13 +170,13 @@ class TCPHttpServer {
         });
 
         this.server.on('error', (error: Error) => {
-          console.error('[TCPHttpServer] Server error:', error);
+          console.info('[TCPHttpServer] Server error:', error);
           this.isRunning = false;
           reject(error);
         });
 
       } catch (error) {
-        console.error('[TCPHttpServer] Failed to start server:', error);
+        console.info('[TCPHttpServer] Failed to start server:', error);
         reject(error);
       }
     });

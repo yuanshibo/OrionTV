@@ -11,7 +11,7 @@ import { StyledButton } from "./StyledButton";
 
 const LoginModal = () => {
   const { isLoginModalVisible, hideLoginModal, checkLoginStatus } = useAuthStore();
-  const { serverConfig } = useSettingsStore();
+  const { serverConfig, apiBaseUrl } = useSettingsStore();
   const { refreshPlayRecords } = useHomeStore();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -28,7 +28,7 @@ const LoginModal = () => {
     setIsLoading(true);
     try {
       await api.login(isLocalStorage ? undefined : username, password);
-      await checkLoginStatus();
+      await checkLoginStatus(apiBaseUrl);
       await refreshPlayRecords();
       Toast.show({ type: "success", text1: "登录成功" });
       hideLoginModal();
