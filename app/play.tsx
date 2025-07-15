@@ -26,7 +26,6 @@ export default function PlayScreen() {
 
   const { detail } = useDetailStore();
   const {
-    status,
     isLoading,
     showControls,
     showNextEpisodeOverlay,
@@ -37,9 +36,6 @@ export default function PlayScreen() {
     setShowControls,
     setShowNextEpisodeOverlay,
     reset,
-    playEpisode,
-    togglePlayPause,
-    seek,
   } = usePlayerStore();
 
   useEffect(() => {

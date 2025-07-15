@@ -27,11 +27,7 @@ interface PlayerState {
   introEndTime?: number;
   outroStartTime?: number;
   setVideoRef: (ref: RefObject<Video>) => void;
-  loadVideo: (
-    source: string,
-    episodeIndex: number,
-    position?: number
-  ) => Promise<void>;
+  loadVideo: (source: string, episodeIndex: number, position?: number) => Promise<void>;
   playEpisode: (index: number) => void;
   togglePlayPause: () => void;
   seek: (duration: number) => void;
@@ -86,10 +82,7 @@ const usePlayerStore = create<PlayerState>((set, get) => ({
     });
 
     try {
-      const playRecord = await PlayRecordManager.get(
-        detail.source,
-        detail.id.toString()
-      );
+      const playRecord = await PlayRecordManager.get(detail.source, detail.id.toString());
       set({
         isLoading: false,
         introEndTime: playRecord?.introEndTime,
@@ -100,7 +93,6 @@ const usePlayerStore = create<PlayerState>((set, get) => ({
       set({ isLoading: false });
     }
   },
-
 
   playEpisode: (index) => {
     const { episodes, videoRef } = get();
@@ -209,12 +201,13 @@ const usePlayerStore = create<PlayerState>((set, get) => ({
       };
       PlayRecordManager.save(detail.source, detail.id.toString(), {
         title: detail.title,
-        poster: detail.poster || "",
+        cover: detail.poster || "",
         index: currentEpisodeIndex,
         total_episodes: episodes.length,
         play_time: status.positionMillis,
         total_time: status.durationMillis || 0,
         source_name: detail.source_name,
+        year: detail.year || "",
         ...existingRecord,
         ...updates,
       });

@@ -57,6 +57,7 @@ export interface PlayRecord {
   play_time: number;
   total_time: number;
   save_time: number;
+  year: string;
 }
 
 export interface ApiSite {
@@ -108,7 +109,7 @@ export class API {
     return response.json();
   }
 
-  async login(username: string | undefined, password: string): Promise<{ ok: boolean }> {
+  async login(username?: string | undefined, password?: string): Promise<{ ok: boolean }> {
     const response = await this._fetch("/api/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

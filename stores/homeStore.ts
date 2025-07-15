@@ -1,7 +1,7 @@
-import { create } from 'zustand';
-import { api, SearchResult, PlayRecord } from '@/services/api';
-import { PlayRecordManager } from '@/services/storage';
-import useAuthStore from './authStore';
+import { create } from "zustand";
+import { api, SearchResult, PlayRecord } from "@/services/api";
+import { PlayRecordManager } from "@/services/storage";
+import useAuthStore from "./authStore";
 
 export type RowItem = (SearchResult | PlayRecord) & {
   id: string;
@@ -20,18 +20,38 @@ export type RowItem = (SearchResult | PlayRecord) & {
 
 export interface Category {
   title: string;
-  type?: 'movie' | 'tv' | 'record';
+  type?: "movie" | "tv" | "record";
   tag?: string;
   tags?: string[];
 }
 
 const initialCategories: Category[] = [
-  { title: '最近播放', type: 'record' },
-  { title: '热门剧集', type: 'tv', tag: '热门' },
-  { title: '电视剧', type: 'tv', tags: [ '国产剧', '美剧', '英剧', '韩剧', '日剧', '港剧', '日本动画', '动画'] },
-  { title: '电影', type: 'movie', tags: ['热门', '最新', '经典', '豆瓣高分', '冷门佳片', '华语', '欧美', '韩国', '日本', '动作', '喜剧', '爱情', '科幻', '悬疑', '恐怖'] },
-  { title: '综艺', type: 'tv', tag: '综艺' },
-  { title: '豆瓣 Top250', type: 'movie', tag: 'top250' },
+  { title: "最近播放", type: "record" },
+  { title: "热门剧集", type: "tv", tag: "热门" },
+  { title: "电视剧", type: "tv", tags: ["国产剧", "美剧", "英剧", "韩剧", "日剧", "港剧", "日本动画", "动画"] },
+  {
+    title: "电影",
+    type: "movie",
+    tags: [
+      "热门",
+      "最新",
+      "经典",
+      "豆瓣高分",
+      "冷门佳片",
+      "华语",
+      "欧美",
+      "韩国",
+      "日本",
+      "动作",
+      "喜剧",
+      "爱情",
+      "科幻",
+      "悬疑",
+      "恐怖",
+    ],
+  },
+  { title: "综艺", type: "tv", tag: "综艺" },
+  { title: "豆瓣 Top250", type: "movie", tag: "top250" },
 ];
 
 interface HomeState {
@@ -73,7 +93,7 @@ const useHomeStore = create<HomeState>((set, get) => ({
     }
 
     try {
-      if (selectedCategory.type === 'record') {
+      if (selectedCategory.type === "record") {
         const { isLoggedIn } = useAuthStore.getState();
         if (!isLoggedIn) {
           set({ contentData: [], hasMore: false });
@@ -82,24 +102,35 @@ const useHomeStore = create<HomeState>((set, get) => ({
         const records = await PlayRecordManager.getAll();
         const rowItems = Object.entries(records)
           .map(([key, record]) => {
-            const [source, id] = key.split('+');
-            return { ...record, id, source, progress: record.play_time / record.total_time, poster: record.cover, sourceName: record.source_name, episodeIndex: record.index, totalEpisodes: record.total_episodes, lastPlayed: record.save_time, play_time: record.play_time };
+            const [source, id] = key.split("+");
+            return {
+              ...record,
+              id,
+              source,
+              progress: record.play_time / record.total_time,
+              poster: record.cover,
+              sourceName: record.source_name,
+              episodeIndex: record.index,
+              totalEpisodes: record.total_episodes,
+              lastPlayed: record.save_time,
+              play_time: record.play_time,
+            };
           })
-          .filter(record => record.progress !== undefined && record.progress > 0 && record.progress < 1)
+          .filter((record) => record.progress !== undefined && record.progress > 0 && record.progress < 1)
           .sort((a, b) => (b.lastPlayed || 0) - (a.lastPlayed || 0));
-        
+
         set({ contentData: rowItems, hasMore: false });
       } else if (selectedCategory.type && selectedCategory.tag) {
         const result = await api.getDoubanData(selectedCategory.type, selectedCategory.tag, 20, pageStart);
         if (result.list.length === 0) {
           set({ hasMore: false });
         } else {
-          const newItems = result.list.map(item => ({
+          const newItems = result.list.map((item) => ({
             ...item,
             id: item.title,
-            source: 'douban',
+            source: "douban",
           })) as RowItem[];
-          set(state => ({
+          set((state) => ({
             contentData: pageStart === 0 ? newItems : [...state.contentData, ...newItems],
             pageStart: state.pageStart + result.list.length,
             hasMore: true,
@@ -112,10 +143,10 @@ const useHomeStore = create<HomeState>((set, get) => ({
         set({ hasMore: false });
       }
     } catch (err: any) {
-      if (err.message === 'API_URL_NOT_SET') {
-        set({ error: '请点击右上角设置按钮，配置您的 API 地址' });
+      if (err.message === "API_URL_NOT_SET") {
+        set({ error: "请点击右上角设置按钮，配置您的 API 地址" });
       } else {
-        set({ error: '加载失败，请重试' });
+        set({ error: "加载失败，请重试" });
       }
     } finally {
       set({ loading: false, loadingMore: false });
@@ -134,12 +165,12 @@ const useHomeStore = create<HomeState>((set, get) => ({
   refreshPlayRecords: async () => {
     const { isLoggedIn } = useAuthStore.getState();
     if (!isLoggedIn) {
-      set(state => {
-        const recordCategoryExists = state.categories.some(c => c.type === 'record');
+      set((state) => {
+        const recordCategoryExists = state.categories.some((c) => c.type === "record");
         if (recordCategoryExists) {
-          const newCategories = state.categories.filter(c => c.type !== 'record');
-          if (state.selectedCategory.type === 'record') {
-              get().selectCategory(newCategories[0] || null);
+          const newCategories = state.categories.filter((c) => c.type !== "record");
+          if (state.selectedCategory.type === "record") {
+            get().selectCategory(newCategories[0] || null);
           }
           return { categories: newCategories };
         }
@@ -149,21 +180,21 @@ const useHomeStore = create<HomeState>((set, get) => ({
     }
     const records = await PlayRecordManager.getAll();
     const hasRecords = Object.keys(records).length > 0;
-    set(state => {
-      const recordCategoryExists = state.categories.some(c => c.type === 'record');
+    set((state) => {
+      const recordCategoryExists = state.categories.some((c) => c.type === "record");
       if (hasRecords && !recordCategoryExists) {
         return { categories: [initialCategories[0], ...state.categories] };
       }
       if (!hasRecords && recordCategoryExists) {
-        const newCategories = state.categories.filter(c => c.type !== 'record');
-        if (state.selectedCategory.type === 'record') {
-            get().selectCategory(newCategories[0] || null);
+        const newCategories = state.categories.filter((c) => c.type !== "record");
+        if (state.selectedCategory.type === "record") {
+          get().selectCategory(newCategories[0] || null);
         }
         return { categories: newCategories };
       }
       return {};
     });
-    if (get().selectedCategory.type === 'record') {
+    if (get().selectedCategory.type === "record") {
       get().fetchInitialData();
     }
   },

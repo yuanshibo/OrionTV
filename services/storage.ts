@@ -4,6 +4,7 @@ import { api, PlayRecord as ApiPlayRecord, Favorite as ApiFavorite } from "./api
 // --- Storage Keys ---
 const STORAGE_KEYS = {
   SETTINGS: "mytv_settings",
+  PLAYER_SETTINGS: "mytv_player_settings",
 } as const;
 
 // --- Type Definitions (aligned with api.ts) ---
@@ -13,6 +14,11 @@ export type PlayRecord = ApiPlayRecord & {
   outroStartTime?: number;
 };
 export type Favorite = ApiFavorite;
+
+export interface PlayerSettings {
+  introEndTime?: number;
+  outroStartTime?: number;
+}
 
 export interface AppSettings {
   apiBaseUrl: string;
@@ -28,6 +34,47 @@ export interface AppSettings {
 
 // --- Helper ---
 const generateKey = (source: string, id: string) => `${source}+${id}`;
+
+// --- PlayerSettingsManager (Uses AsyncStorage) ---
+export class PlayerSettingsManager {
+  static async getAll(): Promise<Record<string, PlayerSettings>> {
+    try {
+      const data = await AsyncStorage.getItem(STORAGE_KEYS.PLAYER_SETTINGS);
+      return data ? JSON.parse(data) : {};
+    } catch (error) {
+      console.error("Failed to get all player settings:", error);
+      return {};
+    }
+  }
+
+  static async get(source: string, id: string): Promise<PlayerSettings | null> {
+    const allSettings = await this.getAll();
+    return allSettings[generateKey(source, id)] || null;
+  }
+
+  static async save(source: string, id: string, settings: PlayerSettings): Promise<void> {
+    const allSettings = await this.getAll();
+    const key = generateKey(source, id);
+    // Only save if there are actual values to save
+    if (settings.introEndTime !== undefined || settings.outroStartTime !== undefined) {
+      allSettings[key] = { ...allSettings[key], ...settings };
+    } else {
+      // If both are undefined, remove the key
+      delete allSettings[key];
+    }
+    await AsyncStorage.setItem(STORAGE_KEYS.PLAYER_SETTINGS, JSON.stringify(allSettings));
+  }
+
+  static async remove(source: string, id: string): Promise<void> {
+    const allSettings = await this.getAll();
+    delete allSettings[generateKey(source, id)];
+    await AsyncStorage.setItem(STORAGE_KEYS.PLAYER_SETTINGS, JSON.stringify(allSettings));
+  }
+
+  static async clearAll(): Promise<void> {
+    await AsyncStorage.removeItem(STORAGE_KEYS.PLAYER_SETTINGS);
+  }
+}
 
 // --- FavoriteManager (Refactored to use API) ---
 export class FavoriteManager {
@@ -67,30 +114,53 @@ export class FavoriteManager {
   }
 }
 
-// --- PlayRecordManager (Refactored to use API) ---
+// --- PlayRecordManager (Refactored to use API and local settings) ---
 export class PlayRecordManager {
   static async getAll(): Promise<Record<string, PlayRecord>> {
-    return (await api.getPlayRecords()) as Record<string, PlayRecord>;
+    const apiRecords = await api.getPlayRecords();
+    const localSettings = await PlayerSettingsManager.getAll();
+
+    const mergedRecords: Record<string, PlayRecord> = {};
+    for (const key in apiRecords) {
+      mergedRecords[key] = {
+        ...apiRecords[key],
+        ...localSettings[key],
+      };
+    }
+    return mergedRecords;
   }
 
   static async save(source: string, id: string, record: Omit<PlayRecord, "save_time">): Promise<void> {
     const key = generateKey(source, id);
-    // The API will handle setting the save_time
-    await api.savePlayRecord(key, record);
+    const { introEndTime, outroStartTime, ...apiRecord } = record;
+
+    // Save player settings locally
+    await PlayerSettingsManager.save(source, id, { introEndTime, outroStartTime });
+
+    // Save core record to API
+    await api.savePlayRecord(key, apiRecord);
   }
 
   static async get(source: string, id: string): Promise<PlayRecord | null> {
+    const key = generateKey(source, id);
+    // This can be optimized, but for consistency, we call getAll
     const records = await this.getAll();
-    return records[generateKey(source, id)] || null;
+    return records[key] || null;
   }
 
   static async remove(source: string, id: string): Promise<void> {
     const key = generateKey(source, id);
+    // Remove from API first
     await api.deletePlayRecord(key);
+    // Then remove from local settings
+    await PlayerSettingsManager.remove(source, id);
   }
 
   static async clearAll(): Promise<void> {
+    // Clear from API first
     await api.deletePlayRecord();
+    // Then clear from local settings
+    await PlayerSettingsManager.clearAll();
   }
 }
 

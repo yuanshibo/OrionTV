@@ -18,6 +18,11 @@ const useAuthStore = create<AuthState>((set) => ({
   hideLoginModal: () => set({ isLoginModalVisible: false }),
   checkLoginStatus: async () => {
     try {
+      const { ok } = await api.login();
+      if (ok) {
+        set({ isLoggedIn: true });
+        return;
+      }
       const cookies = await Cookies.get(api.baseURL);
       const isLoggedIn = cookies && !!cookies.auth;
       set({ isLoggedIn });
