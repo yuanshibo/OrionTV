@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { SearchResult, api } from "@/services/api";
 import { getResolutionFromM3U8 } from "@/services/m3u8";
 import { useSettingsStore } from "@/stores/settingsStore";
+import { FavoriteManager } from "@/services/storage";
 
 export type SearchResultWithResolution = SearchResult & { resolution?: string | null };
 
@@ -13,11 +14,13 @@ interface DetailState {
   loading: boolean;
   error: string | null;
   allSourcesLoaded: boolean;
-  controller: AbortController | null
+  controller: AbortController | null;
+  isFavorited: boolean;
 
-  init: (q: string) => void;
+  init: (q: string, preferredSource?: string, id?: string) => void;
   setDetail: (detail: SearchResultWithResolution) => void;
   abort: () => void;
+  toggleFavorite: () => Promise<void>;
 }
 
 const useDetailStore = create<DetailState>((set, get) => ({
@@ -29,8 +32,9 @@ const useDetailStore = create<DetailState>((set, get) => ({
   error: null,
   allSourcesLoaded: false,
   controller: null,
+  isFavorited: false,
 
-  init: async (q) => {
+  init: async (q, preferredSource, id) => {
     const { controller: oldController } = get();
     if (oldController) {
       oldController.abort();
@@ -50,70 +54,89 @@ const useDetailStore = create<DetailState>((set, get) => ({
 
     const { videoSource } = useSettingsStore.getState();
 
-    try {
-      const processAndSetResults = async (
-        results: SearchResult[]
-      ) => {
-        const resultsWithResolution = await Promise.all(
-          results.map(async (searchResult) => {
-            let resolution;
-            try {
-              if (searchResult.episodes && searchResult.episodes.length > 0) {
-                resolution = await getResolutionFromM3U8(
-                  searchResult.episodes[0],
-                  signal
-                );
-              }
-            } catch (e) {
-              if ((e as Error).name !== "AbortError") {
-                console.error(
-                  `Failed to get resolution for ${searchResult.source_name}`,
-                  e
-                );
-              }
+    const processAndSetResults = async (results: SearchResult[], merge = false) => {
+      const resultsWithResolution = await Promise.all(
+        results.map(async (searchResult) => {
+          let resolution;
+          try {
+            if (searchResult.episodes && searchResult.episodes.length > 0) {
+              resolution = await getResolutionFromM3U8(searchResult.episodes[0], signal);
             }
-            return { ...searchResult, resolution };
-          })
-        );
+          } catch (e) {
+            if ((e as Error).name !== "AbortError") {
+              console.error(`Failed to get resolution for ${searchResult.source_name}`, e);
+            }
+          }
+          return { ...searchResult, resolution };
+        })
+      );
 
-        if (signal.aborted) return;
-
-        set((state) => {
-          const existingSources = new Set(state.searchResults.map((r) => r.source));
-          const newResults = resultsWithResolution.filter(
-            (r) => !existingSources.has(r.source)
-          );
-          const finalResults = [...state.searchResults, ...newResults];
-          return {
-            searchResults: finalResults,
-            sources: finalResults.map((r) => ({
-              source: r.source,
-              source_name: r.source_name,
-              resolution: r.resolution,
-            })),
-            detail: state.detail ?? finalResults[0] ?? null,
-          };
-        });
-      };
-
-      // Background fetch for all sources
-      const { results: allResults } = await api.searchVideos(q);
       if (signal.aborted) return;
 
-      const filteredResults = videoSource.enabledAll
-        ? allResults
-        : allResults.filter((result) => videoSource.sources[result.source]);
+      set((state) => {
+        const existingSources = new Set(state.searchResults.map((r) => r.source));
+        const newResults = resultsWithResolution.filter((r) => !existingSources.has(r.source));
+        const finalResults = merge ? [...state.searchResults, ...newResults] : resultsWithResolution;
 
-      if (filteredResults.length > 0) {
-        await processAndSetResults(filteredResults);
+        return {
+          searchResults: finalResults,
+          sources: finalResults.map((r) => ({
+            source: r.source,
+            source_name: r.source_name,
+            resolution: r.resolution,
+          })),
+          detail: state.detail ?? finalResults[0] ?? null,
+        };
+      });
+    };
+
+    try {
+      // Optimization for favorite navigation
+      if (preferredSource && id) {
+        const { results: preferredResult } = await api.searchVideo(q, preferredSource, signal);
+        if (signal.aborted) return;
+        if (preferredResult.length > 0) {
+          await processAndSetResults(preferredResult, false);
+          set({ loading: false });
+        }
+        // Then load all others in background
+        const { results: allResults } = await api.searchVideos(q);
+        if (signal.aborted) return;
+        await processAndSetResults(allResults, true);
+      } else {
+        // Standard navigation: fetch resources, then fetch details one by one
+        const allResources = await api.getResources(signal);
+        const enabledResources = videoSource.enabledAll
+          ? allResources
+          : allResources.filter((r) => videoSource.sources[r.key]);
+
+        let firstResultFound = false;
+        const searchPromises = enabledResources.map(async (resource) => {
+          try {
+            const { results } = await api.searchVideo(q, resource.key, signal);
+            if (results.length > 0) {
+              await processAndSetResults(results, true);
+              if (!firstResultFound) {
+                set({ loading: false }); // Stop loading indicator on first result
+                firstResultFound = true;
+              }
+            }
+          } catch (error) {
+            console.warn(`Failed to fetch from ${resource.name}:`, error);
+          }
+        });
+
+        await Promise.all(searchPromises);
       }
 
       if (get().searchResults.length === 0) {
-         if (!videoSource.enabledAll) {
-           set({ error: "请到设置页面启用的播放源" });
-         } else {
-           set({ error: "未找到播放源" });
-         }
+        set({ error: "未找到任何播放源" });
+      }
+
+      if (get().detail) {
+        const { source, id } = get().detail!;
+        const isFavorited = await FavoriteManager.isFavorited(source, id.toString());
+        set({ isFavorited });
       }
     } catch (e) {
       if ((e as Error).name !== "AbortError") {
@@ -126,12 +149,34 @@ const useDetailStore = create<DetailState>((set, get) => ({
     }
   },
 
-  setDetail: (detail) => {
+  setDetail: async (detail) => {
     set({ detail });
+    const { source, id } = detail;
+    const isFavorited = await FavoriteManager.isFavorited(source, id.toString());
+    set({ isFavorited });
   },
 
   abort: () => {
     get().controller?.abort();
+  },
+
+  toggleFavorite: async () => {
+    const { detail } = get();
+    if (!detail) return;
+
+    const { source, id, title, poster, source_name, episodes, year } = detail;
+    const favoriteItem = {
+      cover: poster,
+      title,
+      poster,
+      source_name,
+      total_episodes: episodes.length,
+      search_title: get().q!,
+      year: year || "",
+    };
+
+    const newIsFavorited = await FavoriteManager.toggle(source, id.toString(), favoriteItem);
+    set({ isFavorited: newIsFavorited });
   },
 }));
 

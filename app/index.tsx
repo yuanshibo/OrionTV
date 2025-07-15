@@ -5,7 +5,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { api } from "@/services/api";
 import VideoCard from "@/components/VideoCard.tv";
 import { useFocusEffect, useRouter } from "expo-router";
-import { Search, Settings, LogOut } from "lucide-react-native";
+import { Search, Settings, LogOut, Star } from "lucide-react-native";
 import { StyledButton } from "@/components/StyledButton";
 import useHomeStore, { RowItem, Category } from "@/stores/homeStore";
 import useAuthStore from "@/stores/authStore";
@@ -96,7 +96,7 @@ export default function HomeScreen() {
         year={item.year}
         rate={item.rate}
         progress={item.progress}
-        playTime={item.time}
+        playTime={item.play_time}
         episodeIndex={item.episodeIndex}
         sourceName={item.sourceName}
         totalEpisodes={item.totalEpisodes}
@@ -124,6 +124,9 @@ export default function HomeScreen() {
           </Pressable>
         </View>
         <View style={styles.rightHeaderButtons}>
+          <StyledButton style={styles.searchButton} onPress={() => router.push("/favorites")} variant="ghost">
+            <Star color={colorScheme === "dark" ? "white" : "black"} size={24} />
+          </StyledButton>
           <StyledButton
             style={styles.searchButton}
             onPress={() => router.push({ pathname: "/search" })}

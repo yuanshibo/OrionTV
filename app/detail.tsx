@@ -1,25 +1,37 @@
 import React, { useEffect } from "react";
-import { View, Text, StyleSheet, Image, ScrollView, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, Image, ScrollView, ActivityIndicator, Pressable } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
 import { StyledButton } from "@/components/StyledButton";
 import useDetailStore from "@/stores/detailStore";
+import { FontAwesome } from "@expo/vector-icons";
 
 export default function DetailScreen() {
-  const { q } = useLocalSearchParams<{ q: string }>();
+  const { q, source, id } = useLocalSearchParams<{ q: string; source?: string; id?: string }>();
   const router = useRouter();
 
-  const { detail, searchResults, loading, error, allSourcesLoaded, init, setDetail, abort } = useDetailStore();
+  const {
+    detail,
+    searchResults,
+    loading,
+    error,
+    allSourcesLoaded,
+    init,
+    setDetail,
+    abort,
+    isFavorited,
+    toggleFavorite,
+  } = useDetailStore();
 
   useEffect(() => {
     if (q) {
-      init(q);
+      init(q, source, id);
     }
     return () => {
       abort();
     };
-  }, [abort, init, q]);
+  }, [abort, init, q, source, id]);
 
   const handlePlay = (episodeIndex: number) => {
     if (!detail) return;
@@ -75,6 +87,10 @@ export default function DetailScreen() {
               <ThemedText style={styles.metaText}>{detail.year}</ThemedText>
               <ThemedText style={styles.metaText}>{detail.type_name}</ThemedText>
             </View>
+            <Pressable onPress={toggleFavorite} style={styles.favoriteButton}>
+              <FontAwesome name={isFavorited ? "star" : "star-o"} size={24} color={isFavorited ? "#FFD700" : "#ccc"} />
+              <ThemedText style={styles.favoriteButtonText}>{isFavorited ? "已收藏" : "收藏"}</ThemedText>
+            </Pressable>
             <ScrollView style={styles.descriptionScrollView}>
               <ThemedText style={styles.description}>{detail.desc}</ThemedText>
             </ScrollView>
@@ -176,6 +192,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#ccc",
     lineHeight: 22,
+  },
+  favoriteButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 10,
+    padding: 10,
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    borderRadius: 5,
+    alignSelf: "flex-start",
+  },
+  favoriteButtonText: {
+    marginLeft: 8,
+    fontSize: 16,
   },
   bottomContainer: {
     paddingHorizontal: 20,

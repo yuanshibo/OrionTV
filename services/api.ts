@@ -49,6 +49,7 @@ export interface Favorite {
   total_episodes: number;
   search_title: string;
   year: string;
+  save_time?: number;
 }
 
 export interface PlayRecord {
