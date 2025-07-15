@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { SettingsManager } from '@/services/storage';
 import { api, ServerConfig } from '@/services/api';
 import useHomeStore from './homeStore';
+import useAuthStore from './authStore';
 
 
 interface SettingsState {
@@ -29,7 +30,7 @@ interface SettingsState {
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
   apiBaseUrl: '',
-  m3uUrl: 'https://raw.githubusercontent.com/sjnhnp/adblock/refs/heads/main/filtered_http_only_valid.m3u',
+  m3uUrl: '',
   liveStreamSources: [],
   remoteInputEnabled: false,
   isModalVisible: false,
@@ -75,6 +76,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     api.setBaseUrl(apiBaseUrl);
     set({ isModalVisible: false });
     useHomeStore.getState().fetchInitialData();
+    useAuthStore.getState().checkLoginStatus();
   },
   showModal: () => set({ isModalVisible: true }),
   hideModal: () => set({ isModalVisible: false }),

@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import Cookies from "@react-native-cookies/cookies";
 import { api } from "@/services/api";
+import { useSettingsStore } from "./settingsStore";
 
 interface AuthState {
   isLoggedIn: boolean;
@@ -17,6 +18,11 @@ const useAuthStore = create<AuthState>((set) => ({
   showLoginModal: () => set({ isLoginModalVisible: true }),
   hideLoginModal: () => set({ isLoginModalVisible: false }),
   checkLoginStatus: async () => {
+    const { apiBaseUrl } = useSettingsStore.getState();
+    if (!apiBaseUrl) {
+      set({ isLoggedIn: false, isLoginModalVisible: false });
+      return;
+    }
     try {
       const { ok } = await api.login();
       if (ok) {
