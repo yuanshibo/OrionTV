@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import Cookies from "@react-native-cookies/cookies";
-import { api, ServerConfig } from "@/services/api";
+import { api } from "@/services/api";
 
 interface AuthState {
   isLoggedIn: boolean;

@@ -119,7 +119,7 @@ const useHomeStore = create<HomeState>((set, get) => ({
               play_time: record.play_time,
             };
           })
-          .filter((record) => record.progress !== undefined && record.progress > 0 && record.progress < 1)
+          // .filter((record) => record.progress !== undefined && record.progress > 0 && record.progress < 1)
           .sort((a, b) => (b.lastPlayed || 0) - (a.lastPlayed || 0));
 
         set({ contentData: rowItems, hasMore: false });

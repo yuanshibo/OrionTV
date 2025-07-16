@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react";
-import { StyleSheet, TouchableOpacity, ActivityIndicator, BackHandler } from "react-native";
+import { StyleSheet, TouchableOpacity, ActivityIndicator, BackHandler, AppState, AppStateStatus } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Video, ResizeMode } from "expo-av";
 import { useKeepAwake } from "expo-keep-awake";
@@ -13,7 +13,7 @@ import { LoadingOverlay } from "@/components/LoadingOverlay";
 import useDetailStore from "@/stores/detailStore";
 import { useTVRemoteHandler } from "@/hooks/useTVRemoteHandler";
 import Toast from "react-native-toast-message";
-import usePlayerStore from "@/stores/playerStore";
+import usePlayerStore, { selectCurrentEpisode } from "@/stores/playerStore";
 
 export default function PlayScreen() {
   const videoRef = useRef<Video>(null);
@@ -23,16 +23,22 @@ export default function PlayScreen() {
     episodeIndex: episodeIndexStr,
     position: positionStr,
     source: sourceStr,
+    id: videoId,
+    title: videoTitle,
   } = useLocalSearchParams<{
     episodeIndex: string;
     position?: string;
     source?: string;
+    id?: string;
+    title?: string;
   }>();
   const episodeIndex = parseInt(episodeIndexStr || "0", 10);
   const position = positionStr ? parseInt(positionStr, 10) : undefined;
 
   const { detail } = useDetailStore();
   const source = sourceStr || detail?.source;
+  const id = videoId || detail?.id.toString();
+  const title = videoTitle || detail?.title;
   const {
     isLoading,
     showControls,
@@ -46,17 +52,32 @@ export default function PlayScreen() {
     reset,
     loadVideo,
   } = usePlayerStore();
+  const currentEpisode = usePlayerStore(selectCurrentEpisode);
 
   useEffect(() => {
     setVideoRef(videoRef);
-    if (source) {
-      loadVideo(source, episodeIndex, position);
+    if (source && id && title) {
+      loadVideo({ source, id, episodeIndex, position, title });
     }
 
     return () => {
       reset(); // Reset state when component unmounts
     };
-  }, [episodeIndex, source, position, setVideoRef, reset, loadVideo]);
+  }, [episodeIndex, source, position, setVideoRef, reset, loadVideo, id, title]);
+
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      if (nextAppState === "background" || nextAppState === "inactive") {
+        videoRef.current?.pauseAsync();
+      }
+    };
+
+    const subscription = AppState.addEventListener("change", handleAppStateChange);
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
 
   const { onScreenPress } = useTVRemoteHandler();
 
@@ -83,15 +104,13 @@ export default function PlayScreen() {
     );
   }
 
-  const currentEpisode = detail.episodes[episodeIndex];
-
   return (
     <ThemedView focusable style={styles.container}>
       <TouchableOpacity activeOpacity={1} style={styles.videoContainer} onPress={onScreenPress}>
         <Video
           ref={videoRef}
           style={styles.videoPlayer}
-          source={{ uri: currentEpisode }}
+          source={{ uri: currentEpisode?.url || "" }}
           usePoster
           posterSource={{ uri: detail?.poster ?? "" }}
           resizeMode={ResizeMode.CONTAIN}

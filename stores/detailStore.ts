@@ -17,7 +17,7 @@ interface DetailState {
   controller: AbortController | null;
   isFavorited: boolean;
 
-  init: (q: string, preferredSource?: string, id?: string) => void;
+  init: (q: string, preferredSource?: string, id?: string) => Promise<void>;
   setDetail: (detail: SearchResultWithResolution) => void;
   abort: () => void;
   toggleFavorite: () => Promise<void>;
