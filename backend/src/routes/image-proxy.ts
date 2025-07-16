@@ -35,7 +35,7 @@ router.get("/", async (req: Request, res: Response) => {
       res.status(500).send("Image response has no body");
     }
   } catch (error) {
-    console.error("Image proxy error:", error);
+    console.info("Image proxy error:", error);
     res.status(500).send("Error fetching image");
   }
 });

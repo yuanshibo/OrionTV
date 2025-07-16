@@ -8,10 +8,7 @@ const router = Router();
 // Match m3u8 links
 const M3U8_PATTERN = /(https?:\/\/[^"'\s]+?\.m3u8)/g;
 
-async function handleSpecialSourceDetail(
-  id: string,
-  apiSite: ApiSite
-): Promise<VideoDetail> {
+async function handleSpecialSourceDetail(id: string, apiSite: ApiSite): Promise<VideoDetail> {
   const detailUrl = `${apiSite.detail}/index.php/vod/detail/id/${id}.html`;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 10000);
@@ -30,8 +27,7 @@ async function handleSpecialSourceDetail(
   let matches: string[] = [];
 
   if (apiSite.key === "ffzy") {
-    const ffzyPattern =
-      /\$(https?:\/\/[^"'\s]+?\/\d{8}\/\d+_[a-f0-9]+\/index\.m3u8)/g;
+    const ffzyPattern = /\$(https?:\/\/[^"'\s]+?\/\d{8}\/\d+_[a-f0-9]+\/index\.m3u8)/g;
     matches = html.match(ffzyPattern) || [];
   }
 
@@ -48,32 +44,22 @@ async function handleSpecialSourceDetail(
 
   const titleMatch = html.match(/<h1[^>]*>([^<]+)<\/h1>/);
   const titleText = titleMatch ? titleMatch[1].trim() : "";
-  const descMatch = html.match(
-    /<div[^>]*class=["']sketch["'][^>]*>([\s\S]*?)<\/div>/
-  );
+  const descMatch = html.match(/<div[^>]*class=["']sketch["'][^>]*>([\s\S]*?)<\/div>/);
   const descText = descMatch ? cleanHtmlTags(descMatch[1]) : "";
   const coverMatch = html.match(/(https?:\/\/[^"'\s]+?\.jpg)/g);
   const coverUrl = coverMatch ? coverMatch[0].trim() : "";
 
   return {
-    code: 200,
-    episodes: matches,
-    detailUrl,
-    videoInfo: {
-      title: titleText,
-      cover: coverUrl,
-      desc: descText,
-      source_name: apiSite.name,
-      source: apiSite.key,
-      id,
-    },
+    id,
+    title: titleText,
+    poster: coverUrl,
+    desc: descText,
+    source_name: apiSite.name,
+    source: apiSite.key,
   };
 }
 
-async function getDetailFromApi(
-  apiSite: ApiSite,
-  id: string
-): Promise<VideoDetail> {
+async function getDetailFromApi(apiSite: ApiSite, id: string): Promise<VideoDetail> {
   const detailUrl = `${apiSite.api}${API_CONFIG.detail.path}${id}`;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 10000);
@@ -89,12 +75,7 @@ async function getDetailFromApi(
   }
 
   const data = await response.json();
-  if (
-    !data ||
-    !data.list ||
-    !Array.isArray(data.list) ||
-    data.list.length === 0
-  ) {
+  if (!data || !data.list || !Array.isArray(data.list) || data.list.length === 0) {
     throw new Error("获取到的详情内容无效");
   }
 
@@ -111,10 +92,7 @@ async function getDetailFromApi(
           const parts = ep.split("$");
           return parts.length > 1 ? parts[1] : "";
         })
-        .filter(
-          (url: string) =>
-            url && (url.startsWith("http://") || url.startsWith("https://"))
-        );
+        .filter((url: string) => url && (url.startsWith("http://") || url.startsWith("https://")));
     }
   }
 
@@ -124,30 +102,22 @@ async function getDetailFromApi(
   }
 
   return {
-    code: 200,
-    episodes,
-    detailUrl,
-    videoInfo: {
-      title: videoDetail.vod_name,
-      cover: videoDetail.vod_pic,
-      desc: cleanHtmlTags(videoDetail.vod_content),
-      type: videoDetail.type_name,
-      year: videoDetail.vod_year?.match(/\d{4}/)?.[0] || "",
-      area: videoDetail.vod_area,
-      director: videoDetail.vod_director,
-      actor: videoDetail.vod_actor,
-      remarks: videoDetail.vod_remarks,
-      source_name: apiSite.name,
-      source: apiSite.key,
-      id,
-    },
+    id,
+    title: videoDetail.vod_name,
+    poster: videoDetail.vod_pic,
+    desc: cleanHtmlTags(videoDetail.vod_content),
+    type: videoDetail.type_name,
+    year: videoDetail.vod_year?.match(/\d{4}/)?.[0] || "",
+    area: videoDetail.vod_area,
+    director: videoDetail.vod_director,
+    actor: videoDetail.vod_actor,
+    remarks: videoDetail.vod_remarks,
+    source_name: apiSite.name,
+    source: apiSite.key,
   };
 }
 
-async function getVideoDetail(
-  id: string,
-  sourceCode: string
-): Promise<VideoDetail> {
+async function getVideoDetail(id: string, sourceCode: string): Promise<VideoDetail> {
   if (!id) {
     throw new Error("缺少视频ID参数");
   }

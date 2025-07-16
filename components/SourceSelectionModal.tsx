@@ -1,14 +1,16 @@
 import React from "react";
 import { View, Text, StyleSheet, Modal, FlatList } from "react-native";
 import { StyledButton } from "./StyledButton";
+import useDetailStore from "@/stores/detailStore";
 import usePlayerStore from "@/stores/playerStore";
 
 export const SourceSelectionModal: React.FC = () => {
-  const { showSourceModal, sources, currentSourceIndex, switchSource, setShowSourceModal } = usePlayerStore();
+  const { showSourceModal, setShowSourceModal } = usePlayerStore();
+  const { searchResults, detail, setDetail } = useDetailStore();
 
   const onSelectSource = (index: number) => {
-    if (index !== currentSourceIndex) {
-      switchSource(index);
+    if (searchResults[index].source !== detail?.source) {
+      setDetail(searchResults[index]);
     }
     setShowSourceModal(false);
   };
@@ -23,16 +25,16 @@ export const SourceSelectionModal: React.FC = () => {
         <View style={styles.modalContent}>
           <Text style={styles.modalTitle}>选择播放源</Text>
           <FlatList
-            data={sources}
+            data={searchResults}
             numColumns={3}
             contentContainerStyle={styles.sourceList}
-            keyExtractor={(item, index) => `source-${item.source}-${item.id}-${index}`}
+            keyExtractor={(item, index) => `source-${item.source}-${index}`}
             renderItem={({ item, index }) => (
               <StyledButton
                 text={item.source_name}
                 onPress={() => onSelectSource(index)}
-                isSelected={currentSourceIndex === index}
-                hasTVPreferredFocus={currentSourceIndex === index}
+                isSelected={detail?.source === item.source}
+                hasTVPreferredFocus={detail?.source === item.source}
                 style={styles.sourceItem}
                 textStyle={styles.sourceItemText}
               />

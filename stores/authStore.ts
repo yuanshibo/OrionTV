@@ -1,0 +1,50 @@
+import { create } from "zustand";
+import Cookies from "@react-native-cookies/cookies";
+import { api } from "@/services/api";
+
+interface AuthState {
+  isLoggedIn: boolean;
+  isLoginModalVisible: boolean;
+  showLoginModal: () => void;
+  hideLoginModal: () => void;
+  checkLoginStatus: (apiBaseUrl?: string) => Promise<void>;
+  logout: () => Promise<void>;
+}
+
+const useAuthStore = create<AuthState>((set) => ({
+  isLoggedIn: false,
+  isLoginModalVisible: false,
+  showLoginModal: () => set({ isLoginModalVisible: true }),
+  hideLoginModal: () => set({ isLoginModalVisible: false }),
+  checkLoginStatus: async (apiBaseUrl?: string) => {
+    if (!apiBaseUrl) {
+      set({ isLoggedIn: false, isLoginModalVisible: false });
+      return;
+    }
+    try {
+      const cookies = await Cookies.get(api.baseURL);
+      const isLoggedIn = cookies && !!cookies.auth;
+      set({ isLoggedIn });
+      if (!isLoggedIn) {
+        set({ isLoginModalVisible: true });
+      }
+    } catch (error) {
+      console.info("Failed to check login status:", error);
+      if (error instanceof Error && error.message === "UNAUTHORIZED") {
+        set({ isLoggedIn: false, isLoginModalVisible: true });
+      } else {
+        set({ isLoggedIn: false });
+      }
+    }
+  },
+  logout: async () => {
+    try {
+      await Cookies.clearAll();
+      set({ isLoggedIn: false, isLoginModalVisible: true });
+    } catch (error) {
+      console.info("Failed to logout:", error);
+    }
+  },
+}));
+
+export default useAuthStore;

@@ -1,4 +1,4 @@
-import TCPHttpServer from './tcpHttpServer';
+import TCPHttpServer from "./tcpHttpServer";
 
 const getRemotePageHTML = () => {
   return `
@@ -6,6 +6,7 @@ const getRemotePageHTML = () => {
   <html>
   <head>
     <title>OrionTV Remote</title>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <style>
       body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; background-color: #121212; color: white; }
@@ -24,7 +25,7 @@ const getRemotePageHTML = () => {
     </div>
     <script>
       window.addEventListener('DOMContentLoaded', () => {
-        fetch('/handshake', { method: 'POST' }).catch(console.error);
+        fetch('/handshake', { method: 'POST' }).catch(console.info);
       });
       function send() {
         const input = document.getElementById("text");
@@ -35,7 +36,7 @@ const getRemotePageHTML = () => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ message: value })
           })
-          .catch(err => console.error(err));
+          .catch(err => console.info(err));
           input.value = '';
         }
       }
@@ -57,55 +58,55 @@ class RemoteControlService {
 
   private setupRequestHandler() {
     this.httpServer.setRequestHandler((request) => {
-      console.log('[RemoteControl] Received request:', request.method, request.url);
-      
+      console.log("[RemoteControl] Received request:", request.method, request.url);
+
       try {
-        if (request.method === 'GET' && request.url === '/') {
+        if (request.method === "GET" && request.url === "/") {
           return {
             statusCode: 200,
-            headers: { 'Content-Type': 'text/html' },
-            body: getRemotePageHTML()
+            headers: { "Content-Type": "text/html; charset=utf-8" },
+            body: getRemotePageHTML(),
           };
-        } else if (request.method === 'POST' && request.url === '/message') {
+        } else if (request.method === "POST" && request.url === "/message") {
           try {
-            const parsedBody = JSON.parse(request.body || '{}');
+            const parsedBody = JSON.parse(request.body || "{}");
             const message = parsedBody.message;
             if (message) {
               this.onMessage(message);
             }
             return {
               statusCode: 200,
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ status: 'ok' })
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ status: "ok" }),
             };
           } catch (parseError) {
-            console.error('[RemoteControl] Failed to parse message body:', parseError);
+            console.info("[RemoteControl] Failed to parse message body:", parseError);
             return {
               statusCode: 400,
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ error: 'Invalid JSON' })
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ error: "Invalid JSON" }),
             };
           }
-        } else if (request.method === 'POST' && request.url === '/handshake') {
+        } else if (request.method === "POST" && request.url === "/handshake") {
           this.onHandshake();
           return {
             statusCode: 200,
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status: 'ok' })
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status: "ok" }),
           };
         } else {
           return {
             statusCode: 404,
-            headers: { 'Content-Type': 'text/plain' },
-            body: 'Not Found'
+            headers: { "Content-Type": "text/plain" },
+            body: "Not Found",
           };
         }
       } catch (error) {
-        console.error('[RemoteControl] Request handler error:', error);
+        console.info("[RemoteControl] Request handler error:", error);
         return {
           statusCode: 500,
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ error: 'Internal Server Error' })
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ error: "Internal Server Error" }),
         };
       }
     });
@@ -117,20 +118,20 @@ class RemoteControlService {
   }
 
   public async startServer(): Promise<string> {
-    console.log('[RemoteControl] Attempting to start server...');
-    
+    console.log("[RemoteControl] Attempting to start server...");
+
     try {
       const url = await this.httpServer.start();
       console.log(`[RemoteControl] Server started successfully at: ${url}`);
       return url;
     } catch (error) {
-      console.error('[RemoteControl] Failed to start server:', error);
-      throw new Error(error instanceof Error ? error.message : 'Failed to start server');
+      console.info("[RemoteControl] Failed to start server:", error);
+      throw new Error(error instanceof Error ? error.message : "Failed to start server");
     }
   }
 
   public stopServer() {
-    console.log('[RemoteControl] Stopping server...');
+    console.log("[RemoteControl] Stopping server...");
     this.httpServer.stop();
   }
 

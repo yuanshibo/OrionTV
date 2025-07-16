@@ -2,7 +2,7 @@
 export interface PlayRecord {
   title: string;
   source_name: string;
-  cover: string;
+  poster: string;
   index: number; // Episode number
   total_episodes: number; // Total number of episodes
   play_time: number; // Play progress in seconds
@@ -13,21 +13,16 @@ export interface PlayRecord {
 
 // You can add other shared types here
 export interface VideoDetail {
-  code: number;
-  episodes: string[];
-  detailUrl: string;
-  videoInfo: {
-    title: string;
-    cover: string;
-    desc: string;
-    source_name: string;
-    source: string;
-    id: string;
-    type?: string;
-    year?: string;
-    area?: string;
-    director?: string;
-    actor?: string;
-    remarks?: string;
-  };
+  id: string;
+  title: string;
+  poster: string;
+  source: string;
+  source_name: string;
+  desc?: string;
+  type?: string;
+  year?: string;
+  area?: string;
+  director?: string;
+  actor?: string;
+  remarks?: string;
 }

@@ -54,7 +54,7 @@ let cachedConfig: Config;
 try {
   cachedConfig = JSON.parse(fs.readFileSync(configPath, "utf-8")) as Config;
 } catch (error) {
-  console.error(`Error reading or parsing config.json at ${configPath}`, error);
+  console.info(`Error reading or parsing config.json at ${configPath}`, error);
   // Provide a default fallback config to prevent crashes
   cachedConfig = {
     api_site: {},

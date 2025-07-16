@@ -8,7 +8,8 @@ import Toast from "react-native-toast-message";
 
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useRemoteControlStore } from "@/stores/remoteControlStore";
-import { remoteControlService } from "@/services/remoteControlService";
+import LoginModal from "@/components/LoginModal";
+import useAuthStore from "@/stores/authStore";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -18,12 +19,19 @@ export default function RootLayout() {
   const [loaded, error] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
-  const { loadSettings, remoteInputEnabled } = useSettingsStore();
+  const { loadSettings, remoteInputEnabled, apiBaseUrl } = useSettingsStore();
   const { startServer, stopServer } = useRemoteControlStore();
+  const { checkLoginStatus } = useAuthStore();
 
   useEffect(() => {
     loadSettings();
   }, [loadSettings]);
+
+  useEffect(() => {
+    if (apiBaseUrl) {
+      checkLoginStatus(apiBaseUrl);
+    }
+  }, [apiBaseUrl, checkLoginStatus]);
 
   useEffect(() => {
     if (loaded || error) {
@@ -55,9 +63,11 @@ export default function RootLayout() {
         <Stack.Screen name="search" options={{ headerShown: false }} />
         <Stack.Screen name="live" options={{ headerShown: false }} />
         <Stack.Screen name="settings" options={{ headerShown: false }} />
+        {/* <Stack.Screen name="favorites" options={{ headerShown: false }} /> */}
         <Stack.Screen name="+not-found" />
       </Stack>
       <Toast />
+      <LoginModal />
     </ThemeProvider>
   );
 }

@@ -24,3 +24,4 @@ web/**
 .bmad-core
 .kilocodemodes
 .roomodes
+yarn-errors.log

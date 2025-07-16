@@ -59,7 +59,7 @@ export default function SearchScreen() {
       }
     } catch (err) {
       setError("搜索失败，请稍后重试。");
-      console.error("Search failed:", err);
+      console.info("Search failed:", err);
     } finally {
       setLoading(false);
     }

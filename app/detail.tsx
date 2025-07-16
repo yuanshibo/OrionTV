@@ -1,134 +1,49 @@
-import React, { useEffect, useState, useRef } from "react";
-import { View, Text, StyleSheet, Image, ScrollView, ActivityIndicator } from "react-native";
+import React, { useEffect } from "react";
+import { View, Text, StyleSheet, Image, ScrollView, ActivityIndicator, Pressable } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
-import { api, SearchResult } from "@/services/api";
-import { getResolutionFromM3U8 } from "@/services/m3u8";
 import { StyledButton } from "@/components/StyledButton";
-import { useSettingsStore } from "@/stores/settingsStore";
+import useDetailStore from "@/stores/detailStore";
+import { FontAwesome } from "@expo/vector-icons";
 
 export default function DetailScreen() {
-  const { source, q } = useLocalSearchParams();
+  const { q, source, id } = useLocalSearchParams<{ q: string; source?: string; id?: string }>();
   const router = useRouter();
-  const [searchResults, setSearchResults] = useState<(SearchResult & { resolution?: string | null })[]>([]);
-  const [detail, setDetail] = useState<(SearchResult & { resolution?: string | null }) | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [allSourcesLoaded, setAllSourcesLoaded] = useState(false);
-  const controllerRef = useRef<AbortController | null>(null);
-  const { videoSource } = useSettingsStore();
+
+  const {
+    detail,
+    searchResults,
+    loading,
+    error,
+    allSourcesLoaded,
+    init,
+    setDetail,
+    abort,
+    isFavorited,
+    toggleFavorite,
+  } = useDetailStore();
 
   useEffect(() => {
-    if (controllerRef.current) {
-      controllerRef.current.abort();
+    if (q) {
+      init(q, source, id);
     }
-    controllerRef.current = new AbortController();
-    const signal = controllerRef.current.signal;
-
-    if (typeof q === "string") {
-      const fetchDetailData = async () => {
-        setLoading(true);
-        setSearchResults([]);
-        setDetail(null);
-        setError(null);
-        setAllSourcesLoaded(false);
-
-        try {
-          const allResources = await api.getResources(signal);
-          if (!allResources || allResources.length === 0) {
-            setError("没有可用的播放源");
-            setLoading(false);
-            return;
-          }
-
-          // Filter resources based on enabled sources in settings
-          const resources = videoSource.enabledAll
-            ? allResources
-            : allResources.filter((resource) => videoSource.sources[resource.key]);
-
-          if (!videoSource.enabledAll && resources.length === 0) {
-            setError("请到设置页面启用的播放源");
-            setLoading(false);
-            return;
-          }
-
-          let foundFirstResult = false;
-          // Prioritize source from params if available
-          if (typeof source === "string") {
-            const index = resources.findIndex((r) => r.key === source);
-            if (index > 0) {
-              resources.unshift(resources.splice(index, 1)[0]);
-            }
-          }
-
-          for (const resource of resources) {
-            try {
-              const { results } = await api.searchVideo(q, resource.key, signal);
-              if (results && results.length > 0) {
-                const searchResult = results[0];
-
-                let resolution;
-                try {
-                  if (searchResult.episodes && searchResult.episodes.length > 0) {
-                    resolution = await getResolutionFromM3U8(searchResult.episodes[0], signal);
-                  }
-                } catch (e) {
-                  if ((e as Error).name !== "AbortError") {
-                    console.error(`Failed to get resolution for ${resource.name}`, e);
-                  }
-                }
-
-                const resultWithResolution = { ...searchResult, resolution };
-
-                setSearchResults((prev) => [...prev, resultWithResolution]);
-
-                if (!foundFirstResult) {
-                  setDetail(resultWithResolution);
-                  foundFirstResult = true;
-                  setLoading(false);
-                }
-              }
-            } catch (e) {
-              if ((e as Error).name !== "AbortError") {
-                console.error(`Error searching in resource ${resource.name}:`, e);
-              }
-            }
-          }
-
-          if (!foundFirstResult) {
-            setError("未找到播放源");
-            setLoading(false);
-          }
-        } catch (e) {
-          if ((e as Error).name !== "AbortError") {
-            setError(e instanceof Error ? e.message : "获取资源列表失败");
-            setLoading(false);
-          }
-        } finally {
-          setAllSourcesLoaded(true);
-        }
-      };
-      fetchDetailData();
-    }
-
     return () => {
-      controllerRef.current?.abort();
+      abort();
     };
-  }, [q, source, videoSource.enabledAll, videoSource.sources]);
+  }, [abort, init, q, source, id]);
 
-  const handlePlay = (episodeName: string, episodeIndex: number) => {
+  const handlePlay = (episodeIndex: number) => {
     if (!detail) return;
-    controllerRef.current?.abort(); // Cancel any ongoing fetches
+    abort(); // Cancel any ongoing fetches
     router.push({
       pathname: "/play",
       params: {
+        // Pass necessary identifiers, the rest will be in the store
+        q: detail.title,
         source: detail.source,
         id: detail.id.toString(),
-        episodeUrl: episodeName, // The "episode" is actually the URL
         episodeIndex: episodeIndex.toString(),
-        title: detail.title,
-        poster: detail.poster,
       },
     });
   };
@@ -172,6 +87,10 @@ export default function DetailScreen() {
               <ThemedText style={styles.metaText}>{detail.year}</ThemedText>
               <ThemedText style={styles.metaText}>{detail.type_name}</ThemedText>
             </View>
+            {/* <Pressable onPress={toggleFavorite} style={styles.favoriteButton}>
+              <FontAwesome name={isFavorited ? "star" : "star-o"} size={24} color={isFavorited ? "#FFD700" : "#ccc"} />
+              <ThemedText style={styles.favoriteButtonText}>{isFavorited ? "已收藏" : "收藏"}</ThemedText>
+            </Pressable> */}
             <ScrollView style={styles.descriptionScrollView}>
               <ThemedText style={styles.description}>{detail.desc}</ThemedText>
             </ScrollView>
@@ -217,7 +136,7 @@ export default function DetailScreen() {
                 <StyledButton
                   key={index}
                   style={styles.episodeButton}
-                  onPress={() => handlePlay(episode, index)}
+                  onPress={() => handlePlay(index)}
                   text={`第 ${index + 1} 集`}
                   textStyle={styles.episodeButtonText}
                 />
@@ -273,6 +192,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#ccc",
     lineHeight: 22,
+  },
+  favoriteButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 10,
+    padding: 10,
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    borderRadius: 5,
+    alignSelf: "flex-start",
+  },
+  favoriteButtonText: {
+    marginLeft: 8,
+    fontSize: 16,
   },
   bottomContainer: {
     paddingHorizontal: 20,

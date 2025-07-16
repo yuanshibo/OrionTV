@@ -5,6 +5,8 @@ import { ThemedText } from "@/components/ThemedText";
 import { MediaButton } from "@/components/MediaButton";
 
 import usePlayerStore from "@/stores/playerStore";
+import useDetailStore from "@/stores/detailStore";
+import { useSources } from "@/stores/sourceStore";
 
 interface PlayerControlsProps {
   showControls: boolean;
@@ -13,9 +15,8 @@ interface PlayerControlsProps {
 
 export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, setShowControls }) => {
   const {
-    detail,
     currentEpisodeIndex,
-    currentSourceIndex,
+    episodes,
     status,
     isSeeking,
     seekPosition,
@@ -30,12 +31,15 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
     outroStartTime,
   } = usePlayerStore();
 
-  const videoTitle = detail?.videoInfo?.title || "";
-  const currentEpisode = detail?.episodes[currentEpisodeIndex];
+  const { detail } = useDetailStore();
+  const resources = useSources();
+
+  const videoTitle = detail?.title || "";
+  const currentEpisode = episodes[currentEpisodeIndex];
   const currentEpisodeTitle = currentEpisode?.title;
-  const currentSource = detail?.sources[currentSourceIndex];
+  const currentSource = resources.find((r) => r.source === detail?.source);
   const currentSourceName = currentSource?.source_name;
-  const hasNextEpisode = currentEpisodeIndex < (detail?.episodes.length || 0) - 1;
+  const hasNextEpisode = currentEpisodeIndex < (episodes.length || 0) - 1;
 
   const formatTime = (milliseconds: number) => {
     if (!milliseconds) return "00:00";

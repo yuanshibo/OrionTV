@@ -34,11 +34,10 @@ export default function VideoCard({
   sourceName,
   progress,
   episodeIndex,
-  totalEpisodes,
   onFocus,
   onRecordDeleted,
   api,
-  playTime,
+  playTime = 0,
 }: VideoCardProps) {
   const router = useRouter();
   const [isFocused, setIsFocused] = useState(false);
@@ -62,7 +61,7 @@ export default function VideoCard({
     if (progress !== undefined && episodeIndex !== undefined) {
       router.push({
         pathname: "/play",
-        params: { source, id, episodeIndex, position: playTime },
+        params: { source, id, episodeIndex: episodeIndex - 1, title, position: playTime * 1000 },
       });
     } else {
       router.push({
@@ -112,7 +111,7 @@ export default function VideoCard({
               router.replace("/");
             }
           } catch (error) {
-            console.error("Failed to delete play record:", error);
+            console.info("Failed to delete play record:", error);
             Alert.alert("错误", "删除观看记录失败，请重试");
           }
         },
