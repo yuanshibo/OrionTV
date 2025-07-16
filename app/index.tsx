@@ -246,9 +246,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   searchButton: {
-    padding: 10,
     borderRadius: 30,
-    marginLeft: 10,
   },
   // Category Selector
   categoryContainer: {
