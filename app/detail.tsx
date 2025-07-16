@@ -87,10 +87,10 @@ export default function DetailScreen() {
               <ThemedText style={styles.metaText}>{detail.year}</ThemedText>
               <ThemedText style={styles.metaText}>{detail.type_name}</ThemedText>
             </View>
-            <Pressable onPress={toggleFavorite} style={styles.favoriteButton}>
+            {/* <Pressable onPress={toggleFavorite} style={styles.favoriteButton}>
               <FontAwesome name={isFavorited ? "star" : "star-o"} size={24} color={isFavorited ? "#FFD700" : "#ccc"} />
               <ThemedText style={styles.favoriteButtonText}>{isFavorited ? "已收藏" : "收藏"}</ThemedText>
-            </Pressable>
+            </Pressable> */}
             <ScrollView style={styles.descriptionScrollView}>
               <ThemedText style={styles.description}>{detail.desc}</ThemedText>
             </ScrollView>
