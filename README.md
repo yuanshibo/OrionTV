@@ -18,10 +18,6 @@
   - [Expo Router](https://docs.expo.dev/router/introduction/)
   - [Expo AV](https://docs.expo.dev/versions/latest/sdk/av/)
   - TypeScript
-- **后端**:
-  - [Node.js](https://nodejs.org/)
-  - [Express](https://expressjs.com/)
-  - [TypeScript](https://www.typescriptlang.org/)
 
 ## 📂 项目结构
 
@@ -31,7 +27,6 @@
 .
 ├── app/              # Expo Router 路由和页面
 ├── assets/           # 静态资源 (字体, 图片, TV 图标)
-├── backend/          # 后端 Express 应用
 ├── components/       # React 组件
 ├── constants/        # 应用常量 (颜色, 样式)
 ├── hooks/            # 自定义 Hooks
@@ -52,24 +47,7 @@
 - [Xcode](https://developer.apple.com/xcode/) (用于 Apple TV 开发)
 - [Android Studio](https://developer.android.com/studio) (用于 Android TV 开发)
 
-### 1. 后端服务
-
-首先，启动后端服务：
-
-```sh
-# 进入后端目录
-cd backend
-
-# 安装依赖
-yarn
-
-# 启动开发服务器
-yarn dev
-```
-
-后端服务将运行在 `http://localhost:3001`。
-
-### 2. 前端应用
+### 项目启动
 
 接下来，在项目根目录运行前端应用：
 
@@ -93,19 +71,9 @@ yarn android-tv
 
 ## 部署
 
-### 后端部署
+推荐使用 [MoonTV](https://github.com/senshinya/MoonTV) 部署，地址可直接使用部署后的访问地址。
 
-#### [Vercel](https://vercel.com/) 部署
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fzimplexing%2FOrionTV&root-directory=backend)
-
-如果 vercel 部署后遇到 `404: NOT_FOUNDCode: NOT_FOUND`，请检查 vercel 项目的根目录是否是 `beackend`
-
-#### Docker 部署
-
-1. `docker pull zimpel1/tv-host`
-
-2. `docker run -d -p 3001:3001 zimpel1/tv-host`
+如果不想依赖 MoonTV，可以使用 1.1.x 版本。
 
 ## 其他
 
@@ -153,4 +121,3 @@ OrionTV 仅作为视频搜索工具，不存储、上传或分发任何视频内
 
 - [gpt-load](https://github.com/tbphp/gpt-load) - 一个高性能的 OpenAI 格式 API 多密钥轮询代理服务器，支持负载均衡，使用 Go 语言开发
 - [one-balance](https://github.com/glidea/one-balance) - Make ai KEY rotation SMARTER and more SECURE
-

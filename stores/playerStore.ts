@@ -73,18 +73,18 @@ const usePlayerStore = create<PlayerState>((set, get) => ({
 
     set({
       isLoading: true,
-      currentEpisodeIndex: episodeIndex,
-      initialPosition: position || 0,
-      episodes: episodes.map((ep, index) => ({
-        url: ep,
-        title: `第 ${index + 1} 集`,
-      })),
     });
 
     try {
       const playRecord = await PlayRecordManager.get(detail.source, detail.id.toString());
       set({
         isLoading: false,
+        currentEpisodeIndex: episodeIndex,
+        initialPosition: position || 0,
+        episodes: episodes.map((ep, index) => ({
+          url: ep,
+          title: `第 ${index + 1} 集`,
+        })),
         introEndTime: playRecord?.introEndTime,
         outroStartTime: playRecord?.outroStartTime,
       });

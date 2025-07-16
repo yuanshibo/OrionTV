@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api, PlayRecord as ApiPlayRecord, Favorite as ApiFavorite } from "./api";
-import { useSettingsStore } from "@/stores/settingsStore";
+import { storageConfig } from "./storageConfig";
 
 // --- Storage Keys ---
 const STORAGE_KEYS = {
@@ -83,7 +83,7 @@ export class PlayerSettingsManager {
 // --- FavoriteManager (Dynamic: API or LocalStorage) ---
 export class FavoriteManager {
   private static getStorageType() {
-    return useSettingsStore.getState().serverConfig?.StorageType;
+    return storageConfig.getStorageType();
   }
 
   static async getAll(): Promise<Record<string, Favorite>> {
@@ -154,7 +154,7 @@ export class FavoriteManager {
 // --- PlayRecordManager (Dynamic: API or LocalStorage) ---
 export class PlayRecordManager {
   private static getStorageType() {
-    return useSettingsStore.getState().serverConfig?.StorageType;
+    return storageConfig.getStorageType();
   }
 
   static async getAll(): Promise<Record<string, PlayRecord>> {
@@ -232,7 +232,7 @@ export class PlayRecordManager {
 // --- SearchHistoryManager (Dynamic: API or LocalStorage) ---
 export class SearchHistoryManager {
   private static getStorageType() {
-    return useSettingsStore.getState().serverConfig?.StorageType;
+    return storageConfig.getStorageType();
   }
 
   static async get(): Promise<string[]> {
@@ -270,7 +270,7 @@ export class SearchHistoryManager {
   }
 }
 
-// --- SettingsManager (Remains unchanged, uses AsyncStorage) ---
+// --- SettingsManager (Uses AsyncStorage) ---
 export class SettingsManager {
   static async get(): Promise<AppSettings> {
     const defaultSettings: AppSettings = {
@@ -280,8 +280,7 @@ export class SettingsManager {
         enabledAll: true,
         sources: {},
       },
-      m3uUrl:
-        "",
+      m3uUrl: "",
     };
     try {
       const data = await AsyncStorage.getItem(STORAGE_KEYS.SETTINGS);

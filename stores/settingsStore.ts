@@ -1,8 +1,8 @@
-import { create } from 'zustand';
-import { SettingsManager } from '@/services/storage';
-import { api, ServerConfig } from '@/services/api';
+import { create } from "zustand";
+import { SettingsManager } from "@/services/storage";
+import { api, ServerConfig } from "@/services/api";
+import { storageConfig } from "@/services/storageConfig";
 // import useHomeStore from './homeStore';
-
 
 interface SettingsState {
   apiBaseUrl: string;
@@ -22,14 +22,14 @@ interface SettingsState {
   setM3uUrl: (url: string) => void;
   setRemoteInputEnabled: (enabled: boolean) => void;
   saveSettings: () => Promise<void>;
-  setVideoSource: (config: { enabledAll: boolean; sources: {[key: string]: boolean} }) => void;
+  setVideoSource: (config: { enabledAll: boolean; sources: { [key: string]: boolean } }) => void;
   showModal: () => void;
   hideModal: () => void;
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
-  apiBaseUrl: '',
-  m3uUrl: '',
+  apiBaseUrl: "",
+  m3uUrl: "",
   liveStreamSources: [],
   remoteInputEnabled: false,
   isModalVisible: false,
@@ -55,6 +55,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   fetchServerConfig: async () => {
     try {
       const config = await api.getServerConfig();
+      if (config) {
+        storageConfig.setStorageType(config.StorageType);
+      }
       set({ serverConfig: config });
     } catch (error) {
       console.info("Failed to fetch server config:", error);
@@ -66,7 +69,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setVideoSource: (config) => set({ videoSource: config }),
   saveSettings: async () => {
     const { apiBaseUrl, m3uUrl, remoteInputEnabled, videoSource } = get();
-    await SettingsManager.save({ 
+    await SettingsManager.save({
       apiBaseUrl,
       m3uUrl,
       remoteInputEnabled,
