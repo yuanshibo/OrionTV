@@ -121,7 +121,7 @@ export class API {
   }
 
   async getFavorites(key?: string): Promise<Record<string, Favorite> | Favorite | null> {
-    const url = key ? `/api/favorites?key=${key}` : "/api/favorites";
+    const url = key ? `/api/favorites?key=${encodeURIComponent(key)}` : "/api/favorites";
     const response = await this._fetch(url);
     return response.json();
   }
@@ -136,7 +136,7 @@ export class API {
   }
 
   async deleteFavorite(key?: string): Promise<{ success: boolean }> {
-    const url = key ? `/api/favorites?key=${key}` : "/api/favorites";
+    const url = key ? `/api/favorites?key=${encodeURIComponent(key)}` : "/api/favorites";
     const response = await this._fetch(url, { method: "DELETE" });
     return response.json();
   }
@@ -156,7 +156,7 @@ export class API {
   }
 
   async deletePlayRecord(key?: string): Promise<{ success: boolean }> {
-    const url = key ? `/api/playrecords?key=${key}` : "/api/playrecords";
+    const url = key ? `/api/playrecords?key=${encodeURIComponent(key)}` : "/api/playrecords";
     const response = await this._fetch(url, { method: "DELETE" });
     return response.json();
   }
