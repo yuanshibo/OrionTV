@@ -71,7 +71,7 @@ yarn android-tv
 
 ## 部署
 
-推荐使用 [MoonTV](https://github.com/senshinya/MoonTV) 部署，地址可直接使用部署后的访问地址。
+1.2.x 以上版本需配合 [MoonTV](https://github.com/senshinya/MoonTV) 部署使用，api 地址填部MoonTV署后的访问地址。
 
 如果不想依赖 MoonTV，可以使用 1.1.x 版本。
 
