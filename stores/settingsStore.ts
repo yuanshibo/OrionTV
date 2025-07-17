@@ -68,14 +68,35 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setVideoSource: (config) => set({ videoSource: config }),
   saveSettings: async () => {
     const { apiBaseUrl, m3uUrl, remoteInputEnabled, videoSource } = get();
+
+    let processedApiBaseUrl = apiBaseUrl.trim();
+    if (processedApiBaseUrl.endsWith("/")) {
+      processedApiBaseUrl = processedApiBaseUrl.slice(0, -1);
+    }
+
+    if (!/^https?:\/\//i.test(processedApiBaseUrl)) {
+      const hostPart = processedApiBaseUrl.split("/")[0];
+      // Simple check for IP address format.
+      const isIpAddress = /^((\d{1,3}\.){3}\d{1,3})(:\d+)?$/.test(hostPart);
+      // Check if the domain includes a port.
+      const hasPort = /:\d+/.test(hostPart);
+
+      if (isIpAddress || hasPort) {
+        processedApiBaseUrl = "http://" + processedApiBaseUrl;
+      } else {
+        processedApiBaseUrl = "https://" + processedApiBaseUrl;
+      }
+    }
+
     await SettingsManager.save({
-      apiBaseUrl,
+      apiBaseUrl: processedApiBaseUrl,
       m3uUrl,
       remoteInputEnabled,
       videoSource,
     });
-    api.setBaseUrl(apiBaseUrl);
-    set({ isModalVisible: false });
+    api.setBaseUrl(processedApiBaseUrl);
+    // Also update the URL in the state so the input field shows the processed URL
+    set({ isModalVisible: false, apiBaseUrl: processedApiBaseUrl });
     await get().fetchServerConfig();
   },
   showModal: () => set({ isModalVisible: true }),
