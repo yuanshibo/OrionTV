@@ -94,9 +94,9 @@ yarn android-tv
 ## 📸 应用截图
 
 ![首页界面](screenshot/image.png)
-![详情页面](screenshot/image1.png)
-![搜索界面](screenshot/image3.png)
 ![视频播放](screenshot/image2.png)
+![搜索界面](screenshot/image3.png)
+![详情页面](screenshot/image1.png)
 
 ## 📝 License
 
