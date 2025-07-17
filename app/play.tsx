@@ -96,6 +96,25 @@ export default function PlayScreen() {
     return () => backHandler.remove();
   }, [showControls, setShowControls, router]);
 
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout | null = null;
+
+    if (isLoading) {
+      timeoutId = setTimeout(() => {
+        if (usePlayerStore.getState().isLoading) {
+          usePlayerStore.setState({ isLoading: false });
+          Toast.show({ type: "error", text1: "播放超时，请重试" });
+        }
+      }, 60000); // 1 minute
+    }
+
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [isLoading]);
+
   if (!detail) {
     return (
       <ThemedView style={[styles.container, styles.centered]}>
@@ -121,10 +140,6 @@ export default function PlayScreen() {
               videoRef.current?.setPositionAsync(jumpPosition);
             }
             usePlayerStore.setState({ isLoading: false });
-          }}
-          onError={() => {
-            usePlayerStore.setState({ isLoading: false });
-            Toast.show({ type: "error", text1: "播放失败，请更换源后重试" });
           }}
           onLoadStart={() => usePlayerStore.setState({ isLoading: true })}
           useNativeControls={false}
