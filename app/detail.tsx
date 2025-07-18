@@ -77,17 +77,23 @@ export default function DetailScreen() {
         <View style={styles.topContainer}>
           <Image source={{ uri: detail.poster }} style={styles.poster} />
           <View style={styles.infoContainer}>
-            <ThemedText style={styles.title} numberOfLines={1}>
-              {detail.title}
-            </ThemedText>
+            <View style={styles.titleContainer}>
+              <ThemedText style={styles.title} numberOfLines={1} ellipsizeMode="tail">
+                {detail.title}
+              </ThemedText>
+              <StyledButton onPress={toggleFavorite} variant="ghost" style={styles.favoriteButton}>
+                <FontAwesome
+                  name={isFavorited ? "heart" : "heart-o"}
+                  size={24}
+                  color={isFavorited ? "#FFD700" : "#ccc"}
+                />
+              </StyledButton>
+            </View>
             <View style={styles.metaContainer}>
               <ThemedText style={styles.metaText}>{detail.year}</ThemedText>
               <ThemedText style={styles.metaText}>{detail.type_name}</ThemedText>
             </View>
-            {/* <Pressable onPress={toggleFavorite} style={styles.favoriteButton}>
-              <FontAwesome name={isFavorited ? "star" : "star-o"} size={24} color={isFavorited ? "#FFD700" : "#ccc"} />
-              <ThemedText style={styles.favoriteButtonText}>{isFavorited ? "已收藏" : "收藏"}</ThemedText>
-            </Pressable> */}
+
             <ScrollView style={styles.descriptionScrollView}>
               <ThemedText style={styles.description}>{detail.desc}</ThemedText>
             </ScrollView>
@@ -167,11 +173,15 @@ const styles = StyleSheet.create({
     marginLeft: 20,
     justifyContent: "flex-start",
   },
+  titleContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
   title: {
+    paddingTop: 16,
     fontSize: 28,
     fontWeight: "bold",
-    marginBottom: 10,
-    paddingTop: 20,
+    flexShrink: 1,
   },
   metaContainer: {
     flexDirection: "row",
@@ -191,13 +201,9 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   favoriteButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 10,
     padding: 10,
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
-    borderRadius: 5,
-    alignSelf: "flex-start",
+    marginLeft: 10,
+    backgroundColor: "transparent",
   },
   favoriteButtonText: {
     marginLeft: 8,
