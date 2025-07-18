@@ -249,6 +249,7 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 12,
     fontWeight: "bold",
+    paddingBottom: 2.5,
   },
   selectedBadge: {
     backgroundColor: "#4c4c4c",
