@@ -111,18 +111,18 @@ export default function SettingsScreen() {
       ),
       key: "livestream",
     },
-    {
-      component: (
-        <VideoSourceSection
-          onChanged={markAsChanged}
-          onFocus={() => {
-            setCurrentFocusIndex(3);
-            setCurrentSection("videoSource");
-          }}
-        />
-      ),
-      key: "videoSource",
-    },
+    // {
+    //   component: (
+    //     <VideoSourceSection
+    //       onChanged={markAsChanged}
+    //       onFocus={() => {
+    //         setCurrentFocusIndex(3);
+    //         setCurrentSection("videoSource");
+    //       }}
+    //     />
+    //   ),
+    //   key: "videoSource",
+    // },
   ];
 
   // TV遥控器事件处理

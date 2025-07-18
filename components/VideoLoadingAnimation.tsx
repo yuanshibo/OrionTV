@@ -229,7 +229,6 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#2d3748",
     overflow: "hidden",
   },
   loadingContainer: {
@@ -237,8 +236,8 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   videoIcon: {
-    width: 120,
-    height: 120,
+    width: 100,
+    height: 100,
     marginBottom: 30,
   },
   videoFrame: {
@@ -303,7 +302,7 @@ const styles = StyleSheet.create({
   },
   shape: {
     position: "absolute",
-    backgroundColor: "rgba(255, 255, 255, 0.03)",
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
     borderRadius: 50,
   },
   shape1: {

@@ -254,6 +254,7 @@ const usePlayerStore = create<PlayerState>((set, get) => ({
         ...existingRecord,
         ...updates,
       });
+      console.log("Play record saved")
     }
   },
 
