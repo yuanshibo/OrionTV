@@ -210,7 +210,7 @@ const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.3)",
-    borderColor: Colors.dark.border,
+    borderColor: Colors.dark.primary,
     borderWidth: 2,
     borderRadius: 8,
     justifyContent: "center",
@@ -294,17 +294,17 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: 3,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    height: 4,
+    backgroundColor: "rgba(0, 0, 0, 0.8)",
   },
   progressBar: {
-    height: 3,
-    backgroundColor: "#ff0000",
+    height: 4,
+    backgroundColor: Colors.dark.primary,
   },
   continueWatchingBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(255, 0, 0, 0.8)",
+    backgroundColor: Colors.dark.primary,
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 5,
@@ -316,7 +316,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   continueLabel: {
-    color: "#ff5252",
+    color: Colors.dark.primary,
     fontSize: 12,
   },
 });
