@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from "react";
-import { View, TextInput, StyleSheet, FlatList, ActivityIndicator, Alert, Keyboard } from "react-native";
+import { View, TextInput, StyleSheet, FlatList, Alert, Keyboard } from "react-native";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
 import VideoCard from "@/components/VideoCard.tv";
+import VideoLoadingAnimation from "@/components/VideoLoadingAnimation";
 import { api, SearchResult } from "@/services/api";
 import { Search, QrCode } from "lucide-react-native";
 import { StyledButton } from "@/components/StyledButton";
@@ -121,9 +122,7 @@ export default function SearchScreen() {
       </View>
 
       {loading ? (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" />
-        </View>
+        <VideoLoadingAnimation showProgressBar={false} />
       ) : error ? (
         <View style={styles.centerContainer}>
           <ThemedText style={styles.errorText}>{error}</ThemedText>

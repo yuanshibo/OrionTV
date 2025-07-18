@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
 import { StyledButton } from "@/components/StyledButton";
+import VideoLoadingAnimation from "@/components/VideoLoadingAnimation";
 import useDetailStore from "@/stores/detailStore";
 import { FontAwesome } from "@expo/vector-icons";
 
@@ -49,11 +50,7 @@ export default function DetailScreen() {
   };
 
   if (loading) {
-    return (
-      <ThemedView style={styles.centered}>
-        <ActivityIndicator size="large" />
-      </ThemedView>
-    );
+    return <VideoLoadingAnimation showProgressBar={false} />;
   }
 
   if (error) {
