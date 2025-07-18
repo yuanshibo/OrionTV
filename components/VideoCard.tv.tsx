@@ -6,6 +6,7 @@ import { Heart, Star, Play, Trash2 } from "lucide-react-native";
 import { FavoriteManager, PlayRecordManager } from "@/services/storage";
 import { API, api } from "@/services/api";
 import { ThemedText } from "@/components/ThemedText";
+import { Colors } from "@/constants/Colors";
 
 interface VideoCardProps {
   id: string;
@@ -209,6 +210,9 @@ const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.3)",
+    borderColor: Colors.dark.border,
+    borderWidth: 2,
+    borderRadius: 8,
     justifyContent: "center",
     alignItems: "center",
   },

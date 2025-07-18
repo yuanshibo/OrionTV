@@ -11,6 +11,7 @@ import { useRemoteControlStore } from "@/stores/remoteControlStore";
 import { RemoteControlModal } from "@/components/RemoteControlModal";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useRouter } from "expo-router";
+import { Colors } from "@/constants/Colors";
 
 export default function SearchScreen() {
   const [keyword, setKeyword] = useState("");
@@ -101,7 +102,7 @@ export default function SearchScreen() {
             {
               backgroundColor: colorScheme === "dark" ? "#2c2c2e" : "#f0f0f0",
               color: colorScheme === "dark" ? "white" : "black",
-              borderColor: isInputFocused ? "#007bff" : "transparent",
+              borderColor: isInputFocused ? Colors.dark.primary : "transparent",
             },
           ]}
           placeholder="搜索电影、剧集..."

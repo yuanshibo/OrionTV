@@ -85,7 +85,7 @@ export default function DetailScreen() {
                 <FontAwesome
                   name={isFavorited ? "heart" : "heart-o"}
                   size={24}
-                  color={isFavorited ? "#FFD700" : "#ccc"}
+                  color={isFavorited ? "#feff5f" : "#ccc"}
                 />
               </StyledButton>
             </View>
@@ -107,29 +107,32 @@ export default function DetailScreen() {
               {!allSourcesLoaded && <ActivityIndicator style={{ marginLeft: 10 }} />}
             </View>
             <View style={styles.sourceList}>
-              {searchResults.map((item, index) => (
-                <StyledButton
-                  key={index}
-                  onPress={() => setDetail(item)}
-                  hasTVPreferredFocus={index === 0}
-                  isSelected={detail?.source === item.source}
-                  style={styles.sourceButton}
-                >
-                  <ThemedText style={styles.sourceButtonText}>{item.source_name}</ThemedText>
-                  {item.episodes.length > 1 && (
-                    <View style={styles.badge}>
-                      <Text style={styles.badgeText}>
-                        {item.episodes.length > 99 ? "99+" : `${item.episodes.length}`} 集
-                      </Text>
-                    </View>
-                  )}
-                  {item.resolution && (
-                    <View style={[styles.badge, { backgroundColor: "#28a745" }]}>
-                      <Text style={styles.badgeText}>{item.resolution}</Text>
-                    </View>
-                  )}
-                </StyledButton>
-              ))}
+              {searchResults.map((item, index) => {
+                const isSelected = detail?.source === item.source;
+                return (
+                  <StyledButton
+                    key={index}
+                    onPress={() => setDetail(item)}
+                    hasTVPreferredFocus={index === 0}
+                    isSelected={isSelected}
+                    style={styles.sourceButton}
+                  >
+                    <ThemedText style={styles.sourceButtonText}>{item.source_name}</ThemedText>
+                    {item.episodes.length > 1 && (
+                      <View style={[styles.badge, isSelected && styles.selectedBadge]}>
+                        <Text style={styles.badgeText}>
+                          {item.episodes.length > 99 ? "99+" : `${item.episodes.length}`} 集
+                        </Text>
+                      </View>
+                    )}
+                    {item.resolution && (
+                      <View style={[styles.badge, { backgroundColor: "#666" }, isSelected && styles.selectedBadge]}>
+                        <Text style={styles.badgeText}>{item.resolution}</Text>
+                      </View>
+                    )}
+                  </StyledButton>
+                );
+              })}
             </View>
           </View>
           <View style={styles.episodesContainer}>
@@ -236,16 +239,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   badge: {
-    backgroundColor: "red",
+    backgroundColor: "#666",
     borderRadius: 10,
     paddingHorizontal: 6,
     paddingVertical: 2,
     marginLeft: 8,
   },
   badgeText: {
-    color: "white",
+    color: "#fff",
     fontSize: 12,
     fontWeight: "bold",
+  },
+  selectedBadge: {
+    backgroundColor: "#4c4c4c",
+  },
+  selectedbadgeText: {
+    color: "#333",
   },
   episodesContainer: {
     marginTop: 20,

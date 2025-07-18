@@ -199,17 +199,17 @@ const VideoLoadingAnimation: React.FC<VideoLoadingAnimationProps> = ({ showProgr
           </View>
         </Animated.View>
 
-        <View style={styles.loadingDots}>
+        {/* <View style={styles.loadingDots}>
           <Animated.View style={[styles.dot, animatedStyles.bounce[0]]} />
           <Animated.View style={[styles.dot, animatedStyles.bounce[1]]} />
           <Animated.View style={[styles.dot, animatedStyles.bounce[2]]} />
-        </View>
+        </View> */}
 
         {showProgressBar && (
           <View style={styles.progressBar}>
             <Animated.View style={[styles.progressFill, animatedStyles.progress]}>
               <LinearGradient
-                colors={["#4fd1c7", "#06b6d4", "#3b82f6", "#8b5cf6"]}
+                colors={["#00bb5e", "#feff5f"]}
                 style={StyleSheet.absoluteFill}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
