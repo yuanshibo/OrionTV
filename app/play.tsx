@@ -42,13 +42,13 @@ export default function PlayScreen() {
   const {
     isLoading,
     showControls,
-    showNextEpisodeOverlay,
+    // showNextEpisodeOverlay,
     initialPosition,
     introEndTime,
     setVideoRef,
     handlePlaybackStatusUpdate,
     setShowControls,
-    setShowNextEpisodeOverlay,
+    // setShowNextEpisodeOverlay,
     reset,
     loadVideo,
   } = usePlayerStore();
@@ -151,7 +151,7 @@ export default function PlayScreen() {
           </View>
         )}
 
-        <NextEpisodeOverlay visible={showNextEpisodeOverlay} onCancel={() => setShowNextEpisodeOverlay(false)} />
+        {/* <NextEpisodeOverlay visible={showNextEpisodeOverlay} onCancel={() => setShowNextEpisodeOverlay(false)} /> */}
       </TouchableOpacity>
 
       <EpisodeSelectionModal />
