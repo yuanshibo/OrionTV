@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { View, TextInput, StyleSheet, Alert, Keyboard, ActivityIndicator } from "react-native";
+import { View, TextInput, StyleSheet, Alert, Keyboard, TouchableOpacity, Pressable } from "react-native";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
 import VideoCard from "@/components/VideoCard.tv";
@@ -36,13 +36,13 @@ export default function SearchScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastMessage]);
 
-  useEffect(() => {
-    // Focus the text input when the screen loads
-    const timer = setTimeout(() => {
-      textInputRef.current?.focus();
-    }, 200);
-    return () => clearTimeout(timer);
-  }, []);
+  // useEffect(() => {
+  //   // Focus the text input when the screen loads
+  //   const timer = setTimeout(() => {
+  //     textInputRef.current?.focus();
+  //   }, 200);
+  //   return () => clearTimeout(timer);
+  // }, []);
 
   const handleSearch = async (searchText?: string) => {
     const term = typeof searchText === "string" ? searchText : keyword;
@@ -96,25 +96,36 @@ export default function SearchScreen() {
   return (
     <ThemedView style={styles.container}>
       <View style={styles.searchContainer}>
-        <TextInput
-          ref={textInputRef}
+        <TouchableOpacity
+          activeOpacity={1}
           style={[
             styles.input,
             {
               backgroundColor: colorScheme === "dark" ? "#2c2c2e" : "#f0f0f0",
-              color: colorScheme === "dark" ? "white" : "black",
               borderColor: isInputFocused ? Colors.dark.primary : "transparent",
+              borderWidth: 2,
             },
           ]}
-          placeholder="搜索电影、剧集..."
-          placeholderTextColor={colorScheme === "dark" ? "#888" : "#555"}
-          value={keyword}
-          onChangeText={setKeyword}
+          onPress={() => textInputRef.current?.focus()}
           onFocus={() => setIsInputFocused(true)}
           onBlur={() => setIsInputFocused(false)}
-          onSubmitEditing={onSearchPress}
-          returnKeyType="search"
-        />
+        >
+          <TextInput
+            ref={textInputRef}
+            style={[
+              styles.input,
+              {
+                color: colorScheme === "dark" ? "white" : "black",
+              },
+            ]}
+            placeholder="搜索电影、剧集..."
+            placeholderTextColor={colorScheme === "dark" ? "#888" : "#555"}
+            value={keyword}
+            onChangeText={setKeyword}
+            onSubmitEditing={onSearchPress}
+            returnKeyType="search"
+          />
+        </TouchableOpacity>
         <StyledButton style={styles.searchButton} onPress={onSearchPress}>
           <Search size={24} color={colorScheme === "dark" ? "white" : "black"} />
         </StyledButton>
