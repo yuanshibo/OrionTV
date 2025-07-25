@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { View, TextInput, StyleSheet, FlatList, Alert, Keyboard } from "react-native";
+import { View, TextInput, StyleSheet, Alert, Keyboard, ActivityIndicator } from "react-native";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
 import VideoCard from "@/components/VideoCard.tv";
@@ -12,6 +12,7 @@ import { RemoteControlModal } from "@/components/RemoteControlModal";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useRouter } from "expo-router";
 import { Colors } from "@/constants/Colors";
+import CustomScrollView from "@/components/CustomScrollView";
 
 export default function SearchScreen() {
   const [keyword, setKeyword] = useState("");
@@ -80,7 +81,7 @@ export default function SearchScreen() {
     showRemoteModal();
   };
 
-  const renderItem = ({ item }: { item: SearchResult }) => (
+  const renderItem = ({ item, index }: { item: SearchResult; index: number }) => (
     <VideoCard
       id={item.id.toString()}
       source={item.source}
@@ -129,17 +130,13 @@ export default function SearchScreen() {
           <ThemedText style={styles.errorText}>{error}</ThemedText>
         </View>
       ) : (
-        <FlatList
+        <CustomScrollView
           data={results}
           renderItem={renderItem}
-          keyExtractor={(item, index) => `${item.id}-${item.source}-${index}`}
-          numColumns={5} // Adjust based on your card size and desired layout
-          contentContainerStyle={styles.listContent}
-          ListEmptyComponent={
-            <View style={styles.centerContainer}>
-              <ThemedText>输入关键词开始搜索</ThemedText>
-            </View>
-          }
+          numColumns={5}
+          loading={loading}
+          error={error}
+          emptyMessage="输入关键词开始搜索"
         />
       )}
       <RemoteControlModal />
