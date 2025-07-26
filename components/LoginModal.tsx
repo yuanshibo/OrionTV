@@ -26,7 +26,7 @@ const LoginModal = () => {
   useEffect(() => {
     if (isLoginModalVisible && !isSettingsPage) {
       const isUsernameVisible = serverConfig?.StorageType !== "localstorage";
-      
+
       // Use a small delay to ensure the modal is fully rendered
       const focusTimeout = setTimeout(() => {
         if (isUsernameVisible) {
@@ -35,7 +35,7 @@ const LoginModal = () => {
           passwordInputRef.current?.focus();
         }
       }, 100);
-      
+
       return () => clearTimeout(focusTimeout);
     }
   }, [isLoginModalVisible, serverConfig, isSettingsPage]);
@@ -55,11 +55,11 @@ const LoginModal = () => {
       hideLoginModal();
       setUsername("");
       setPassword("");
-      
+
       // Show disclaimer alert after successful login
       Alert.alert(
         "免责声明",
-        "本网站仅提供影视信息搜索服务，所有内容均来自第三方网站。本站不存储任何视频资源，不对任何内容的准确性、合法性、完整性负责。",
+        "本应用仅提供影视信息搜索服务，所有内容均来自第三方网站。本站不存储任何视频资源，不对任何内容的准确性、合法性、完整性负责。",
         [{ text: "确定" }]
       );
     } catch {
