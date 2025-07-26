@@ -66,14 +66,10 @@ yarn ios-tv
 yarn android-tv
 ```
 
-## 部署
+## 使用
 
 - 1.2.x 以上版本需配合 [MoonTV](https://github.com/senshinya/MoonTV) 使用。
 
-## 其他
-
-- 最低版本是 android 6.0，可用，但是不推荐
-- 如果使用 https 的后端接口无法访问，在确认服务没有问题的情况下，请检查 https 的 TLS 协议，Android 10 之后版本才支持 TLS1.3
 
 ## 📜 主要脚本
 
