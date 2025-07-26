@@ -1,13 +1,12 @@
 # OrionTV 📺
 
-一个基于 React Native TVOS 和 Expo 构建的跨平台电视应用，旨在提供流畅的视频观看体验。项目包含一个用于数据服务的 Express 后端。
+一个基于 React Native TVOS 和 Expo 构建的播放器，旨在提供流畅的视频观看体验。
 
 ## ✨ 功能特性
 
 - **框架跨平台支持**: 同时支持构建 Apple TV 和 Android TV。
 - **现代化前端**: 使用 Expo、React Native TVOS 和 TypeScript 构建，性能卓越。
 - **Expo Router**: 基于文件系统的路由，使导航逻辑清晰简单。
-- **后端服务**: 配套 Express 后端，用于处理数据获取、搜索和详情展示。
 - **TV 优化的 UI**: 专为电视遥控器交互设计的用户界面。
 
 ## 🛠️ 技术栈
@@ -69,12 +68,7 @@ yarn android-tv
 
 ## 部署
 
-- 1.2.x 以上版本需配合 [MoonTV](https://github.com/senshinya/MoonTV) 部署使用，api 地址填部MoonTV署后的访问地址。
-
-  - **注意：** 地址后面不要带 `/` ,不要遗漏 `http://` 或者 `https://`
-  - 如果部署在CF，请确保电视端可以访问，不然会出现无法登录或者登录项与自己配置不符的问题
-
-- 如果不想依赖 MoonTV，可以使用 1.1.x 版本。
+- 1.2.x 以上版本需配合 [MoonTV](https://github.com/senshinya/MoonTV) 使用。
 
 ## 其他
 
@@ -88,14 +82,7 @@ yarn android-tv
 - `yarn ios-tv`: 在 Apple TV 上构建并运行应用。
 - `yarn android-tv`: 在 Android TV 上构建并运行应用。
 - `yarn prebuild-tv`: 为 TV 构建生成原生项目文件。
-- `yarn lint`: 检查代码风格。
-
-## 📸 应用截图
-
-![首页界面](screenshot/image.png)
-![视频播放](screenshot/image2.png)
-![搜索界面](screenshot/image3.png)
-![详情页面](screenshot/image1.png)
+- `yarn lint`: 检查代码风格
 
 ## 📝 License
 
@@ -121,4 +108,3 @@ OrionTV 仅作为视频搜索工具，不存储、上传或分发任何视频内
 感谢以下项目提供 API Key 的赞助
 
 - [gpt-load](https://github.com/tbphp/gpt-load) - 一个高性能的 OpenAI 格式 API 多密钥轮询代理服务器，支持负载均衡，使用 Go 语言开发
-- [one-balance](https://github.com/glidea/one-balance) - Make ai KEY rotation SMARTER and more SECURE
