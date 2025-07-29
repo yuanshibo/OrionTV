@@ -259,10 +259,7 @@ const useHomeStore = create<HomeState>((set, get) => ({
       return {};
     });
     
-    // 如果当前是最近播放分类，强制刷新数据
-    if (get().selectedCategory.type === "record") {
-      get().fetchInitialData();
-    }
+    get().fetchInitialData();
   },
 }));
 
