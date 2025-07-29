@@ -1,5 +1,5 @@
 import React, { useEffect, useCallback, useRef, useState } from "react";
-import { View, StyleSheet, ActivityIndicator, FlatList, Pressable, Dimensions } from "react-native";
+import { View, StyleSheet, ActivityIndicator, FlatList, Pressable, Dimensions, Animated } from "react-native";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
 import { api } from "@/services/api";
@@ -21,6 +21,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const colorScheme = "dark";
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const {
     categories,
@@ -58,6 +59,18 @@ export default function HomeScreen() {
       fetchInitialData();
     }
   }, [fetchInitialData, selectedCategory, selectedCategory.tag]);
+
+  useEffect(() => {
+    if (!loading && contentData.length > 0) {
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    } else if (loading) {
+      fadeAnim.setValue(0);
+    }
+  }, [loading, contentData.length, fadeAnim]);
 
   const handleCategorySelect = (category: Category) => {
     setSelectedTag(null);
@@ -196,18 +209,20 @@ export default function HomeScreen() {
           </ThemedText>
         </View>
       ) : (
-        <CustomScrollView
-          data={contentData}
-          renderItem={renderContentItem}
-          numColumns={NUM_COLUMNS}
-          loading={loading}
-          loadingMore={loadingMore}
-          error={error}
-          onEndReached={loadMoreData}
-          loadMoreThreshold={LOAD_MORE_THRESHOLD}
-          emptyMessage={selectedCategory?.tags ? "请选择一个子分类" : "该分类下暂无内容"}
-          ListFooterComponent={renderFooter}
-        />
+        <Animated.View style={[styles.contentContainer, { opacity: fadeAnim }]}>
+          <CustomScrollView
+            data={contentData}
+            renderItem={renderContentItem}
+            numColumns={NUM_COLUMNS}
+            loading={loading}
+            loadingMore={loadingMore}
+            error={error}
+            onEndReached={loadMoreData}
+            loadMoreThreshold={LOAD_MORE_THRESHOLD}
+            emptyMessage={selectedCategory?.tags ? "请选择一个子分类" : "该分类下暂无内容"}
+            ListFooterComponent={renderFooter}
+          />
+        </Animated.View>
       )}
     </ThemedView>
   );
@@ -265,6 +280,9 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: 16,
     paddingBottom: 20,
+  },
+  contentContainer: {
+    flex: 1,
   },
   itemContainer: {
     margin: 8,

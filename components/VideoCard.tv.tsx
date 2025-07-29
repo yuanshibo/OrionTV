@@ -1,6 +1,5 @@
-import React, { useState, useCallback, useRef, forwardRef } from "react";
-import { View, Text, Image, StyleSheet, TouchableOpacity, Alert } from "react-native";
-import Animated, { useSharedValue, useAnimatedStyle, withSpring } from "react-native-reanimated";
+import React, { useState, useEffect, useCallback, useRef, forwardRef } from "react";
+import { View, Text, Image, StyleSheet, TouchableOpacity, Alert, Animated } from "react-native";
 import { useRouter } from "expo-router";
 import { Star, Play } from "lucide-react-native";
 import { PlayRecordManager } from "@/services/storage";
@@ -46,16 +45,15 @@ const VideoCard = forwardRef<View, VideoCardProps>(
   ) => {
     const router = useRouter();
     const [isFocused, setIsFocused] = useState(false);
+    const [fadeAnim] = useState(new Animated.Value(0));
 
     const longPressTriggered = useRef(false);
 
-    const scale = useSharedValue(1);
+    const scale = useRef(new Animated.Value(1)).current;
 
-    const animatedStyle = useAnimatedStyle(() => {
-      return {
-        transform: [{ scale: scale.value }],
-      };
-    });
+    const animatedStyle = {
+      transform: [{ scale }],
+    };
 
     const handlePress = () => {
       if (longPressTriggered.current) {
@@ -78,14 +76,31 @@ const VideoCard = forwardRef<View, VideoCardProps>(
 
     const handleFocus = useCallback(() => {
       setIsFocused(true);
-      scale.value = withSpring(1.05, { damping: 15, stiffness: 200 });
+      Animated.spring(scale, {
+        toValue: 1.05,
+        damping: 15,
+        stiffness: 200,
+        useNativeDriver: true,
+      }).start();
       onFocus?.();
     }, [scale, onFocus]);
 
     const handleBlur = useCallback(() => {
       setIsFocused(false);
-      scale.value = withSpring(1.0);
+      Animated.spring(scale, {
+        toValue: 1.0,
+        useNativeDriver: true,
+      }).start();
     }, [scale]);
+
+    useEffect(() => {
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 400,
+        delay: Math.random() * 200, // 随机延迟创造交错效果
+        useNativeDriver: true,
+      }).start();
+    }, [fadeAnim]);
 
     const handleLongPress = () => {
       // Only allow long press for items with progress (play records)
@@ -128,7 +143,7 @@ const VideoCard = forwardRef<View, VideoCardProps>(
     const isContinueWatching = progress !== undefined && progress > 0 && progress < 1;
 
     return (
-      <Animated.View style={[styles.wrapper, animatedStyle]}>
+      <Animated.View style={[styles.wrapper, animatedStyle, { opacity: fadeAnim }]}>
         <TouchableOpacity
           onPress={handlePress}
           onLongPress={handleLongPress}
@@ -260,9 +275,9 @@ const styles = StyleSheet.create({
   infoContainer: {
     width: CARD_WIDTH,
     marginTop: 8,
-    alignItems: "flex-start", // Align items to the start
+    alignItems: "flex-start",
     marginBottom: 16,
-    paddingHorizontal: 4, // Add some padding
+    paddingHorizontal: 4,
   },
   infoRow: {
     flexDirection: "row",

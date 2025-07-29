@@ -62,8 +62,12 @@ const LoginModal = () => {
         "本应用仅提供影视信息搜索服务，所有内容均来自第三方网站。本站不存储任何视频资源，不对任何内容的准确性、合法性、完整性负责。",
         [{ text: "确定" }]
       );
-    } catch {
-      Toast.show({ type: "error", text1: "登录失败", text2: "用户名或密码错误" });
+    } catch (error) {
+      Toast.show({
+        type: "error",
+        text1: "登录失败",
+        text2: error instanceof Error ? error.message : "用户名或密码错误",
+      });
     } finally {
       setIsLoading(false);
     }

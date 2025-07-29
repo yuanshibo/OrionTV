@@ -70,6 +70,9 @@ interface HomeState {
   refreshPlayRecords: () => Promise<void>;
 }
 
+// 内存缓存，应用生命周期内有效
+const dataCache = new Map<string, RowItem[]>();
+
 const useHomeStore = create<HomeState>((set, get) => ({
   categories: initialCategories,
   selectedCategory: initialCategories[0],
@@ -83,6 +86,29 @@ const useHomeStore = create<HomeState>((set, get) => ({
   fetchInitialData: async () => {
     const { apiBaseUrl } = useSettingsStore.getState();
     await useAuthStore.getState().checkLoginStatus(apiBaseUrl);
+    
+    const { selectedCategory } = get();
+    const cacheKey = `${selectedCategory.title}-${selectedCategory.tag || ''}`;
+    
+    // 最近播放不缓存，始终实时获取
+    if (selectedCategory.type === 'record') {
+      set({ loading: true, contentData: [], pageStart: 0, hasMore: true, error: null });
+      await get().loadMoreData();
+      return;
+    }
+    
+    // 检查缓存
+    if (dataCache.has(cacheKey)) {
+      set({ 
+        loading: false, 
+        contentData: dataCache.get(cacheKey)!, 
+        pageStart: dataCache.get(cacheKey)!.length, 
+        hasMore: false, 
+        error: null 
+      });
+      return;
+    }
+    
     set({ loading: true, contentData: [], pageStart: 0, hasMore: true, error: null });
     await get().loadMoreData();
   },
@@ -133,11 +159,25 @@ const useHomeStore = create<HomeState>((set, get) => ({
             id: item.title,
             source: "douban",
           })) as RowItem[];
-          set((state) => ({
-            contentData: pageStart === 0 ? newItems : [...state.contentData, ...newItems],
-            pageStart: state.pageStart + result.list.length,
-            hasMore: true,
-          }));
+          
+          const cacheKey = `${selectedCategory.title}-${selectedCategory.tag || ''}`;
+          
+          if (pageStart === 0) {
+            // 缓存新数据
+            dataCache.set(cacheKey, newItems);
+            set((state) => ({
+              contentData: newItems,
+              pageStart: result.list.length,
+              hasMore: true,
+            }));
+          } else {
+            // 增量加载时不缓存，直接追加
+            set((state) => ({
+              contentData: [...state.contentData, ...newItems],
+              pageStart: state.pageStart + result.list.length,
+              hasMore: true,
+            }));
+          }
         }
       } else if (selectedCategory.tags) {
         // It's a container category, do not load content, but clear current content
@@ -158,10 +198,29 @@ const useHomeStore = create<HomeState>((set, get) => ({
 
   selectCategory: (category: Category) => {
     const currentCategory = get().selectedCategory;
-    // Only fetch new data if the category or tag actually changes
+    const cacheKey = `${category.title}-${category.tag || ''}`;
+    
+    // 只有当分类或标签真正变化时才处理
     if (currentCategory.title !== category.title || currentCategory.tag !== category.tag) {
       set({ selectedCategory: category, contentData: [], pageStart: 0, hasMore: true, error: null });
-      get().fetchInitialData();
+      
+      // 最近播放始终实时获取
+      if (category.type === 'record') {
+        get().fetchInitialData();
+        return;
+      }
+      
+      // 检查缓存，有则直接使用，无则请求
+      if (dataCache.has(cacheKey)) {
+        set({ 
+          contentData: dataCache.get(cacheKey)!, 
+          pageStart: dataCache.get(cacheKey)!.length, 
+          hasMore: false, 
+          loading: false 
+        });
+      } else {
+        get().fetchInitialData();
+      }
     }
   },
 
@@ -199,6 +258,7 @@ const useHomeStore = create<HomeState>((set, get) => ({
       }
       return {};
     });
+    
     get().fetchInitialData();
   },
 }));
