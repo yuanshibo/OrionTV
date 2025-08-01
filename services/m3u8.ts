@@ -50,7 +50,7 @@ export const getResolutionFromM3U8 = async (
     };
 
     return resolutionString;
-  } catch (error) {
+  } catch {
     return null;
   }
 };

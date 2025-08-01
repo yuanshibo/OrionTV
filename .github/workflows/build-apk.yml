@@ -1,4 +1,4 @@
-name: Build Android TV APK
+name: Build Android APK
 
 on:
   workflow_dispatch:
@@ -7,7 +7,7 @@ permissions:
   contents: write
 
 jobs:
-  direct_build:
+  build_tv:
     name: Build Android TV APK
     runs-on: ubuntu-latest
     steps:
@@ -37,21 +37,94 @@ jobs:
         run: yarn prebuild-tv
 
       - name: Build TV APK
-        run: yarn build-local
+        run: yarn build-tv
 
-      - name: Rename APK file
+      - name: Upload TV APK
+        uses: actions/upload-artifact@v3
+        with:
+          name: orion-tv-apk
+          path: android/app/build/outputs/apk/release/app-release.apk
+
+  build_mobile:
+    name: Build Android Mobile APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          cache: "yarn"
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Get version from package.json
+        id: package-version
+        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
+      - name: Setup JDK
+        uses: actions/setup-java@v3
+        with:
+          distribution: "zulu"
+          java-version: "17"
+
+      - name: Prebuild Mobile App
+        run: yarn prebuild-mobile
+
+      - name: Build Mobile APK
+        run: yarn build-mobile
+
+      - name: Upload Mobile APK
+        uses: actions/upload-artifact@v3
+        with:
+          name: orion-mobile-apk
+          path: android/app/build/outputs/apk/release/app-release.apk
+
+  release:
+    name: Create Release
+    needs: [build_tv, build_mobile]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      - name: Get version from package.json
+        id: package-version
+        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
+      - name: Download TV APK
+        uses: actions/download-artifact@v3
+        with:
+          name: orion-tv-apk
+          path: artifacts/tv
+
+      - name: Download Mobile APK
+        uses: actions/download-artifact@v3
+        with:
+          name: orion-mobile-apk
+          path: artifacts/mobile
+
+      - name: Rename APK files
         run: |
-          mkdir -p artifacts
-          cp android/app/build/outputs/apk/release/app-release.apk artifacts/orionTV.${{ steps.package-version.outputs.version }}.apk
+          mv artifacts/tv/app-release.apk artifacts/orionTV-tv.${{ steps.package-version.outputs.version }}.apk
+          mv artifacts/mobile/app-release.apk artifacts/orionTV-mobile.${{ steps.package-version.outputs.version }}.apk
 
-      - name: Create Release and Upload APK
+      - name: Create Release and Upload APKs
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.package-version.outputs.version }}
           name: Release v${{ steps.package-version.outputs.version }}
-          body: Automated release for version v${{ steps.package-version.outputs.version }}.
+          body: |
+            Automated release for version v${{ steps.package-version.outputs.version }}.
+            - orionTV-tv.${{ steps.package-version.outputs.version }}.apk - Android TV版本
+            - orionTV-mobile.${{ steps.package-version.outputs.version }}.apk - 手机/平板版本
           draft: false
           prerelease: false
-          files: artifacts/orionTV.${{ steps.package-version.outputs.version }}.apk
+          files: |
+            artifacts/orionTV-tv.${{ steps.package-version.outputs.version }}.apk
+            artifacts/orionTV-mobile.${{ steps.package-version.outputs.version }}.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

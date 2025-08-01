@@ -3,10 +3,11 @@ const {getDefaultConfig} = require('expo/metro-config');
 const path = require('path');
 
 // Find the project and workspace directories
+// eslint-disable-next-line no-undef
 const projectRoot = __dirname;
 
 /** @type {import('expo/metro-config').MetroConfig} */
-const config = getDefaultConfig(projectRoot); // eslint-disable-line no-undef
+const config = getDefaultConfig(projectRoot);
 
 // When enabled, the optional code below will allow Metro to resolve
 // and bundle source files with TV-specific extensions

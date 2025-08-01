@@ -3,7 +3,7 @@ import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
-import { Platform } from "react-native";
+import { Platform, View, StyleSheet } from "react-native";
 import Toast from "react-native-toast-message";
 
 import { useSettingsStore } from "@/stores/settingsStore";
@@ -13,6 +13,8 @@ import useAuthStore from "@/stores/authStore";
 import { useUpdateStore, initUpdateStore } from "@/stores/updateStore";
 import { UpdateModal } from "@/components/UpdateModal";
 import { UPDATE_CONFIG } from "@/constants/UpdateConfig";
+import MobileBottomNavigation from "@/components/MobileBottomNavigation";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -26,6 +28,7 @@ export default function RootLayout() {
   const { startServer, stopServer } = useRemoteControlStore();
   const { checkLoginStatus } = useAuthStore();
   const { checkForUpdate, lastCheckTime } = useUpdateStore();
+  const responsiveConfig = useResponsiveLayout();
 
   useEffect(() => {
     loadSettings();
@@ -70,21 +73,32 @@ export default function RootLayout() {
     return null;
   }
 
+  const isMobile = responsiveConfig.deviceType === 'mobile';
+
   return (
     <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen name="detail" options={{ headerShown: false }} />
-        {Platform.OS !== "web" && <Stack.Screen name="play" options={{ headerShown: false }} />}
-        <Stack.Screen name="search" options={{ headerShown: false }} />
-        <Stack.Screen name="live" options={{ headerShown: false }} />
-        <Stack.Screen name="settings" options={{ headerShown: false }} />
-        <Stack.Screen name="favorites" options={{ headerShown: false }} />
-        <Stack.Screen name="+not-found" />
-      </Stack>
+      <View style={styles.container}>
+        <Stack>
+          <Stack.Screen name="index" options={{ headerShown: false }} />
+          <Stack.Screen name="detail" options={{ headerShown: false }} />
+          {Platform.OS !== "web" && <Stack.Screen name="play" options={{ headerShown: false }} />}
+          <Stack.Screen name="search" options={{ headerShown: false }} />
+          <Stack.Screen name="live" options={{ headerShown: false }} />
+          <Stack.Screen name="settings" options={{ headerShown: false }} />
+          <Stack.Screen name="favorites" options={{ headerShown: false }} />
+          <Stack.Screen name="+not-found" />
+        </Stack>
+        {isMobile && <MobileBottomNavigation colorScheme={colorScheme} />}
+      </View>
       <Toast />
       <LoginModal />
       <UpdateModal />
     </ThemeProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+});

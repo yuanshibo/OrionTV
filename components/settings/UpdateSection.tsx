@@ -54,20 +54,24 @@ export function UpdateSection() {
 
       <View style={styles.buttonContainer}>
         <StyledButton
-          title={checking ? "检查中..." : "检查更新"}
           onPress={handleCheckUpdate}
           disabled={checking || downloading}
           style={styles.button}
         >
-          {checking && <ActivityIndicator color="#fff" size="small" />}
+          {checking ? (
+            <ActivityIndicator color="#fff" size="small" />
+          ) : (
+            <ThemedText style={styles.buttonText}>检查更新</ThemedText>
+          )}
         </StyledButton>
 
         {updateAvailable && !downloading && (
           <StyledButton
-            title="立即更新"
             onPress={() => setShowUpdateModal(true)}
             style={[styles.button, styles.updateButton]}
-          />
+          >
+            <ThemedText style={styles.buttonText}>立即更新</ThemedText>
+          </StyledButton>
         )}
       </View>
 
@@ -123,6 +127,11 @@ const styles = StyleSheet.create({
   },
   updateButton: {
     backgroundColor: "#00bb5e",
+  },
+  buttonText: {
+    color: "#ffffff",
+    fontSize: Platform.isTV ? 16 : 14,
+    fontWeight: "500",
   },
   hint: {
     fontSize: Platform.isTV ? 14 : 12,
