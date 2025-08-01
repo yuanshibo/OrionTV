@@ -4,23 +4,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-OrionTV is a React Native TVOS application for streaming video content, built with Expo and designed specifically for TV platforms (Apple TV and Android TV). The project includes both a frontend React Native app and a backend Express service.
+OrionTV is a React Native TVOS application for streaming video content, built with Expo and designed specifically for TV platforms (Apple TV and Android TV). This is a frontend-only application that connects to external APIs and includes a built-in remote control server for external device control.
 
 ## Key Commands
 
 ### Development Commands
-- `yarn start-tv` - Start Metro bundler in TV mode
+- `yarn start-tv` - Start Metro bundler in TV mode (EXPO_TV=1)
 - `yarn ios-tv` - Build and run on Apple TV
 - `yarn android-tv` - Build and run on Android TV  
-- `yarn prebuild-tv` - Generate native project files for TV (run this after dependency changes)
+- `yarn prebuild-tv` - Generate native project files for TV (run after dependency changes)
+- `yarn copy-config` - Copy TV-specific Android configurations
 - `yarn lint` - Run linting checks
 - `yarn test` - Run Jest tests with watch mode
-- `yarn build-local` - Build Android APK locally
-
-### Backend Commands (from `/backend` directory)
-- `yarn dev` - Start backend development server with hot reload
-- `yarn build` - Build TypeScript backend
-- `yarn start` - Start production backend server
+- `yarn build-local` - Build Android APK locally (from android/ directory)
 
 ## Architecture Overview
 
@@ -28,40 +24,47 @@ OrionTV is a React Native TVOS application for streaming video content, built wi
 - **Expo Router**: File-based routing with screens in `/app` directory
 - **State Management**: Zustand stores for global state (`/stores`)
 - **TV-Specific Components**: Components optimized for TV remote control interaction
-- **Services**: API layer, storage management, and remote control service
+- **Services**: API layer, storage management, remote control server, and update service
 
 ### Key Technologies
-- React Native TVOS (0.74.x) - TV-optimized React Native
+- React Native TVOS (0.74.x) - TV-optimized React Native with TV-specific events
 - Expo SDK 51 - Development platform and tooling
-- TypeScript - Type safety throughout
+- TypeScript - Type safety throughout with `@/*` path mapping
 - Zustand - Lightweight state management
 - Expo AV - Video playback functionality
 
 ### State Management (Zustand Stores)
-- `homeStore.ts` - Home screen content, categories, and play records
-- `playerStore.ts` - Video player state and controls
-- `settingsStore.ts` - App settings and configuration
-- `remoteControlStore.ts` - Remote control server functionality
+- `homeStore.ts` - Home screen content, categories, Douban API data, and play records
+- `playerStore.ts` - Video player state, controls, and episode management
+- `settingsStore.ts` - App settings, API configuration, and user preferences
+- `remoteControlStore.ts` - Remote control server functionality and HTTP bridge
+- `authStore.ts` - User authentication state
+- `updateStore.ts` - Automatic update checking and version management
+- `favoritesStore.ts` - User favorites management
 
 ### TV-Specific Features
-- Remote control navigation (`useTVRemoteHandler` hook)
-- TV-optimized UI components with focus management
-- Remote control server for external control via HTTP bridge
-- Gesture handling for TV remote interactions
+- Remote control navigation (`useTVRemoteHandler` hook with HWEvent handling)
+- TV-optimized UI components with focus management and `.tv.tsx` extensions
+- Remote control server for external control via HTTP bridge (`remoteControlService.ts`)
+- Gesture handling for TV remote interactions (select, left/right seeking, long press)
+- TV-specific assets and icons for Apple TV and Android TV
 
-### Backend Architecture
-- Express.js server providing API endpoints
-- Routes for search, video details, and Douban integration
-- Image proxy service for handling external images
-- CORS enabled for cross-origin requests
+### Service Layer Architecture
+- `api.ts` - External API integration (search, video details, Douban data)
+- `storage.ts` - AsyncStorage wrapper for local data persistence
+- `remoteControlService.ts` - HTTP server for external device control
+- `updateService.ts` - Automatic version checking and APK download
+- `tcpHttpServer.ts` - TCP-based HTTP server implementation
 
 ## Development Workflow
 
 ### TV Development Notes
-- Always use TV-specific commands (`*-tv` variants)
-- Run `yarn prebuild-tv` after adding new dependencies
-- Test on both Apple TV and Android TV simulators
+- Always use TV-specific commands (`*-tv` variants) with EXPO_TV=1 environment variable
+- Run `yarn prebuild-tv` after adding new dependencies or Expo configuration changes
+- Use `yarn copy-config` to apply TV-specific Android configurations
+- Test on both Apple TV and Android TV simulators/devices
 - TV components require focus management and remote control support
+- TV builds use react-native-tvos instead of standard react-native
 
 ### State Management Patterns
 - Use Zustand stores for global state
@@ -94,14 +97,20 @@ OrionTV is a React Native TVOS application for streaming video content, built wi
 - Ensure Xcode is installed for Apple TV development
 - Android Studio required for Android TV development
 - Metro bundler must run in TV mode (`EXPO_TV=1`)
-- Backend server must be running on port 3001 for full functionality
+- External API servers configured in settings for video content
 
 ## File Structure Notes
 
 - `/app` - Expo Router screens and navigation
-- `/components` - Reusable UI components
-- `/stores` - Zustand state management
-- `/services` - API, storage, and external service integrations
-- `/hooks` - Custom React hooks
-- `/backend` - Express.js backend service
-- `/constants` - App constants and theme definitions
+- `/components` - Reusable UI components (including `.tv.tsx` variants)
+- `/stores` - Zustand state management stores
+- `/services` - API, storage, remote control, and update services
+- `/hooks` - Custom React hooks including `useTVRemoteHandler`
+- `/constants` - App constants, theme definitions, and update configuration
+- `/assets` - Static assets including TV-specific icons and banners
+
+# important-instruction-reminders
+Do what has been asked; nothing more, nothing less.
+NEVER create files unless they're absolutely necessary for achieving your goal.
+ALWAYS prefer editing an existing file to creating a new one.
+NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.
