@@ -11,6 +11,7 @@ import { useRemoteControlStore } from "@/stores/remoteControlStore";
 import { APIConfigSection } from "@/components/settings/APIConfigSection";
 import { LiveStreamSection } from "@/components/settings/LiveStreamSection";
 import { RemoteInputSection } from "@/components/settings/RemoteInputSection";
+import { UpdateSection } from "@/components/settings/UpdateSection";
 // import { VideoSourceSection } from "@/components/settings/VideoSourceSection";
 import Toast from "react-native-toast-message";
 
@@ -122,7 +123,13 @@ export default function SettingsScreen() {
     //   ),
     //   key: "videoSource",
     // },
-  ];
+    Platform.OS === 'android' && {
+      component: (
+        <UpdateSection />
+      ),
+      key: "update",
+    },
+  ].filter(Boolean);
 
   // TV遥控器事件处理
   const handleTVEvent = React.useCallback(
