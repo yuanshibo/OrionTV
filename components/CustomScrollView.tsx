@@ -93,38 +93,35 @@ const CustomScrollView: React.FC<CustomScrollViewProps> = ({
   const dynamicStyles = StyleSheet.create({
     listContent: {
       paddingBottom: responsiveConfig.spacing * 2,
+      paddingHorizontal: responsiveConfig.spacing / 2,
     },
-    rowContainer: {
+    gridContainer: {
       flexDirection: "row",
-      justifyContent: responsiveConfig.deviceType === 'mobile' ? "space-around" : "flex-start",
       flexWrap: "wrap",
-      marginBottom: responsiveConfig.spacing / 2,
+      justifyContent: "space-evenly",
     },
     itemContainer: {
-      marginHorizontal: responsiveConfig.spacing / 2,
-      alignItems: "center",
+      width: responsiveConfig.cardWidth,
+      marginBottom: responsiveConfig.spacing,
     },
   });
 
   return (
     <ScrollView 
-      contentContainerStyle={[commonStyles.gridContainer, dynamicStyles.listContent]} 
+      contentContainerStyle={dynamicStyles.listContent} 
       onScroll={handleScroll} 
       scrollEventThrottle={16}
       showsVerticalScrollIndicator={responsiveConfig.deviceType !== 'tv'}
     >
       {data.length > 0 ? (
         <>
-          {/* Render content in a responsive grid layout */}
-          {Array.from({ length: Math.ceil(data.length / effectiveColumns) }).map((_, rowIndex) => (
-            <View key={rowIndex} style={dynamicStyles.rowContainer}>
-              {data.slice(rowIndex * effectiveColumns, (rowIndex + 1) * effectiveColumns).map((item, index) => (
-                <View key={index} style={dynamicStyles.itemContainer}>
-                  {renderItem({ item, index: rowIndex * effectiveColumns + index })}
-                </View>
-              ))}
-            </View>
-          ))}
+          <View style={dynamicStyles.gridContainer}>
+            {data.map((item, index) => (
+              <View key={index} style={dynamicStyles.itemContainer}>
+                {renderItem({ item, index })}
+              </View>
+            ))}
+          </View>
           {renderFooter()}
         </>
       ) : (

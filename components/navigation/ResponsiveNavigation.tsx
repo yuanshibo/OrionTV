@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { useResponsiveLayout } from '@/hooks/useResponsiveLayout';
-import MobileBottomTabNavigator from './MobileBottomTabNavigator';
+import MobileTabContainer from './MobileTabContainer';
 import TabletSidebarNavigator from './TabletSidebarNavigator';
 
 interface ResponsiveNavigationProps {
@@ -13,14 +13,8 @@ const ResponsiveNavigation: React.FC<ResponsiveNavigationProps> = ({ children })
 
   switch (deviceType) {
     case 'mobile':
-      return (
-        <View style={styles.container}>
-          <View style={styles.content}>
-            {children}
-          </View>
-          <MobileBottomTabNavigator />
-        </View>
-      );
+      // 移动端使用Tab容器包装children
+      return <MobileTabContainer>{children}</MobileTabContainer>;
     
     case 'tablet':
       return (

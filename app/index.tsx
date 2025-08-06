@@ -1,5 +1,6 @@
 import React, { useEffect, useCallback, useRef, useState } from "react";
-import { View, StyleSheet, ActivityIndicator, FlatList, Pressable, Animated } from "react-native";
+import { View, StyleSheet, ActivityIndicator, FlatList, Pressable, Animated, StatusBar } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
 import { api } from "@/services/api";
@@ -21,6 +22,7 @@ export default function HomeScreen() {
   const colorScheme = "dark";
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const insets = useSafeAreaInsets();
 
   // 响应式布局配置
   const responsiveConfig = useResponsiveLayout();
@@ -169,7 +171,7 @@ export default function HomeScreen() {
   const dynamicStyles = StyleSheet.create({
     container: {
       flex: 1,
-      paddingTop: deviceType === 'mobile' ? 0 : 40,
+      paddingTop: deviceType === 'mobile' ? insets.top : 40,
     },
     headerContainer: {
       flexDirection: "row",
@@ -198,10 +200,10 @@ export default function HomeScreen() {
       paddingHorizontal: spacing,
     },
     categoryButton: {
-      paddingHorizontal: spacing / 2,
-      paddingVertical: spacing / 2,
+      paddingHorizontal: deviceType === 'tv' ? spacing / 4 : spacing / 2,
+      paddingVertical: deviceType === 'tv' ? spacing / 4 : spacing / 2,
       borderRadius: deviceType === 'mobile' ? 6 : 8,
-      marginHorizontal: spacing / 2,
+      marginHorizontal: deviceType === 'tv' ? spacing / 4 : spacing / 2,
     },
     categoryText: {
       fontSize: deviceType === 'mobile' ? 14 : 16,
@@ -214,6 +216,9 @@ export default function HomeScreen() {
 
   const content = (
     <ThemedView style={[commonStyles.container, dynamicStyles.container]}>
+      {/* 状态栏 */}
+      {deviceType === 'mobile' && <StatusBar barStyle="light-content" />}
+      
       {/* 顶部导航 */}
       {renderHeader()}
 

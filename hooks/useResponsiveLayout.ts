@@ -38,14 +38,15 @@ const getLayoutConfig = (deviceType: DeviceType, width: number, height: number, 
 
   switch (deviceType) {
     case 'mobile':
-      columns = isPortrait ? 2 : 3;
-      cardWidth = (width - spacing * (columns + 1)) / columns;
-      cardHeight = cardWidth * 1.5; // 2:3 aspect ratio
+      columns = isPortrait ? 3 : 4;
+      // 使用flex布局，卡片可以更大一些来填充空间
+      cardWidth = (width - spacing) / columns * 0.85; // 增大到85%
+      cardHeight = cardWidth * 1.2; // 5:6 aspect ratio (reduced from 2:3)
       break;
     
     case 'tablet':
       columns = isPortrait ? 3 : 4;
-      cardWidth = (width - spacing * (columns + 1)) / columns;
+      cardWidth = (width - spacing) / columns * 0.85; // 增大到85%
       cardHeight = cardWidth * 1.4; // slightly less tall ratio
       break;
     

@@ -179,7 +179,6 @@ const createMobileStyles = (cardWidth: number, cardHeight: number, spacing: numb
   return StyleSheet.create({
     wrapper: {
       width: cardWidth,
-      marginHorizontal: spacing / 2,
       marginBottom: spacing,
     },
     pressable: {
