@@ -13,7 +13,6 @@ import useAuthStore from "@/stores/authStore";
 import { useUpdateStore, initUpdateStore } from "@/stores/updateStore";
 import { UpdateModal } from "@/components/UpdateModal";
 import { UPDATE_CONFIG } from "@/constants/UpdateConfig";
-import MobileBottomNavigation from "@/components/MobileBottomNavigation";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
@@ -31,7 +30,10 @@ export default function RootLayout() {
   const responsiveConfig = useResponsiveLayout();
 
   useEffect(() => {
-    loadSettings();
+    const initializeApp = async () => {
+      await loadSettings();
+    };
+    initializeApp();
     initUpdateStore(); // 初始化更新存储
   }, [loadSettings]);
 
@@ -73,8 +75,6 @@ export default function RootLayout() {
     return null;
   }
 
-  const isMobile = responsiveConfig.deviceType === 'mobile';
-
   return (
     <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
       <View style={styles.container}>
@@ -88,7 +88,6 @@ export default function RootLayout() {
           <Stack.Screen name="favorites" options={{ headerShown: false }} />
           <Stack.Screen name="+not-found" />
         </Stack>
-        {isMobile && <MobileBottomNavigation colorScheme={colorScheme} />}
       </View>
       <Toast />
       <LoginModal />

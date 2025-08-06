@@ -15,6 +15,7 @@ interface SettingsState {
   };
   isModalVisible: boolean;
   serverConfig: ServerConfig | null;
+  isLoadingServerConfig: boolean;
   loadSettings: () => Promise<void>;
   fetchServerConfig: () => Promise<void>;
   setApiBaseUrl: (url: string) => void;
@@ -33,6 +34,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   remoteInputEnabled: false,
   isModalVisible: false,
   serverConfig: null,
+  isLoadingServerConfig: false,
   videoSource: {
     enabledAll: true,
     sources: {},
@@ -48,10 +50,13 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         sources: {},
       },
     });
-    api.setBaseUrl(settings.apiBaseUrl);
-    await get().fetchServerConfig();
+    if (settings.apiBaseUrl) {
+      api.setBaseUrl(settings.apiBaseUrl);
+      await get().fetchServerConfig();
+    }
   },
   fetchServerConfig: async () => {
+    set({ isLoadingServerConfig: true });
     try {
       const config = await api.getServerConfig();
       if (config) {
@@ -61,6 +66,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     } catch (error) {
       set({ serverConfig: null });
       console.info("Failed to fetch server config:", error);
+    } finally {
+      set({ isLoadingServerConfig: false });
     }
   },
   setApiBaseUrl: (url) => set({ apiBaseUrl: url }),
