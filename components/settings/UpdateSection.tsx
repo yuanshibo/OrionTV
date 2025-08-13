@@ -6,15 +6,8 @@ import { useUpdateStore } from "@/stores/updateStore";
 import { UPDATE_CONFIG } from "@/constants/UpdateConfig";
 
 export function UpdateSection() {
-  const {
-    currentVersion,
-    remoteVersion,
-    updateAvailable,
-    downloading,
-    downloadProgress,
-    checkForUpdate,
-    setShowUpdateModal,
-  } = useUpdateStore();
+  const { currentVersion, remoteVersion, updateAvailable, downloading, downloadProgress, checkForUpdate } =
+    useUpdateStore();
 
   const [checking, setChecking] = React.useState(false);
 
@@ -30,7 +23,7 @@ export function UpdateSection() {
   return (
     <View style={styles.sectionContainer}>
       <ThemedText style={styles.sectionTitle}>应用更新</ThemedText>
-      
+
       <View style={styles.row}>
         <ThemedText style={styles.label}>当前版本</ThemedText>
         <ThemedText style={styles.value}>v{currentVersion}</ThemedText>
@@ -39,9 +32,7 @@ export function UpdateSection() {
       {updateAvailable && (
         <View style={styles.row}>
           <ThemedText style={styles.label}>最新版本</ThemedText>
-          <ThemedText style={[styles.value, styles.newVersion]}>
-            v{remoteVersion}
-          </ThemedText>
+          <ThemedText style={[styles.value, styles.newVersion]}>v{remoteVersion}</ThemedText>
         </View>
       )}
 
@@ -53,26 +44,13 @@ export function UpdateSection() {
       )}
 
       <View style={styles.buttonContainer}>
-        <StyledButton
-          onPress={handleCheckUpdate}
-          disabled={checking || downloading}
-          style={styles.button}
-        >
+        <StyledButton onPress={handleCheckUpdate} disabled={checking || downloading} style={styles.button}>
           {checking ? (
             <ActivityIndicator color="#fff" size="small" />
           ) : (
             <ThemedText style={styles.buttonText}>检查更新</ThemedText>
           )}
         </StyledButton>
-
-        {updateAvailable && !downloading && (
-          <StyledButton
-            onPress={() => setShowUpdateModal(true)}
-            style={[styles.button, styles.updateButton]}
-          >
-            <ThemedText style={styles.buttonText}>立即更新</ThemedText>
-          </StyledButton>
-        )}
       </View>
 
       {UPDATE_CONFIG.AUTO_CHECK && (
@@ -99,6 +77,7 @@ const styles = StyleSheet.create({
     fontSize: Platform.isTV ? 24 : 20,
     fontWeight: "bold",
     marginBottom: 16,
+    paddingTop: 8,
   },
   row: {
     flexDirection: "row",
@@ -121,12 +100,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 12,
     marginTop: 16,
+    justifyContent: "center", // 居中对齐
+    alignItems: "center",
   },
   button: {
-    flex: 1,
-  },
-  updateButton: {
-    backgroundColor: "#00bb5e",
+    width: "90%",
+    ...(Platform.isTV && {
+      // TV平台焦点样式
+      borderWidth: 2,
+      borderColor: "transparent",
+    }),
   },
   buttonText: {
     color: "#ffffff",
