@@ -1,3 +1,5 @@
+import { DeviceUtils } from '@/utils/DeviceUtils';
+
 export const UPDATE_CONFIG = {
   // 自动检查更新
   AUTO_CHECK: true,
@@ -7,7 +9,13 @@ export const UPDATE_CONFIG = {
   
   // GitHub相关URL
   GITHUB_RAW_URL: 'https://ghfast.top/https://raw.githubusercontent.com/zimplexing/OrionTV/refs/heads/master/package.json',
-  GITHUB_RELEASE_URL_TEMPLATE: 'https://ghfast.top/https://github.com/zimplexing/OrionTV/releases/download/v{version}/orionTV.{version}.apk',
+  
+  // 获取平台特定的下载URL
+  getDownloadUrl(version: string): string {
+    const isTV = DeviceUtils.isTV();
+    const platform = isTV ? 'tv' : 'mobile';
+    return `https://ghfast.top/https://github.com/zimplexing/OrionTV/releases/download/v${version}/orionTV-${platform}.${version}.apk`;
+  },
   
   // 是否显示更新日志
   SHOW_RELEASE_NOTES: true,

@@ -43,7 +43,7 @@ class UpdateService {
 
         return {
           version: remoteVersion,
-          downloadUrl: UPDATE_CONFIG.GITHUB_RELEASE_URL_TEMPLATE.replace(/{version}/g, remoteVersion),
+          downloadUrl: UPDATE_CONFIG.getDownloadUrl(remoteVersion),
         };
       } catch (error) {
         retries++;
