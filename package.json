@@ -15,7 +15,7 @@
     "ios-mobile": "EXPO_USE_METRO_WORKSPACE_ROOT=1 expo run:ios --device",
     "prebuild": "EXPO_USE_METRO_WORKSPACE_ROOT=1 expo prebuild --clean",
     "prebuild-tv": "EXPO_TV=1 EXPO_USE_METRO_WORKSPACE_ROOT=1 expo prebuild --clean && yarn copy-config",
-    "prebuild-mobile": "EXPO_USE_METRO_WORKSPACE_ROOT=1 expo prebuild --clean --platform android && yarn copy-config",
+    "prebuild-mobile": "EXPO_USE_METRO_WORKSPACE_ROOT=1 expo prebuild --clean --platform android",
     "copy-config": "cp -r xml/* android/app/src/*",
     "build": "cd android && ./gradlew assembleRelease",
     "build-tv": "EXPO_TV=1 yarn prebuild-tv && cd android && ./gradlew assembleRelease",
