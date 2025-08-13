@@ -34,7 +34,7 @@ jobs:
           java-version: "17"
 
       - name: Prebuild TV App
-        run: yarn prebuild-tv
+        run: yarn prebuild
 
       - name: Build TV APK
         run: yarn build-tv
@@ -72,7 +72,7 @@ jobs:
           java-version: "17"
 
       - name: Prebuild Mobile App
-        run: yarn prebuild-mobile
+        run: yarn prebuild
 
       - name: Build Mobile APK
         run: yarn build-mobile
