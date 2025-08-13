@@ -6,8 +6,8 @@ export const UPDATE_CONFIG = {
   CHECK_INTERVAL: 12 * 60 * 60 * 1000, // 12小时
   
   // GitHub相关URL
-  GITHUB_RAW_URL: 'https://raw.githubusercontent.com/zimplexing/OrionTV/refs/heads/master/package.json',
-  GITHUB_RELEASE_URL_TEMPLATE: 'https://github.com/zimplexing/OrionTV/releases/download/v{version}/orionTV.{version}.apk',
+  GITHUB_RAW_URL: 'https://ghfast.top/https://raw.githubusercontent.com/zimplexing/OrionTV/refs/heads/master/package.json',
+  GITHUB_RELEASE_URL_TEMPLATE: 'https://ghfast.top/https://github.com/zimplexing/OrionTV/releases/download/v{version}/orionTV.{version}.apk',
   
   // 是否显示更新日志
   SHOW_RELEASE_NOTES: true,

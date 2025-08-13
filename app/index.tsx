@@ -10,6 +10,7 @@ import { Search, Settings, LogOut, Heart } from "lucide-react-native";
 import { StyledButton } from "@/components/StyledButton";
 import useHomeStore, { RowItem, Category } from "@/stores/homeStore";
 import useAuthStore from "@/stores/authStore";
+import { useSettingsStore } from "@/stores/settingsStore";
 import CustomScrollView from "@/components/CustomScrollView";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { getCommonResponsiveStyles } from "@/utils/ResponsiveStyles";
@@ -40,8 +41,10 @@ export default function HomeScreen() {
     loadMoreData,
     selectCategory,
     refreshPlayRecords,
+    clearError,
   } = useHomeStore();
   const { isLoggedIn, logout } = useAuthStore();
+  const { apiBaseUrl } = useSettingsStore();
 
   useFocusEffect(
     useCallback(() => {
@@ -50,20 +53,33 @@ export default function HomeScreen() {
   );
 
   useEffect(() => {
-    if (selectedCategory && !selectedCategory.tags) {
+    // 只有在 apiBaseUrl 存在时才调用 fetchInitialData，避免时序问题
+    if (selectedCategory && !selectedCategory.tags && apiBaseUrl) {
       fetchInitialData();
     } else if (selectedCategory?.tags && !selectedCategory.tag) {
       const defaultTag = selectedCategory.tags[0];
       setSelectedTag(defaultTag);
       selectCategory({ ...selectedCategory, tag: defaultTag });
     }
-  }, [selectedCategory, fetchInitialData, selectCategory]);
+  }, [selectedCategory, fetchInitialData, selectCategory, apiBaseUrl]);
 
   useEffect(() => {
-    if (selectedCategory && selectedCategory.tag) {
+    // 只有在 apiBaseUrl 存在时才调用 fetchInitialData，避免时序问题
+    if (selectedCategory && selectedCategory.tag && apiBaseUrl) {
       fetchInitialData();
     }
-  }, [fetchInitialData, selectedCategory, selectedCategory.tag]);
+  }, [fetchInitialData, selectedCategory, selectedCategory.tag, apiBaseUrl]);
+
+  // 检查是否需要显示API配置提示
+  const shouldShowApiConfig = !apiBaseUrl && selectedCategory && !selectedCategory.tags;
+  
+  // 清除错误状态，当API未配置时
+  useEffect(() => {
+    if (shouldShowApiConfig && error) {
+      // 如果需要显示API配置提示，清除之前的错误状态
+      clearError();
+    }
+  }, [shouldShowApiConfig, error, clearError]);
 
   useEffect(() => {
     if (!loading && contentData.length > 0) {
@@ -262,7 +278,13 @@ export default function HomeScreen() {
       )}
 
       {/* 内容网格 */}
-      {loading ? (
+      {shouldShowApiConfig ? (
+        <View style={commonStyles.center}>
+          <ThemedText type="subtitle" style={{ padding: spacing, textAlign: 'center' }}>
+            请点击右上角设置按钮，配置您的服务器地址
+          </ThemedText>
+        </View>
+      ) : loading ? (
         <View style={commonStyles.center}>
           <ActivityIndicator size="large" />
         </View>
