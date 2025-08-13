@@ -156,11 +156,11 @@ export default function PlayScreen() {
             usePlayerStore.setState({ isLoading: false });
           }}
           onLoadStart={() => usePlayerStore.setState({ isLoading: true })}
-          useNativeControls={false}
+          useNativeControls={deviceType !== 'tv'}
           shouldPlay
         />
 
-        {showControls && <PlayerControls showControls={showControls} setShowControls={setShowControls} />}
+        {showControls && deviceType === 'tv' && <PlayerControls showControls={showControls} setShowControls={setShowControls} />}
 
         <SeekingBar />
 

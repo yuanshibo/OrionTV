@@ -63,6 +63,7 @@
         "android.permission.ACCESS_NETWORK_STATE",
         "android.permission.WAKE_LOCK"
       ],
+      "screenOrientation": "unspecified",
       "intentFilters": [
         {
           "action": "VIEW",
@@ -82,6 +83,12 @@
       "bundleIdentifier": "com.oriontv",
       "supportsTablet": true,
       "requireFullScreen": false,
+      "supportedInterfaceOrientations": [
+        "UIInterfaceOrientationPortrait",
+        "UIInterfaceOrientationLandscapeLeft",
+        "UIInterfaceOrientationLandscapeRight",
+        "UIInterfaceOrientationPortraitUpsideDown"
+      ],
       "config": {
         "usesNonExemptEncryption": false
       }
