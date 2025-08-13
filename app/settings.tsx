@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { View, StyleSheet, FlatList, Alert, KeyboardAvoidingView, Platform } from "react-native";
 import { useTVEventHandler } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { StyledButton } from "@/components/StyledButton";
@@ -11,13 +12,25 @@ import { useRemoteControlStore } from "@/stores/remoteControlStore";
 import { APIConfigSection } from "@/components/settings/APIConfigSection";
 import { LiveStreamSection } from "@/components/settings/LiveStreamSection";
 import { RemoteInputSection } from "@/components/settings/RemoteInputSection";
+import { UpdateSection } from "@/components/settings/UpdateSection";
 // import { VideoSourceSection } from "@/components/settings/VideoSourceSection";
 import Toast from "react-native-toast-message";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { getCommonResponsiveStyles } from "@/utils/ResponsiveStyles";
+import ResponsiveNavigation from "@/components/navigation/ResponsiveNavigation";
+import ResponsiveHeader from "@/components/navigation/ResponsiveHeader";
+import { DeviceUtils } from "@/utils/DeviceUtils";
 
 export default function SettingsScreen() {
   const { loadSettings, saveSettings, setApiBaseUrl, setM3uUrl } = useSettingsStore();
-  const { lastMessage } = useRemoteControlStore();
+  const { lastMessage, targetPage, clearMessage } = useRemoteControlStore();
   const backgroundColor = useThemeColor({}, "background");
+  const insets = useSafeAreaInsets();
+
+  // 响应式布局配置
+  const responsiveConfig = useResponsiveLayout();
+  const commonStyles = getCommonResponsiveStyles(responsiveConfig);
+  const { deviceType, spacing } = responsiveConfig;
 
   const [hasChanges, setHasChanges] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -33,12 +46,13 @@ export default function SettingsScreen() {
   }, [loadSettings]);
 
   useEffect(() => {
-    if (lastMessage) {
+    if (lastMessage && !targetPage) {
       const realMessage = lastMessage.split("_")[0];
       handleRemoteInput(realMessage);
+      clearMessage(); // Clear the message after processing
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lastMessage]);
+  }, [lastMessage, targetPage]);
 
   const handleRemoteInput = (message: string) => {
     // Handle remote input based on currently focused section
@@ -72,7 +86,8 @@ export default function SettingsScreen() {
   };
 
   const sections = [
-    {
+    // 远程输入配置 - 仅在非手机端显示
+    deviceType !== "mobile" && {
       component: (
         <RemoteInputSection
           onChanged={markAsChanged}
@@ -89,6 +104,7 @@ export default function SettingsScreen() {
         <APIConfigSection
           ref={apiSectionRef}
           onChanged={markAsChanged}
+          hideDescription={deviceType === "mobile"}
           onFocus={() => {
             setCurrentFocusIndex(1);
             setCurrentSection("api");
@@ -97,7 +113,8 @@ export default function SettingsScreen() {
       ),
       key: "api",
     },
-    {
+    // 直播源配置 - 仅在非手机端显示
+    deviceType !== "mobile" && {
       component: (
         <LiveStreamSection
           ref={liveStreamSectionRef}
@@ -122,11 +139,17 @@ export default function SettingsScreen() {
     //   ),
     //   key: "videoSource",
     // },
-  ];
+    Platform.OS === "android" && {
+      component: <UpdateSection />,
+      key: "update",
+    },
+  ].filter(Boolean);
 
-  // TV遥控器事件处理
+  // TV遥控器事件处理 - 仅在TV设备上启用
   const handleTVEvent = React.useCallback(
     (event: any) => {
+      if (deviceType !== "tv") return;
+
       if (event.eventType === "down") {
         const nextIndex = Math.min(currentFocusIndex + 1, sections.length);
         setCurrentFocusIndex(nextIndex);
@@ -138,72 +161,105 @@ export default function SettingsScreen() {
         setCurrentFocusIndex(prevIndex);
       }
     },
-    [currentFocusIndex, sections.length]
+    [currentFocusIndex, sections.length, deviceType]
   );
 
-  useTVEventHandler(handleTVEvent);
+  useTVEventHandler(deviceType === "tv" ? handleTVEvent : () => {});
 
-  return (
+  // 动态样式
+  const dynamicStyles = createResponsiveStyles(deviceType, spacing, insets);
+
+  const renderSettingsContent = () => (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-      <ThemedView style={styles.container}>
-        <View style={styles.header}>
-          <ThemedText style={styles.title}>设置</ThemedText>
-        </View>
+      <ThemedView style={[commonStyles.container, dynamicStyles.container]}>
+        {deviceType === "tv" && (
+          <View style={dynamicStyles.header}>
+            <ThemedText style={dynamicStyles.title}>设置</ThemedText>
+          </View>
+        )}
 
-        <View style={styles.scrollView}>
+        <View style={dynamicStyles.scrollView}>
           <FlatList
             data={sections}
-            renderItem={({ item }) => item.component}
-            keyExtractor={(item) => item.key}
+            renderItem={({ item }) => {
+              if (item) {
+                return item.component;
+              }
+              return null;
+            }}
+            keyExtractor={(item) => (item ? item.key : "default")}
             showsVerticalScrollIndicator={false}
+            contentContainerStyle={dynamicStyles.listContent}
           />
         </View>
 
-        <View style={styles.footer}>
+        <View style={dynamicStyles.footer}>
           <StyledButton
             text={isLoading ? "保存中..." : "保存设置"}
             onPress={handleSave}
             variant="primary"
             disabled={!hasChanges || isLoading}
-            style={[styles.saveButton, (!hasChanges || isLoading) && styles.disabledButton]}
+            style={[dynamicStyles.saveButton, (!hasChanges || isLoading) && dynamicStyles.disabledButton]}
           />
         </View>
       </ThemedView>
     </KeyboardAvoidingView>
   );
+
+  // 根据设备类型决定是否包装在响应式导航中
+  if (deviceType === "tv") {
+    return renderSettingsContent();
+  }
+
+  return (
+    <ResponsiveNavigation>
+      <ResponsiveHeader title="设置" showBackButton />
+      {renderSettingsContent()}
+    </ResponsiveNavigation>
+  );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 12,
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: "bold",
-    paddingTop: 24,
-  },
-  backButton: {
-    minWidth: 100,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  footer: {
-    paddingTop: 12,
-    alignItems: "flex-end",
-  },
-  saveButton: {
-    minHeight: 50,
-    width: 120,
-  },
-  disabledButton: {
-    opacity: 0.5,
-  },
-});
+const createResponsiveStyles = (deviceType: string, spacing: number, insets: any) => {
+  const isMobile = deviceType === "mobile";
+  const isTablet = deviceType === "tablet";
+  const isTV = deviceType === "tv";
+  const minTouchTarget = DeviceUtils.getMinTouchTargetSize();
+
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      padding: spacing,
+      paddingTop: isTV ? spacing * 2 : isMobile ? insets.top + spacing : insets.top + spacing * 1.5,
+    },
+    header: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: spacing,
+    },
+    title: {
+      fontSize: isMobile ? 24 : isTablet ? 28 : 32,
+      fontWeight: "bold",
+      paddingTop: spacing,
+      color: "white",
+    },
+    scrollView: {
+      flex: 1,
+    },
+    listContent: {
+      paddingBottom: spacing,
+    },
+    footer: {
+      paddingTop: spacing,
+      alignItems: isMobile ? "center" : "flex-end",
+    },
+    saveButton: {
+      minHeight: isMobile ? minTouchTarget : isTablet ? 50 : 50,
+      width: isMobile ? "100%" : isTablet ? 140 : 120,
+      maxWidth: isMobile ? 280 : undefined,
+    },
+    disabledButton: {
+      opacity: 0.5,
+    },
+  });
+};

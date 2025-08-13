@@ -1,5 +1,3 @@
-import { api } from "./api";
-
 export interface Channel {
   id: string;
   name: string;

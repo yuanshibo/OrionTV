@@ -1,11 +1,13 @@
 import React, { useCallback } from "react";
-import { View, StyleSheet, ScrollView, Dimensions, ActivityIndicator } from "react-native";
+import { View, StyleSheet, ScrollView, ActivityIndicator } from "react-native";
 import { ThemedText } from "@/components/ThemedText";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { getCommonResponsiveStyles } from "@/utils/ResponsiveStyles";
 
 interface CustomScrollViewProps {
   data: any[];
   renderItem: ({ item, index }: { item: any; index: number }) => React.ReactNode;
-  numColumns?: number;
+  numColumns?: number; // 如果不提供，将使用响应式默认值
   loading?: boolean;
   loadingMore?: boolean;
   error?: string | null;
@@ -15,12 +17,10 @@ interface CustomScrollViewProps {
   ListFooterComponent?: React.ComponentType<any> | React.ReactElement | null;
 }
 
-const { width } = Dimensions.get("window");
-
 const CustomScrollView: React.FC<CustomScrollViewProps> = ({
   data,
   renderItem,
-  numColumns = 1,
+  numColumns, // 现在可选，如果不提供将使用响应式默认值
   loading = false,
   loadingMore = false,
   error = null,
@@ -29,7 +29,11 @@ const CustomScrollView: React.FC<CustomScrollViewProps> = ({
   emptyMessage = "暂无内容",
   ListFooterComponent,
 }) => {
-  const ITEM_WIDTH = numColumns > 0 ? width / numColumns - 24 : width - 24;
+  const responsiveConfig = useResponsiveLayout();
+  const commonStyles = getCommonResponsiveStyles(responsiveConfig);
+  
+  // 使用响应式列数，如果没有明确指定的话
+  const effectiveColumns = numColumns || responsiveConfig.columns;
 
   const handleScroll = useCallback(
     ({ nativeEvent }: { nativeEvent: any }) => {
@@ -61,7 +65,7 @@ const CustomScrollView: React.FC<CustomScrollViewProps> = ({
 
   if (loading) {
     return (
-      <View style={styles.centerContainer}>
+      <View style={commonStyles.center}>
         <ActivityIndicator size="large" />
       </View>
     );
@@ -69,8 +73,8 @@ const CustomScrollView: React.FC<CustomScrollViewProps> = ({
 
   if (error) {
     return (
-      <View style={styles.centerContainer}>
-        <ThemedText type="subtitle" style={{ padding: 10 }}>
+      <View style={commonStyles.center}>
+        <ThemedText type="subtitle" style={{ padding: responsiveConfig.spacing }}>
           {error}
         </ThemedText>
       </View>
@@ -79,57 +83,87 @@ const CustomScrollView: React.FC<CustomScrollViewProps> = ({
 
   if (data.length === 0) {
     return (
-      <View style={styles.centerContainer}>
+      <View style={commonStyles.center}>
         <ThemedText>{emptyMessage}</ThemedText>
       </View>
     );
   }
 
+  // 将数据按行分组
+  const groupItemsByRow = (items: any[], columns: number) => {
+    const rows = [];
+    for (let i = 0; i < items.length; i += columns) {
+      rows.push(items.slice(i, i + columns));
+    }
+    return rows;
+  };
+
+  const rows = groupItemsByRow(data, effectiveColumns);
+
+  // 动态样式
+  const dynamicStyles = StyleSheet.create({
+    listContent: {
+      paddingBottom: responsiveConfig.spacing * 2,
+      paddingHorizontal: responsiveConfig.spacing / 2,
+    },
+    rowContainer: {
+      flexDirection: "row",
+      marginBottom: responsiveConfig.spacing,
+    },
+    fullRowContainer: {
+      justifyContent: "space-between",
+    },
+    partialRowContainer: {
+      justifyContent: "flex-start",
+    },
+    itemContainer: {
+      width: responsiveConfig.cardWidth,
+    },
+    itemWithMargin: {
+      width: responsiveConfig.cardWidth,
+      marginRight: responsiveConfig.spacing,
+    },
+  });
+
   return (
-    <ScrollView contentContainerStyle={styles.listContent} onScroll={handleScroll} scrollEventThrottle={16}>
+    <ScrollView 
+      contentContainerStyle={dynamicStyles.listContent} 
+      onScroll={handleScroll} 
+      scrollEventThrottle={16}
+      showsVerticalScrollIndicator={responsiveConfig.deviceType !== 'tv'}
+    >
       {data.length > 0 ? (
         <>
-          {/* Render content in a grid layout */}
-          {Array.from({ length: Math.ceil(data.length / numColumns) }).map((_, rowIndex) => (
-            <View key={rowIndex} style={styles.rowContainer}>
-              {data.slice(rowIndex * numColumns, (rowIndex + 1) * numColumns).map((item, index) => (
-                <View key={index} style={[styles.itemContainer, { width: ITEM_WIDTH }]}>
-                  {renderItem({ item, index: rowIndex * numColumns + index })}
-                </View>
-              ))}
-            </View>
-          ))}
+          {rows.map((row, rowIndex) => {
+            const isFullRow = row.length === effectiveColumns;
+            const rowStyle = isFullRow ? dynamicStyles.fullRowContainer : dynamicStyles.partialRowContainer;
+            
+            return (
+              <View key={rowIndex} style={[dynamicStyles.rowContainer, rowStyle]}>
+                {row.map((item, itemIndex) => {
+                  const actualIndex = rowIndex * effectiveColumns + itemIndex;
+                  const isLastItemInPartialRow = !isFullRow && itemIndex === row.length - 1;
+                  const itemStyle = isLastItemInPartialRow ? dynamicStyles.itemContainer : dynamicStyles.itemWithMargin;
+                  
+                  return (
+                    <View key={actualIndex} style={isFullRow ? dynamicStyles.itemContainer : itemStyle}>
+                      {renderItem({ item, index: actualIndex })}
+                    </View>
+                  );
+                })}
+              </View>
+            );
+          })}
           {renderFooter()}
         </>
       ) : (
-        <View style={styles.centerContainer}>
+        <View style={commonStyles.center}>
           <ThemedText>{emptyMessage}</ThemedText>
         </View>
       )}
     </ScrollView>
   );
-};
 
-const styles = StyleSheet.create({
-  centerContainer: {
-    flex: 1,
-    paddingTop: 20,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  listContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 20,
-  },
-  rowContainer: {
-    flexDirection: "row",
-    justifyContent: "flex-start",
-    flexWrap: "wrap",
-  },
-  itemContainer: {
-    margin: 8,
-    alignItems: "center",
-  },
-});
+};
 
 export default CustomScrollView;

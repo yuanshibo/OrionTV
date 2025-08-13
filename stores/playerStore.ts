@@ -124,7 +124,7 @@ const usePlayerStore = create<PlayerState>((set, get) => ({
       try {
         await videoRef?.current?.replayAsync();
       } catch (error) {
-        console.error("Failed to replay video:", error);
+        console.info("Failed to replay video:", error);
         Toast.show({ type: "error", text1: "播放失败" });
       }
     }
@@ -140,7 +140,7 @@ const usePlayerStore = create<PlayerState>((set, get) => ({
           await videoRef?.current?.playAsync();
         }
       } catch (error) {
-        console.error("Failed to toggle play/pause:", error);
+        console.info("Failed to toggle play/pause:", error);
         Toast.show({ type: "error", text1: "操作失败" });
       }
     }
@@ -154,7 +154,7 @@ const usePlayerStore = create<PlayerState>((set, get) => ({
     try {
       await videoRef?.current?.setPositionAsync(newPosition);
     } catch (error) {
-      console.error("Failed to seek video:", error);
+      console.info("Failed to seek video:", error);
       Toast.show({ type: "error", text1: "快进/快退失败" });
     }
 

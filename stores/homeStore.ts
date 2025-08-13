@@ -68,6 +68,7 @@ interface HomeState {
   loadMoreData: () => Promise<void>;
   selectCategory: (category: Category) => void;
   refreshPlayRecords: () => Promise<void>;
+  clearError: () => void;
 }
 
 // 内存缓存，应用生命周期内有效
@@ -260,6 +261,10 @@ const useHomeStore = create<HomeState>((set, get) => ({
     });
     
     get().fetchInitialData();
+  },
+  
+  clearError: () => {
+    set({ error: null });
   },
 }));
 

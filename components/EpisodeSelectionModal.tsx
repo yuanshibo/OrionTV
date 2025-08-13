@@ -1,13 +1,7 @@
-import React from "react";
-import { View, Text, StyleSheet, Modal, FlatList, Pressable } from "react-native";
+import React, { useState } from "react";
+import { View, Text, StyleSheet, Modal, FlatList } from "react-native";
 import { StyledButton } from "./StyledButton";
 import usePlayerStore from "@/stores/playerStore";
-import { useState } from "react";
-
-interface Episode {
-  title?: string;
-  url: string;
-}
 
 interface EpisodeSelectionModalProps {}
 

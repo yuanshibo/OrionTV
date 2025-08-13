@@ -1,5 +1,5 @@
 import React from "react";
-import { Modal, View, Text, StyleSheet } from "react-native";
+import { Modal, View, StyleSheet } from "react-native";
 import QRCode from "react-native-qrcode-svg";
 import { useRemoteControlStore } from "@/stores/remoteControlStore";
 import { ThemedView } from "./ThemedView";

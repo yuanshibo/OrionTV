@@ -7,7 +7,11 @@
       "Bash(yarn lint)",
       "Bash(yarn prebuild-tv:*)",
       "Bash(mkdir:*)",
-      "Bash(yarn lint:*)"
+      "Bash(yarn lint:*)",
+      "Bash(yarn add:*)",
+      "Bash(git reset:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ],
     "deny": []
   }

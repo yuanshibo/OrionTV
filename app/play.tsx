@@ -14,11 +14,16 @@ import useDetailStore from "@/stores/detailStore";
 import { useTVRemoteHandler } from "@/hooks/useTVRemoteHandler";
 import Toast from "react-native-toast-message";
 import usePlayerStore, { selectCurrentEpisode } from "@/stores/playerStore";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 
 export default function PlayScreen() {
   const videoRef = useRef<Video>(null);
   const router = useRouter();
   useKeepAwake();
+
+  // 响应式布局配置
+  const { deviceType } = useResponsiveLayout();
+
   const {
     episodeIndex: episodeIndexStr,
     position: positionStr,
@@ -79,7 +84,13 @@ export default function PlayScreen() {
     };
   }, []);
 
-  const { onScreenPress } = useTVRemoteHandler();
+  // TV遥控器处理 - 总是调用hook，但根据设备类型决定是否使用结果
+  const tvRemoteHandler = useTVRemoteHandler();
+  
+  // 根据设备类型使用不同的交互处理
+  const onScreenPress = deviceType === 'tv' 
+    ? tvRemoteHandler.onScreenPress 
+    : () => setShowControls(!showControls);
 
   useEffect(() => {
     const backAction = () => {
@@ -119,12 +130,20 @@ export default function PlayScreen() {
     return <VideoLoadingAnimation showProgressBar />;
   }
 
+  // 动态样式
+  const dynamicStyles = createResponsiveStyles(deviceType);
+
   return (
-    <ThemedView focusable style={styles.container}>
-      <TouchableOpacity activeOpacity={1} style={styles.videoContainer} onPress={onScreenPress}>
+    <ThemedView focusable style={dynamicStyles.container}>
+      <TouchableOpacity 
+        activeOpacity={1} 
+        style={dynamicStyles.videoContainer} 
+        onPress={onScreenPress}
+        disabled={deviceType !== 'tv' && showControls} // 移动端和平板端在显示控制条时禁用触摸
+      >
         <Video
           ref={videoRef}
-          style={styles.videoPlayer}
+          style={dynamicStyles.videoPlayer}
           source={{ uri: currentEpisode?.url || "" }}
           posterSource={{ uri: detail?.poster ?? "" }}
           resizeMode={ResizeMode.CONTAIN}
@@ -137,16 +156,16 @@ export default function PlayScreen() {
             usePlayerStore.setState({ isLoading: false });
           }}
           onLoadStart={() => usePlayerStore.setState({ isLoading: true })}
-          useNativeControls={false}
+          useNativeControls={deviceType !== 'tv'}
           shouldPlay
         />
 
-        {showControls && <PlayerControls showControls={showControls} setShowControls={setShowControls} />}
+        {showControls && deviceType === 'tv' && <PlayerControls showControls={showControls} setShowControls={setShowControls} />}
 
         <SeekingBar />
 
         {isLoading && (
-          <View style={styles.videoContainer}>
+          <View style={dynamicStyles.loadingContainer}>
             <VideoLoadingAnimation showProgressBar />
           </View>
         )}
@@ -160,13 +179,31 @@ export default function PlayScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "black" },
-  centered: { flex: 1, justifyContent: "center", alignItems: "center" },
-  videoContainer: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  videoPlayer: {
-    ...StyleSheet.absoluteFillObject,
-  },
-});
+const createResponsiveStyles = (deviceType: string) => {
+  const isMobile = deviceType === 'mobile';
+  const isTablet = deviceType === 'tablet';
+
+  return StyleSheet.create({
+    container: { 
+      flex: 1, 
+      backgroundColor: "black",
+      // 移动端和平板端可能需要状态栏处理
+      ...(isMobile || isTablet ? { paddingTop: 0 } : {}),
+    },
+    videoContainer: {
+      ...StyleSheet.absoluteFillObject,
+      // 为触摸设备添加更多的交互区域
+      ...(isMobile || isTablet ? { zIndex: 1 } : {}),
+    },
+    videoPlayer: {
+      ...StyleSheet.absoluteFillObject,
+    },
+    loadingContainer: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: 'rgba(0, 0, 0, 0.8)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 10,
+    },
+  });
+};
