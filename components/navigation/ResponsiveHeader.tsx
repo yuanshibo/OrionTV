@@ -5,6 +5,7 @@ import { ArrowLeft } from 'lucide-react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { useResponsiveLayout } from '@/hooks/useResponsiveLayout';
 import { DeviceUtils } from '@/utils/DeviceUtils';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface ResponsiveHeaderProps {
   title?: string;
@@ -21,6 +22,7 @@ const ResponsiveHeader: React.FC<ResponsiveHeaderProps> = ({
 }) => {
   const router = useRouter();
   const { deviceType, spacing } = useResponsiveLayout();
+  const insets = useSafeAreaInsets();
   
   // TV端不显示Header，使用现有的页面内导航
   if (deviceType === 'tv') {
@@ -35,7 +37,7 @@ const ResponsiveHeader: React.FC<ResponsiveHeaderProps> = ({
     }
   };
 
-  const dynamicStyles = createStyles(spacing, deviceType);
+  const dynamicStyles = createStyles(spacing, deviceType, insets);
 
   return (
     <>
@@ -74,14 +76,13 @@ const ResponsiveHeader: React.FC<ResponsiveHeaderProps> = ({
   );
 };
 
-const createStyles = (spacing: number, deviceType: string) => {
+const createStyles = (spacing: number, deviceType: string, insets: any) => {
   const minTouchTarget = DeviceUtils.getMinTouchTargetSize();
-  const statusBarHeight = Platform.OS === 'ios' ? 44 : StatusBar.currentHeight || 24;
   
   return StyleSheet.create({
     container: {
       backgroundColor: '#1c1c1e',
-      paddingTop: statusBarHeight,
+      paddingTop: insets.top,
       borderBottomWidth: 1,
       borderBottomColor: '#333',
       shadowColor: '#000',

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { View, StyleSheet, FlatList, Alert, KeyboardAvoidingView, Platform } from "react-native";
 import { useTVEventHandler } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { StyledButton } from "@/components/StyledButton";
@@ -24,6 +25,7 @@ export default function SettingsScreen() {
   const { loadSettings, saveSettings, setApiBaseUrl, setM3uUrl } = useSettingsStore();
   const { lastMessage, targetPage, clearMessage } = useRemoteControlStore();
   const backgroundColor = useThemeColor({}, "background");
+  const insets = useSafeAreaInsets();
 
   // 响应式布局配置
   const responsiveConfig = useResponsiveLayout();
@@ -162,7 +164,7 @@ export default function SettingsScreen() {
   useTVEventHandler(deviceType === "tv" ? handleTVEvent : () => {});
 
   // 动态样式
-  const dynamicStyles = createResponsiveStyles(deviceType, spacing);
+  const dynamicStyles = createResponsiveStyles(deviceType, spacing, insets);
 
   const renderSettingsContent = () => (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
@@ -214,7 +216,7 @@ export default function SettingsScreen() {
   );
 }
 
-const createResponsiveStyles = (deviceType: string, spacing: number) => {
+const createResponsiveStyles = (deviceType: string, spacing: number, insets: any) => {
   const isMobile = deviceType === "mobile";
   const isTablet = deviceType === "tablet";
   const isTV = deviceType === "tv";
@@ -224,7 +226,7 @@ const createResponsiveStyles = (deviceType: string, spacing: number) => {
     container: {
       flex: 1,
       padding: spacing,
-      paddingTop: isTV ? spacing * 2 : 0,
+      paddingTop: isTV ? spacing * 2 : isMobile ? insets.top + spacing : insets.top + spacing * 1.5,
     },
     header: {
       flexDirection: "row",
