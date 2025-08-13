@@ -24,7 +24,12 @@ const tabs: TabItem[] = [
 const MobileBottomTabNavigator: React.FC = () => {
   const router = useRouter();
   const pathname = usePathname();
-  const { spacing } = useResponsiveLayout();
+  const { spacing, deviceType } = useResponsiveLayout();
+  
+  // 在手机端过滤掉直播 tab
+  const filteredTabs = tabs.filter(tab => 
+    deviceType !== 'mobile' || tab.key !== 'live'
+  );
   
   const handleTabPress = (route: string) => {
     if (route === '/') {
@@ -44,7 +49,7 @@ const MobileBottomTabNavigator: React.FC = () => {
 
   return (
     <View style={dynamicStyles.container}>
-      {tabs.map((tab) => {
+      {filteredTabs.map((tab) => {
         const isActive = isTabActive(tab.route);
         const IconComponent = tab.icon;
         

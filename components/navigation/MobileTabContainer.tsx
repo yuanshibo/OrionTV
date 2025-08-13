@@ -28,7 +28,12 @@ interface MobileTabContainerProps {
 const MobileTabContainer: React.FC<MobileTabContainerProps> = ({ children }) => {
   const router = useRouter();
   const pathname = usePathname();
-  const { spacing } = useResponsiveLayout();
+  const { spacing, deviceType } = useResponsiveLayout();
+  
+  // 在手机端过滤掉直播 tab
+  const filteredTabs = tabs.filter(tab => 
+    deviceType !== 'mobile' || tab.key !== 'live'
+  );
   
   const handleTabPress = (route: string) => {
     if (route === '/') {
@@ -55,7 +60,7 @@ const MobileTabContainer: React.FC<MobileTabContainerProps> = ({ children }) => 
       
       {/* 底部导航栏 */}
       <View style={dynamicStyles.tabBar}>
-        {tabs.map((tab) => {
+        {filteredTabs.map((tab) => {
           const isActive = isTabActive(tab.route);
           const IconComponent = tab.icon;
           

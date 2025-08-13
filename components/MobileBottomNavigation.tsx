@@ -62,6 +62,11 @@ export const MobileBottomNavigation: React.FC<MobileBottomNavigationProps> = ({
     return null;
   }
 
+  // 在手机端过滤掉直播 tab
+  const filteredNavigationItems = navigationItems.filter(item => 
+    responsiveConfig.deviceType !== 'mobile' || item.name !== 'live'
+  );
+
   const handleNavigation = (route: string) => {
     if (route === '/') {
       router.push('/');
@@ -90,7 +95,7 @@ export const MobileBottomNavigation: React.FC<MobileBottomNavigationProps> = ({
 
   return (
     <View style={[styles.container, dynamicStyles.container]}>
-      {navigationItems.map((item) => {
+      {filteredNavigationItems.map((item) => {
         const isActive = isActiveRoute(item.route);
         const IconComponent = item.icon;
 

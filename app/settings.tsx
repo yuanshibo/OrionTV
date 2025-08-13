@@ -86,7 +86,8 @@ export default function SettingsScreen() {
   };
 
   const sections = [
-    {
+    // 远程输入配置 - 仅在非手机端显示
+    deviceType !== "mobile" && {
       component: (
         <RemoteInputSection
           onChanged={markAsChanged}
@@ -103,6 +104,7 @@ export default function SettingsScreen() {
         <APIConfigSection
           ref={apiSectionRef}
           onChanged={markAsChanged}
+          hideDescription={deviceType === "mobile"}
           onFocus={() => {
             setCurrentFocusIndex(1);
             setCurrentSection("api");
@@ -111,7 +113,8 @@ export default function SettingsScreen() {
       ),
       key: "api",
     },
-    {
+    // 直播源配置 - 仅在非手机端显示
+    deviceType !== "mobile" && {
       component: (
         <LiveStreamSection
           ref={liveStreamSectionRef}

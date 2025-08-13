@@ -65,12 +65,13 @@ export default function RootLayout() {
   }, [loaded, lastCheckTime, checkForUpdate]);
 
   useEffect(() => {
-    if (remoteInputEnabled) {
+    // 只有在非手机端才启动远程控制服务器
+    if (remoteInputEnabled && responsiveConfig.deviceType !== "mobile") {
       startServer();
     } else {
       stopServer();
     }
-  }, [remoteInputEnabled, startServer, stopServer]);
+  }, [remoteInputEnabled, startServer, stopServer, responsiveConfig.deviceType]);
 
   if (!loaded && !error) {
     return null;

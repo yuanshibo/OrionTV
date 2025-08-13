@@ -12,6 +12,7 @@ interface APIConfigSectionProps {
   onChanged: () => void;
   onFocus?: () => void;
   onBlur?: () => void;
+  hideDescription?: boolean;
 }
 
 export interface APIConfigSectionRef {
@@ -19,7 +20,7 @@ export interface APIConfigSectionRef {
 }
 
 export const APIConfigSection = forwardRef<APIConfigSectionRef, APIConfigSectionProps>(
-  ({ onChanged, onFocus, onBlur }, ref) => {
+  ({ onChanged, onFocus, onBlur, hideDescription = false }, ref) => {
     const { apiBaseUrl, setApiBaseUrl, remoteInputEnabled } = useSettingsStore();
     const { serverUrl } = useRemoteControlStore();
     const [isInputFocused, setIsInputFocused] = useState(false);
@@ -66,7 +67,7 @@ export const APIConfigSection = forwardRef<APIConfigSectionRef, APIConfigSection
         <View style={styles.inputContainer}>
           <View style={styles.titleContainer}>
             <ThemedText style={styles.sectionTitle}>API 地址</ThemedText>
-            {remoteInputEnabled && serverUrl && (
+            {!hideDescription && remoteInputEnabled && serverUrl && (
               <ThemedText style={styles.subtitle}>用手机访问 {serverUrl}，可远程输入</ThemedText>
             )}
           </View>
