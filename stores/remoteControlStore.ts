@@ -8,10 +8,12 @@ interface RemoteControlState {
   startServer: () => Promise<void>;
   stopServer: () => void;
   isModalVisible: boolean;
-  showModal: () => void;
+  showModal: (targetPage?: string) => void;
   hideModal: () => void;
   lastMessage: string | null;
-  setMessage: (message: string) => void;
+  targetPage: string | null;
+  setMessage: (message: string, targetPage?: string) => void;
+  clearMessage: () => void;
 }
 
 export const useRemoteControlStore = create<RemoteControlState>((set, get) => ({
@@ -20,6 +22,7 @@ export const useRemoteControlStore = create<RemoteControlState>((set, get) => ({
   error: null,
   isModalVisible: false,
   lastMessage: null,
+  targetPage: null,
 
   startServer: async () => {
     if (get().isServerRunning) {
@@ -28,7 +31,9 @@ export const useRemoteControlStore = create<RemoteControlState>((set, get) => ({
     remoteControlService.init({
       onMessage: (message: string) => {
         console.log('[RemoteControlStore] Received message:', message);
-        set({ lastMessage: message });
+        const currentState = get();
+        // Use the current targetPage from the store
+        set({ lastMessage: message, targetPage: currentState.targetPage });
       },
       onHandshake: () => {
         console.log('[RemoteControlStore] Handshake successful');
@@ -53,10 +58,14 @@ export const useRemoteControlStore = create<RemoteControlState>((set, get) => ({
     }
   },
 
-  showModal: () => set({ isModalVisible: true }),
-  hideModal: () => set({ isModalVisible: false }),
+  showModal: (targetPage?: string) => set({ isModalVisible: true, targetPage }),
+  hideModal: () => set({ isModalVisible: false, targetPage: null }),
 
-  setMessage: (message: string) => {
-    set({ lastMessage: `${message}_${Date.now()}` });
+  setMessage: (message: string, targetPage?: string) => {
+    set({ lastMessage: `${message}_${Date.now()}`, targetPage });
+  },
+
+  clearMessage: () => {
+    set({ lastMessage: null, targetPage: null });
   },
 }));

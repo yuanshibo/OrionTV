@@ -22,7 +22,7 @@ import { DeviceUtils } from "@/utils/DeviceUtils";
 
 export default function SettingsScreen() {
   const { loadSettings, saveSettings, setApiBaseUrl, setM3uUrl } = useSettingsStore();
-  const { lastMessage } = useRemoteControlStore();
+  const { lastMessage, targetPage, clearMessage } = useRemoteControlStore();
   const backgroundColor = useThemeColor({}, "background");
 
   // 响应式布局配置
@@ -44,12 +44,13 @@ export default function SettingsScreen() {
   }, [loadSettings]);
 
   useEffect(() => {
-    if (lastMessage) {
+    if (lastMessage && !targetPage) {
       const realMessage = lastMessage.split("_")[0];
       handleRemoteInput(realMessage);
+      clearMessage(); // Clear the message after processing
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lastMessage]);
+  }, [lastMessage, targetPage]);
 
   const handleRemoteInput = (message: string) => {
     // Handle remote input based on currently focused section
