@@ -26,7 +26,7 @@ export default function SearchScreen() {
   const [error, setError] = useState<string | null>(null);
   const textInputRef = useRef<TextInput>(null);
   const [isInputFocused, setIsInputFocused] = useState(false);
-  const { showModal: showRemoteModal, lastMessage } = useRemoteControlStore();
+  const { showModal: showRemoteModal, lastMessage, targetPage, clearMessage } = useRemoteControlStore();
   const { remoteInputEnabled } = useSettingsStore();
   const router = useRouter();
 
@@ -36,14 +36,15 @@ export default function SearchScreen() {
   const { deviceType, spacing } = responsiveConfig;
 
   useEffect(() => {
-    if (lastMessage) {
+    if (lastMessage && targetPage === 'search') {
       console.log("Received remote input:", lastMessage);
       const realMessage = lastMessage.split("_")[0];
       setKeyword(realMessage);
       handleSearch(realMessage);
+      clearMessage(); // Clear the message after processing
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lastMessage]);
+  }, [lastMessage, targetPage]);
 
   // useEffect(() => {
   //   // Focus the text input when the screen loads
@@ -87,10 +88,10 @@ export default function SearchScreen() {
       ]);
       return;
     }
-    showRemoteModal();
+    showRemoteModal('search');
   };
 
-  const renderItem = ({ item, index }: { item: SearchResult; index: number }) => (
+  const renderItem = ({ item }: { item: SearchResult; index: number }) => (
     <VideoCard
       id={item.id.toString()}
       source={item.source}

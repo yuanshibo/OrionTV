@@ -22,7 +22,7 @@ import { DeviceUtils } from "@/utils/DeviceUtils";
 
 export default function SettingsScreen() {
   const { loadSettings, saveSettings, setApiBaseUrl, setM3uUrl } = useSettingsStore();
-  const { lastMessage } = useRemoteControlStore();
+  const { lastMessage, targetPage, clearMessage } = useRemoteControlStore();
   const backgroundColor = useThemeColor({}, "background");
 
   // 响应式布局配置
@@ -44,12 +44,13 @@ export default function SettingsScreen() {
   }, [loadSettings]);
 
   useEffect(() => {
-    if (lastMessage) {
+    if (lastMessage && !targetPage) {
       const realMessage = lastMessage.split("_")[0];
       handleRemoteInput(realMessage);
+      clearMessage(); // Clear the message after processing
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lastMessage]);
+  }, [lastMessage, targetPage]);
 
   const handleRemoteInput = (message: string) => {
     // Handle remote input based on currently focused section
@@ -133,10 +134,8 @@ export default function SettingsScreen() {
     //   ),
     //   key: "videoSource",
     // },
-    Platform.OS === 'android' && {
-      component: (
-        <UpdateSection />
-      ),
+    Platform.OS === "android" && {
+      component: <UpdateSection />,
       key: "update",
     },
   ].filter(Boolean);
@@ -144,8 +143,8 @@ export default function SettingsScreen() {
   // TV遥控器事件处理 - 仅在TV设备上启用
   const handleTVEvent = React.useCallback(
     (event: any) => {
-      if (deviceType !== 'tv') return;
-      
+      if (deviceType !== "tv") return;
+
       if (event.eventType === "down") {
         const nextIndex = Math.min(currentFocusIndex + 1, sections.length);
         setCurrentFocusIndex(nextIndex);
@@ -160,18 +159,15 @@ export default function SettingsScreen() {
     [currentFocusIndex, sections.length, deviceType]
   );
 
-  useTVEventHandler(deviceType === 'tv' ? handleTVEvent : () => {});
+  useTVEventHandler(deviceType === "tv" ? handleTVEvent : () => {});
 
   // 动态样式
   const dynamicStyles = createResponsiveStyles(deviceType, spacing);
 
   const renderSettingsContent = () => (
-    <KeyboardAvoidingView 
-      style={{ flex: 1, backgroundColor }} 
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
       <ThemedView style={[commonStyles.container, dynamicStyles.container]}>
-        {deviceType === 'tv' && (
+        {deviceType === "tv" && (
           <View style={dynamicStyles.header}>
             <ThemedText style={dynamicStyles.title}>设置</ThemedText>
           </View>
@@ -186,7 +182,7 @@ export default function SettingsScreen() {
               }
               return null;
             }}
-            keyExtractor={(item) => item ? item.key : 'default'}
+            keyExtractor={(item) => (item ? item.key : "default")}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={dynamicStyles.listContent}
           />
@@ -198,10 +194,7 @@ export default function SettingsScreen() {
             onPress={handleSave}
             variant="primary"
             disabled={!hasChanges || isLoading}
-            style={[
-              dynamicStyles.saveButton, 
-              (!hasChanges || isLoading) && dynamicStyles.disabledButton
-            ]}
+            style={[dynamicStyles.saveButton, (!hasChanges || isLoading) && dynamicStyles.disabledButton]}
           />
         </View>
       </ThemedView>
@@ -209,7 +202,7 @@ export default function SettingsScreen() {
   );
 
   // 根据设备类型决定是否包装在响应式导航中
-  if (deviceType === 'tv') {
+  if (deviceType === "tv") {
     return renderSettingsContent();
   }
 
@@ -222,9 +215,9 @@ export default function SettingsScreen() {
 }
 
 const createResponsiveStyles = (deviceType: string, spacing: number) => {
-  const isMobile = deviceType === 'mobile';
-  const isTablet = deviceType === 'tablet';
-  const isTV = deviceType === 'tv';
+  const isMobile = deviceType === "mobile";
+  const isTablet = deviceType === "tablet";
+  const isTV = deviceType === "tv";
   const minTouchTarget = DeviceUtils.getMinTouchTargetSize();
 
   return StyleSheet.create({
@@ -243,7 +236,7 @@ const createResponsiveStyles = (deviceType: string, spacing: number) => {
       fontSize: isMobile ? 24 : isTablet ? 28 : 32,
       fontWeight: "bold",
       paddingTop: spacing,
-      color: 'white',
+      color: "white",
     },
     scrollView: {
       flex: 1,
@@ -257,7 +250,7 @@ const createResponsiveStyles = (deviceType: string, spacing: number) => {
     },
     saveButton: {
       minHeight: isMobile ? minTouchTarget : isTablet ? 50 : 50,
-      width: isMobile ? '100%' : isTablet ? 140 : 120,
+      width: isMobile ? "100%" : isTablet ? 140 : 120,
       maxWidth: isMobile ? 280 : undefined,
     },
     disabledButton: {

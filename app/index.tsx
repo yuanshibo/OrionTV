@@ -128,7 +128,7 @@ export default function HomeScreen() {
 
   // TV端和平板端的顶部导航
   const renderHeader = () => {
-    if (deviceType === 'mobile') {
+    if (deviceType === "mobile") {
       // 移动端不显示顶部导航，使用底部Tab导航
       return null;
     }
@@ -171,7 +171,7 @@ export default function HomeScreen() {
   const dynamicStyles = StyleSheet.create({
     container: {
       flex: 1,
-      paddingTop: deviceType === 'mobile' ? insets.top : 40,
+      paddingTop: deviceType === "mobile" ? 0 : 40,
     },
     headerContainer: {
       flexDirection: "row",
@@ -181,7 +181,7 @@ export default function HomeScreen() {
       marginBottom: spacing,
     },
     headerTitle: {
-      fontSize: deviceType === 'mobile' ? 24 : deviceType === 'tablet' ? 28 : 32,
+      fontSize: deviceType === "mobile" ? 24 : deviceType === "tablet" ? 28 : 32,
       fontWeight: "bold",
       paddingTop: 16,
     },
@@ -200,13 +200,13 @@ export default function HomeScreen() {
       paddingHorizontal: spacing,
     },
     categoryButton: {
-      paddingHorizontal: deviceType === 'tv' ? spacing / 4 : spacing / 2,
-      paddingVertical: deviceType === 'tv' ? spacing / 4 : spacing / 2,
-      borderRadius: deviceType === 'mobile' ? 6 : 8,
-      marginHorizontal: deviceType === 'tv' ? spacing / 4 : spacing / 2,
+      paddingHorizontal: deviceType === "tv" ? spacing / 4 : spacing / 2,
+      paddingVertical: spacing / 2,
+      borderRadius: deviceType === "mobile" ? 6 : 8,
+      marginHorizontal: deviceType === "tv" ? spacing / 4 : spacing / 2, // TV端使用更小的间距
     },
     categoryText: {
-      fontSize: deviceType === 'mobile' ? 14 : 16,
+      fontSize: deviceType === "mobile" ? 14 : 16,
       fontWeight: "500",
     },
     contentContainer: {
@@ -217,8 +217,8 @@ export default function HomeScreen() {
   const content = (
     <ThemedView style={[commonStyles.container, dynamicStyles.container]}>
       {/* 状态栏 */}
-      {deviceType === 'mobile' && <StatusBar barStyle="light-content" />}
-      
+      {deviceType === "mobile" && <StatusBar barStyle="light-content" />}
+
       {/* 顶部导航 */}
       {renderHeader()}
 
@@ -291,13 +291,9 @@ export default function HomeScreen() {
   );
 
   // 根据设备类型决定是否包装在响应式导航中
-  if (deviceType === 'tv') {
+  if (deviceType === "tv") {
     return content;
   }
 
-  return (
-    <ResponsiveNavigation>
-      {content}
-    </ResponsiveNavigation>
-  );
+  return <ResponsiveNavigation>{content}</ResponsiveNavigation>;
 }

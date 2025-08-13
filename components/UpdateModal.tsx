@@ -1,15 +1,9 @@
-import React from 'react';
-import {
-  Modal,
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-  Platform,
-} from 'react-native';
-import { useUpdateStore } from '../stores/updateStore';
-import { Colors } from '../constants/Colors';
+import React from "react";
+import { Modal, View, StyleSheet, ActivityIndicator, Platform } from "react-native";
+import { useUpdateStore } from "../stores/updateStore";
+import { Colors } from "../constants/Colors";
+import { StyledButton } from "./StyledButton";
+import { ThemedText } from "./ThemedText";
 
 export function UpdateModal() {
   const {
@@ -26,9 +20,9 @@ export function UpdateModal() {
     downloadedPath,
   } = useUpdateStore();
 
-  const updateButtonRef = React.useRef<TouchableOpacity>(null);
-  const laterButtonRef = React.useRef<TouchableOpacity>(null);
-  const skipButtonRef = React.useRef<TouchableOpacity>(null);
+  const updateButtonRef = React.useRef<View>(null);
+  const laterButtonRef = React.useRef<View>(null);
+  const skipButtonRef = React.useRef<View>(null);
 
   async function handleUpdate() {
     if (!downloading && !downloadedPath) {
@@ -61,86 +55,59 @@ export function UpdateModal() {
     if (downloading) {
       return `下载中 ${downloadProgress}%`;
     } else if (downloadedPath) {
-      return '立即安装';
+      return "立即安装";
     } else {
-      return '立即更新';
+      return "立即更新";
     }
   };
 
   return (
-    <Modal
-      visible={showUpdateModal}
-      transparent
-      animationType="fade"
-      onRequestClose={handleLater}
-    >
+    <Modal visible={showUpdateModal} transparent animationType="fade" onRequestClose={handleLater}>
       <View style={styles.overlay}>
         <View style={styles.container}>
-          <Text style={styles.title}>发现新版本</Text>
-          
+          <ThemedText style={styles.title}>发现新版本</ThemedText>
+
           <View style={styles.versionInfo}>
-            <Text style={styles.versionText}>
-              当前版本: v{currentVersion}
-            </Text>
-            <Text style={styles.arrow}>→</Text>
-            <Text style={[styles.versionText, styles.newVersion]}>
-              新版本: v{remoteVersion}
-            </Text>
+            <ThemedText style={styles.versionText}>当前版本: v{currentVersion}</ThemedText>
+            <ThemedText style={styles.arrow}>→</ThemedText>
+            <ThemedText style={[styles.versionText, styles.newVersion]}>新版本: v{remoteVersion}</ThemedText>
           </View>
 
           {downloading && (
             <View style={styles.progressContainer}>
               <View style={styles.progressBar}>
-                <View
-                  style={[
-                    styles.progressFill,
-                    { width: `${downloadProgress}%` },
-                  ]}
-                />
+                <View style={[styles.progressFill, { width: `${downloadProgress}%` }]} />
               </View>
-              <Text style={styles.progressText}>{downloadProgress}%</Text>
+              <ThemedText style={styles.progressText}>{downloadProgress}%</ThemedText>
             </View>
           )}
 
-          {error && (
-            <Text style={styles.errorText}>{error}</Text>
-          )}
+          {error && <ThemedText style={styles.errorText}>{error}</ThemedText>}
 
           <View style={styles.buttonContainer}>
-            <TouchableOpacity
+            <StyledButton
               ref={updateButtonRef}
-              style={[styles.button, styles.primaryButton]}
               onPress={handleUpdate}
               disabled={downloading && !downloadedPath}
+              variant="primary"
+              style={styles.button}
             >
               {downloading && !downloadedPath ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.buttonText}>{getButtonText()}</Text>
+                <ThemedText style={styles.buttonText}>{getButtonText()}</ThemedText>
               )}
-            </TouchableOpacity>
+            </StyledButton>
 
             {!downloading && !downloadedPath && (
               <>
-                <TouchableOpacity
-                  ref={laterButtonRef}
-                  style={[styles.button, styles.secondaryButton]}
-                  onPress={handleLater}
-                >
-                  <Text style={[styles.buttonText, styles.secondaryButtonText]}>
-                    稍后再说
-                  </Text>
-                </TouchableOpacity>
+                <StyledButton ref={laterButtonRef} onPress={handleLater} variant="primary" style={styles.button}>
+                  <ThemedText style={[styles.buttonText]}>稍后再说</ThemedText>
+                </StyledButton>
 
-                <TouchableOpacity
-                  ref={skipButtonRef}
-                  style={[styles.button, styles.textButton]}
-                  onPress={handleSkip}
-                >
-                  <Text style={[styles.buttonText, styles.textButtonText]}>
-                    跳过此版本
-                  </Text>
-                </TouchableOpacity>
+                <StyledButton ref={skipButtonRef} onPress={handleSkip} variant="primary" style={styles.button}>
+                  <ThemedText style={[styles.buttonText]}>跳过此版本</ThemedText>
+                </StyledButton>
               </>
             )}
           </View>
@@ -153,27 +120,28 @@ export function UpdateModal() {
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   container: {
     backgroundColor: Colors.dark.background,
     borderRadius: 12,
     padding: 24,
-    width: Platform.isTV ? 500 : '90%',
+    width: Platform.isTV ? 500 : "90%",
     maxWidth: 500,
-    alignItems: 'center',
+    alignItems: "center",
   },
   title: {
     fontSize: Platform.isTV ? 28 : 24,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: Colors.dark.text,
     marginBottom: 20,
+    paddingTop: 12,
   },
   versionInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 24,
   },
   versionText: {
@@ -181,8 +149,8 @@ const styles = StyleSheet.create({
     color: Colors.dark.text,
   },
   newVersion: {
-    color: Colors.dark.primary || '#00bb5e',
-    fontWeight: 'bold',
+    color: Colors.dark.primary || "#00bb5e",
+    fontWeight: "bold",
   },
   arrow: {
     fontSize: Platform.isTV ? 20 : 18,
@@ -190,64 +158,44 @@ const styles = StyleSheet.create({
     marginHorizontal: 12,
   },
   progressContainer: {
-    width: '100%',
+    width: "100%",
     marginBottom: 20,
   },
   progressBar: {
     height: 6,
     backgroundColor: Colors.dark.border,
     borderRadius: 3,
-    overflow: 'hidden',
+    overflow: "hidden",
     marginBottom: 8,
   },
   progressFill: {
-    height: '100%',
-    backgroundColor: Colors.dark.primary || '#00bb5e',
+    height: "100%",
+    backgroundColor: Colors.dark.primary || "#00bb5e",
   },
   progressText: {
     fontSize: Platform.isTV ? 16 : 14,
     color: Colors.dark.text,
-    textAlign: 'center',
+    textAlign: "center",
   },
   errorText: {
     fontSize: Platform.isTV ? 16 : 14,
-    color: '#ff4444',
+    color: "#ff4444",
     marginBottom: 16,
-    textAlign: 'center',
+    textAlign: "center",
   },
   buttonContainer: {
-    width: '100%',
+    width: "100%",
     gap: 12,
+    justifyContent: "center", // 居中对齐
+    alignItems: "center",
   },
   button: {
-    paddingVertical: Platform.isTV ? 14 : 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: Platform.isTV ? 56 : 48,
+    width: "80%",
   },
-  primaryButton: {
-    backgroundColor: Colors.dark.primary || '#00bb5e',
-  },
-  secondaryButton: {
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  textButton: {
-    backgroundColor: 'transparent',
-  },
+
   buttonText: {
     fontSize: Platform.isTV ? 18 : 16,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  secondaryButtonText: {
-    color: Colors.dark.text,
-  },
-  textButtonText: {
-    color: Colors.dark.text,
-    fontWeight: 'normal',
+    fontWeight: "600",
+    color: "#fff",
   },
 });
