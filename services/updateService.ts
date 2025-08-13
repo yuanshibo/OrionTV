@@ -1,5 +1,6 @@
 import ReactNativeBlobUtil from "react-native-blob-util";
 import FileViewer from "react-native-file-viewer";
+import Toast from "react-native-toast-message";
 import { version as currentVersion } from "../package.json";
 import { UPDATE_CONFIG } from "../constants/UpdateConfig";
 
@@ -46,9 +47,10 @@ class UpdateService {
         };
       } catch (error) {
         retries++;
-        console.error(`Error checking version (attempt ${retries}/${maxRetries}):`, error);
+        console.info(`Error checking version (attempt ${retries}/${maxRetries}):`, error);
         
         if (retries === maxRetries) {
+          Toast.show({ type: "error", text1: "检查更新失败", text2: "无法获取版本信息，请检查网络连接" });
           throw error;
         }
         
@@ -140,9 +142,10 @@ class UpdateService {
         return res.path();
       } catch (error) {
         retries++;
-        console.error(`Error downloading APK (attempt ${retries}/${maxRetries}):`, error);
+        console.info(`Error downloading APK (attempt ${retries}/${maxRetries}):`, error);
         
         if (retries === maxRetries) {
+          Toast.show({ type: "error", text1: "下载失败", text2: "APK下载失败，请检查网络连接" });
           throw new Error(`Download failed after ${maxRetries} attempts: ${error}`);
         }
         
@@ -170,15 +173,21 @@ class UpdateService {
         displayName: "OrionTV Update",
       });
     } catch (error) {
-      console.error("Error installing APK:", error);
+      console.info("Error installing APK:", error);
       
       // 提供更详细的错误信息
       if (error instanceof Error) {
         if (error.message.includes('No app found')) {
+          Toast.show({ type: "error", text1: "安装失败", text2: "未找到可安装APK的应用，请确保允许安装未知来源的应用" });
           throw new Error('未找到可安装APK的应用，请确保允许安装未知来源的应用');
         } else if (error.message.includes('permission')) {
+          Toast.show({ type: "error", text1: "安装失败", text2: "没有安装权限，请在设置中允许此应用安装未知来源的应用" });
           throw new Error('没有安装权限，请在设置中允许此应用安装未知来源的应用');
+        } else {
+          Toast.show({ type: "error", text1: "安装失败", text2: "APK安装过程中出现错误" });
         }
+      } else {
+        Toast.show({ type: "error", text1: "安装失败", text2: "APK安装过程中出现未知错误" });
       }
       
       throw error;

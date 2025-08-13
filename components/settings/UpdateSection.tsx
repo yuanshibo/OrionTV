@@ -53,11 +53,11 @@ export function UpdateSection() {
         </StyledButton>
       </View>
 
-      {UPDATE_CONFIG.AUTO_CHECK && (
+      {/* {UPDATE_CONFIG.AUTO_CHECK && (
         <ThemedText style={styles.hint}>
           自动检查更新已开启，每{UPDATE_CONFIG.CHECK_INTERVAL / (60 * 60 * 1000)}小时检查一次
         </ThemedText>
-      )}
+      )} */}
     </View>
   );
 }

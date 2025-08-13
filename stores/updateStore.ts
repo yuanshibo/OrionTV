@@ -73,7 +73,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
         Date.now().toString()
       );
     } catch (error) {
-      console.error('检查更新失败:', error);
+      // console.info('检查更新失败:', error);
       set({ 
         error: error instanceof Error ? error.message : '检查更新失败',
         updateAvailable: false 
@@ -110,7 +110,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
         downloadProgress: 100,
       });
     } catch (error) {
-      console.error('下载失败:', error);
+      // console.info('下载失败:', error);
       set({ 
         downloading: false,
         downloadProgress: 0,
@@ -133,7 +133,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
       // 安装开始后，关闭弹窗
       set({ showUpdateModal: false });
     } catch (error) {
-      console.error('安装失败:', error);
+      console.info('安装失败:', error);
       set({ 
         error: error instanceof Error ? error.message : '安装失败',
       });
@@ -181,6 +181,6 @@ export const initUpdateStore = async () => {
       skipVersion: skipVersion || null,
     });
   } catch (error) {
-    console.error('初始化更新存储失败:', error);
+    console.info('初始化更新存储失败:', error);
   }
 };
