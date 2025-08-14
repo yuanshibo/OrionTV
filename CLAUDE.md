@@ -11,115 +11,125 @@ OrionTV is a React Native TVOS application for streaming video content, built wi
 ### Development Commands
 
 #### TV Development (Apple TV & Android TV)
-- `yarn start-tv` - Start Metro bundler in TV mode (EXPO_TV=1)
-- `yarn android-tv` - Build and run on Android TV
-- `yarn ios-tv` - Build and run on Apple TV
-- `yarn prebuild-tv` - Generate native project files for TV (run after dependency changes)
-- `yarn build-tv` - Build Android APK for TV release
+- `yarn start` - Start Metro bundler in TV mode (EXPO_TV=1)
+- `yarn android` - Build and run on Android TV
+- `yarn ios` - Build and run on Apple TV
+- `yarn prebuild` - Generate native project files for TV (run after dependency changes)
+- `yarn build` - Build Android APK for TV release
 
-#### Mobile/Tablet Development (Responsive)
-- `yarn start` or `yarn start-mobile` - Start Metro bundler for mobile/tablet
-- `yarn android` or `yarn android-mobile` - Build and run on Android mobile/tablet
-- `yarn ios` or `yarn ios-mobile` - Build and run on iOS mobile/tablet
-- `yarn prebuild` or `yarn prebuild-mobile` - Generate native project files for mobile
-- `yarn build` or `yarn build-mobile` - Build Android APK for mobile release
-
-#### General Commands
-- `yarn copy-config` - Copy TV-specific Android configurations
-- `yarn build-debug` - Build Android APK for debugging
-- `yarn lint` - Run linting checks
-- `yarn typecheck` - Run TypeScript type checking
+#### Testing Commands
 - `yarn test` - Run Jest tests with watch mode
 - `yarn test-ci` - Run Jest tests for CI with coverage
+- `yarn test utils` - Run tests for specific directory/file pattern
+- `yarn lint` - Run ESLint checks
+- `yarn typecheck` - Run TypeScript type checking
+
+#### Build and Deployment
+- `yarn copy-config` - Copy TV-specific Android configurations
+- `yarn build-debug` - Build Android APK for debugging
 - `yarn clean` - Clean cache and build artifacts
 - `yarn clean-modules` - Reinstall all node modules
 
 ## Architecture Overview
 
-### Frontend Structure
+### Multi-Platform Responsive Design
 
-- **Expo Router**: File-based routing with screens in `/app` directory
-- **State Management**: Zustand stores for global state (`/stores`)
-- **TV-Specific Components**: Components optimized for TV remote control interaction
-- **Services**: API layer, storage management, remote control server, and update service
+OrionTV implements a sophisticated responsive architecture supporting multiple device types:
+- **Device Detection**: Width-based breakpoints (mobile <768px, tablet 768-1023px, TV ≥1024px)
+- **Component Variants**: Platform-specific files with `.tv.tsx`, `.mobile.tsx`, `.tablet.tsx` extensions
+- **Responsive Utilities**: `DeviceUtils` and `ResponsiveStyles` for adaptive layouts and scaling
+- **Adaptive Navigation**: Different interaction patterns per device type (touch vs remote control)
 
-### Key Technologies
+### State Management Architecture (Zustand)
 
-- React Native TVOS (0.74.x) - TV-optimized React Native with TV-specific events
-- Expo SDK 51 - Development platform and tooling
-- TypeScript - Type safety throughout with `@/*` path mapping
-- Zustand - Lightweight state management
-- Expo AV - Video playback functionality
+Domain-specific stores with consistent patterns:
+- **homeStore.ts** - Home screen content, categories, Douban API data, and play records
+- **playerStore.ts** - Video player state, controls, and episode management  
+- **settingsStore.ts** - App settings, API configuration, and user preferences
+- **remoteControlStore.ts** - Remote control server functionality and HTTP bridge
+- **authStore.ts** - User authentication state
+- **updateStore.ts** - Automatic update checking and version management
+- **favoritesStore.ts** - User favorites management
 
-### State Management (Zustand Stores)
+### Service Layer Pattern
 
-- `homeStore.ts` - Home screen content, categories, Douban API data, and play records
-- `playerStore.ts` - Video player state, controls, and episode management
-- `settingsStore.ts` - App settings, API configuration, and user preferences
-- `remoteControlStore.ts` - Remote control server functionality and HTTP bridge
-- `authStore.ts` - User authentication state
-- `updateStore.ts` - Automatic update checking and version management
-- `favoritesStore.ts` - User favorites management
+Clean separation of concerns across service modules:
+- **api.ts** - External API integration with error handling and caching
+- **storage.ts** - AsyncStorage wrapper with typed interfaces
+- **remoteControlService.ts** - TCP-based HTTP server for external device control
+- **updateService.ts** - Automatic version checking and APK download management
+- **tcpHttpServer.ts** - Low-level TCP server implementation
 
-### TV-Specific Features
+### TV Remote Control System
 
-- Remote control navigation (`useTVRemoteHandler` hook with HWEvent handling)
-- TV-optimized UI components with focus management and `.tv.tsx` extensions
-- Remote control server for external control via HTTP bridge (`remoteControlService.ts`)
-- Gesture handling for TV remote interactions (select, left/right seeking, long press)
-- TV-specific assets and icons for Apple TV and Android TV
+Sophisticated TV interaction handling:
+- **useTVRemoteHandler** - Centralized hook for TV remote event processing
+- **Hardware Events** - HWEvent handling for TV-specific controls (play/pause, seek, menu)
+- **Focus Management** - TV-specific focus states and navigation flows
+- **Gesture Support** - Long press, directional seeking, auto-hide controls
 
-### Service Layer Architecture
+## Key Technologies
 
-- `api.ts` - External API integration (search, video details, Douban data)
-- `storage.ts` - AsyncStorage wrapper for local data persistence
-- `remoteControlService.ts` - HTTP server for external device control
-- `updateService.ts` - Automatic version checking and APK download
-- `tcpHttpServer.ts` - TCP-based HTTP server implementation
+- **React Native TVOS (0.74.x)** - TV-optimized React Native with TV-specific event handling
+- **Expo SDK 51** - Development platform providing native capabilities and build tooling
+- **TypeScript** - Complete type safety with `@/*` path mapping configuration
+- **Zustand** - Lightweight state management for global application state
+- **Expo Router** - File-based routing system with typed routes
+- **Expo AV** - Video playback with TV-optimized controls
 
 ## Development Workflow
 
-### Responsive Development Notes
+### TV-First Development Pattern
 
-- Use TV commands (`*-tv` variants) with EXPO_TV=1 for TV development
-- Use mobile/tablet commands (without EXPO_TV=1) for responsive mobile/tablet development
-- Run `yarn prebuild-tv` after adding new dependencies for TV builds
-- Run `yarn prebuild-mobile` after adding new dependencies for mobile builds
-- Use `yarn copy-config` to apply TV-specific Android configurations (TV builds only)
-- Test on both TV devices (Apple TV/Android TV) and mobile devices (phones/tablets)
+This project uses a TV-first approach with responsive adaptations:
+- **Primary Target**: Apple TV and Android TV with remote control interaction
+- **Secondary Targets**: Mobile and tablet with touch-optimized responsive design
+- **Build Environment**: `EXPO_TV=1` environment variable enables TV-specific features
+- **Component Strategy**: Shared components with platform-specific variants using file extensions
+
+### Testing Strategy
+
+- **Unit Tests**: Comprehensive test coverage for utilities (`utils/__tests__/`)
+- **Jest Configuration**: Expo preset with Babel transpilation
+- **Test Patterns**: Mock-based testing for React Native modules and external dependencies
+- **Coverage Reporting**: CI-compatible coverage reports with detailed metrics
+
+### Important Development Notes
+
+- Run `yarn prebuild` after adding new dependencies for native builds
+- Use `yarn copy-config` to apply TV-specific Android configurations
 - TV components require focus management and remote control support
-- Mobile/tablet components use touch-optimized responsive design
-- The same codebase supports all platforms through responsive architecture
+- Test on both TV devices (Apple TV/Android TV) and responsive mobile/tablet layouts
+- All API calls are centralized in `/services` directory with error handling
+- Storage operations use AsyncStorage wrapper in `storage.ts` with typed interfaces
 
-### State Management Patterns
+### Component Development Patterns
 
-- Use Zustand stores for global state
-- Stores follow a consistent pattern with actions and state
-- API calls are centralized in the `/services` directory
-- Storage operations use AsyncStorage wrapper in `storage.ts`
+- **Platform Variants**: Use `.tv.tsx`, `.mobile.tsx`, `.tablet.tsx` for platform-specific implementations
+- **Responsive Utilities**: Leverage `DeviceUtils.getDeviceType()` for responsive logic
+- **TV Remote Handling**: Use `useTVRemoteHandler` hook for TV-specific interactions
+- **Focus Management**: TV components must handle focus states for remote navigation
+- **Shared Logic**: Place common logic in `/hooks` directory for reusability
 
-### Component Structure
+## Common Development Tasks
 
-- TV-specific components have `.tv.tsx` extensions
-- Common components in `/components` directory
-- Custom hooks in `/hooks` directory for reusable logic
-- TV remote handling is centralized in `useTVRemoteHandler`
+### Adding New Components
+1. Create base component in `/components` directory
+2. Add platform-specific variants (`.tv.tsx`) if needed
+3. Import and use responsive utilities from `@/utils/DeviceUtils`
+4. Test across device types for proper responsive behavior
 
-## Common Issues
+### Working with State
+1. Identify appropriate Zustand store in `/stores` directory
+2. Follow existing patterns for actions and state structure
+3. Use TypeScript interfaces for type safety
+4. Consider cross-store dependencies and data flow
 
-### TV Platform Specifics
-
-- TV apps require special focus management
-- Remote control events need careful handling
-- TV-specific assets and icons required
-- Platform-specific build configurations
-
-### Development Environment
-
-- Ensure Xcode is installed for Apple TV development
-- Android Studio required for Android TV development
-- Metro bundler must run in TV mode (`EXPO_TV=1`)
-- External API servers configured in settings for video content
+### API Integration
+1. Add new endpoints to `/services/api.ts`
+2. Implement proper error handling and loading states
+3. Use caching strategies for frequently accessed data
+4. Update relevant Zustand stores with API responses
 
 ## File Structure Notes
 

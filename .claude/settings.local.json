@@ -11,7 +11,8 @@
       "Bash(yarn add:*)",
       "Bash(git reset:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(yarn test-ci:*)"
     ],
     "deny": []
   }
