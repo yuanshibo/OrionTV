@@ -1,39 +1,39 @@
-import { Platform, Dimensions } from 'react-native';
-import { DeviceType } from '@/hooks/useResponsiveLayout';
+import { Platform, Dimensions } from "react-native";
+import { DeviceType } from "@/hooks/useResponsiveLayout";
 
 export const DeviceUtils = {
   /**
    * 检测当前设备类型
    */
   getDeviceType(): DeviceType {
-    const isTV = process.env.EXPO_TV === '1' || Platform.isTV;
-    if (isTV) return 'tv';
-    
-    const { width } = Dimensions.get('window');
-    if (width >= 1024) return 'tv';
-    if (width >= 768) return 'tablet';
-    return 'mobile';
+    // if (Platform.isTV) return "tv";
+
+    const { width } = Dimensions.get("window");
+
+    if (width >= 1024) return "tv";
+    if (width >= 768) return "tablet";
+    return "mobile";
   },
 
   /**
    * 检测是否为TV环境
    */
   isTV(): boolean {
-    return this.getDeviceType() === 'tv';
+    return this.getDeviceType() === "tv";
   },
 
   /**
    * 检测是否为移动设备
    */
   isMobile(): boolean {
-    return this.getDeviceType() === 'mobile';
+    return this.getDeviceType() === "mobile";
   },
 
   /**
    * 检测是否为平板设备
    */
   isTablet(): boolean {
-    return this.getDeviceType() === 'tablet';
+    return this.getDeviceType() === "tablet";
   },
 
   /**
@@ -56,11 +56,11 @@ export const DeviceUtils = {
   getMinTouchTargetSize(): number {
     const deviceType = this.getDeviceType();
     switch (deviceType) {
-      case 'mobile':
+      case "mobile":
         return 44; // iOS HIG minimum
-      case 'tablet':
+      case "tablet":
         return 48; // Material Design minimum
-      case 'tv':
+      case "tv":
         return 60; // TV optimized
       default:
         return 44;
@@ -77,7 +77,7 @@ export const DeviceUtils = {
       tablet: 1.1,
       tv: 1.25,
     }[deviceType];
-    
+
     return Math.round(baseSize * scaleFactor);
   },
 
@@ -91,7 +91,7 @@ export const DeviceUtils = {
       tablet: 1.0,
       tv: 1.5,
     }[deviceType];
-    
+
     return Math.round(baseSpacing * scaleFactor);
   },
 
@@ -99,7 +99,7 @@ export const DeviceUtils = {
    * 检测设备是否处于横屏模式
    */
   isLandscape(): boolean {
-    const { width, height } = Dimensions.get('window');
+    const { width, height } = Dimensions.get("window");
     return width > height;
   },
 
@@ -114,10 +114,10 @@ export const DeviceUtils = {
    * 获取安全的网格列数
    */
   getSafeColumnCount(preferredColumns: number): number {
-    const { width } = Dimensions.get('window');
+    const { width } = Dimensions.get("window");
     const minCardWidth = this.isMobile() ? 120 : this.isTablet() ? 140 : 160;
     const maxColumns = Math.floor(width / minCardWidth);
-    
+
     return Math.min(preferredColumns, maxColumns);
   },
 
@@ -132,7 +132,7 @@ export const DeviceUtils = {
       tablet: 1.0,
       tv: 1.2,
     }[deviceType];
-    
+
     return Math.round(baseDuration * scaleFactor);
   },
 };

@@ -3,7 +3,7 @@ import { View, StyleSheet, Platform, ActivityIndicator } from "react-native";
 import { ThemedText } from "../ThemedText";
 import { StyledButton } from "../StyledButton";
 import { useUpdateStore } from "@/stores/updateStore";
-import { UPDATE_CONFIG } from "@/constants/UpdateConfig";
+// import { UPDATE_CONFIG } from "@/constants/UpdateConfig";
 
 export function UpdateSection() {
   const { currentVersion, remoteVersion, updateAvailable, downloading, downloadProgress, checkForUpdate } =

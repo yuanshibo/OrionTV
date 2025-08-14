@@ -1,6 +1,6 @@
 // Learn more https://docs.expo.io/guides/customizing-metro
-const {getDefaultConfig} = require('expo/metro-config');
-const path = require('path');
+const { getDefaultConfig } = require("expo/metro-config");
+const path = require("path");
 
 // Find the project and workspace directories
 // eslint-disable-next-line no-undef
@@ -16,24 +16,24 @@ const config = getDefaultConfig(projectRoot);
 // Metro will still resolve source files with standard extensions
 // as usual if TV-specific files are not found for a module.
 //
-if (process.env?.EXPO_TV === '1') {
-  const originalSourceExts = config.resolver.sourceExts;
-  const tvSourceExts = [
-    ...originalSourceExts.map((e) => `tv.${e}`),
-    ...originalSourceExts,
-  ];
-  config.resolver.sourceExts = tvSourceExts;
-}
+// if (process.env?.EXPO_TV === '1') {
+//   const originalSourceExts = config.resolver.sourceExts;
+//   const tvSourceExts = [
+//     ...originalSourceExts.map((e) => `tv.${e}`),
+//     ...originalSourceExts,
+//   ];
+//   config.resolver.sourceExts = tvSourceExts;
+// }
 
 // This can be replaced with `find-yarn-workspace-root`
-const monorepoRoot = path.resolve(projectRoot, '../..');
+const monorepoRoot = path.resolve(projectRoot, "../..");
 
 // 1. Watch all files within the monorepo
 config.watchFolders = [monorepoRoot];
 // 2. Let Metro know where to resolve packages and in what order
 config.resolver.nodeModulesPaths = [
-  path.resolve(projectRoot, 'node_modules'),
-  path.resolve(monorepoRoot, 'node_modules'),
+  path.resolve(projectRoot, "node_modules"),
+  path.resolve(monorepoRoot, "node_modules"),
 ];
 config.resolver.disableHierarchicalLookup = true;
 
