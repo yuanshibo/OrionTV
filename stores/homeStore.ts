@@ -166,11 +166,11 @@ const useHomeStore = create<HomeState>((set, get) => ({
           if (pageStart === 0) {
             // 缓存新数据
             dataCache.set(cacheKey, newItems);
-            set((state) => ({
+            set({
               contentData: newItems,
               pageStart: result.list.length,
               hasMore: true,
-            }));
+            });
           } else {
             // 增量加载时不缓存，直接追加
             set((state) => ({
@@ -187,11 +187,25 @@ const useHomeStore = create<HomeState>((set, get) => ({
         set({ hasMore: false });
       }
     } catch (err: any) {
+      let errorMessage = "加载失败，请重试";
+      
       if (err.message === "API_URL_NOT_SET") {
-        set({ error: "请点击右上角设置按钮，配置您的服务器地址" });
-      } else {
-        set({ error: "加载失败，请重试" });
+        errorMessage = "请点击右上角设置按钮，配置您的服务器地址";
+      } else if (err.message === "UNAUTHORIZED") {
+        errorMessage = "认证失败，请重新登录";
+      } else if (err.message.includes("Network")) {
+        errorMessage = "网络连接失败，请检查网络连接";
+      } else if (err.message.includes("timeout")) {
+        errorMessage = "请求超时，请检查网络或服务器状态";
+      } else if (err.message.includes("404")) {
+        errorMessage = "服务器API路径不正确，请检查服务器配置";
+      } else if (err.message.includes("500")) {
+        errorMessage = "服务器内部错误，请联系管理员";
+      } else if (err.message.includes("403")) {
+        errorMessage = "访问被拒绝，请检查权限设置";
       }
+      
+      set({ error: errorMessage });
     } finally {
       set({ loading: false, loadingMore: false });
     }

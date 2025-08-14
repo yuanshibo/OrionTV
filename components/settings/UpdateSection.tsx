@@ -6,8 +6,16 @@ import { useUpdateStore } from "@/stores/updateStore";
 // import { UPDATE_CONFIG } from "@/constants/UpdateConfig";
 
 export function UpdateSection() {
-  const { currentVersion, remoteVersion, updateAvailable, downloading, downloadProgress, checkForUpdate } =
-    useUpdateStore();
+  const { 
+    currentVersion, 
+    remoteVersion, 
+    updateAvailable, 
+    downloading, 
+    downloadProgress, 
+    checkForUpdate,
+    isLatestVersion,
+    error
+  } = useUpdateStore();
 
   const [checking, setChecking] = React.useState(false);
 
@@ -33,6 +41,20 @@ export function UpdateSection() {
         <View style={styles.row}>
           <ThemedText style={styles.label}>最新版本</ThemedText>
           <ThemedText style={[styles.value, styles.newVersion]}>v{remoteVersion}</ThemedText>
+        </View>
+      )}
+
+      {isLatestVersion && remoteVersion && (
+        <View style={styles.row}>
+          <ThemedText style={styles.label}>状态</ThemedText>
+          <ThemedText style={[styles.value, styles.latestVersion]}>已是最新版本</ThemedText>
+        </View>
+      )}
+
+      {error && (
+        <View style={styles.row}>
+          <ThemedText style={styles.label}>检查结果</ThemedText>
+          <ThemedText style={[styles.value, styles.errorText]}>{error}</ThemedText>
         </View>
       )}
 
@@ -95,6 +117,14 @@ const styles = StyleSheet.create({
   newVersion: {
     color: "#00bb5e",
     fontWeight: "bold",
+  },
+  latestVersion: {
+    color: "#00bb5e",
+    fontWeight: "500",
+  },
+  errorText: {
+    color: "#ff6b6b",
+    fontWeight: "500",
   },
   buttonContainer: {
     flexDirection: "row",

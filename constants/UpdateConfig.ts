@@ -7,11 +7,11 @@ export const UPDATE_CONFIG = {
 
   // GitHub相关URL
   GITHUB_RAW_URL:
-    "https://ghfast.top/https://raw.githubusercontent.com/zimplexing/OrionTV/refs/heads/master/package.json",
+    "https://gh-proxy.com/https://raw.githubusercontent.com/zimplexing/OrionTV/refs/heads/master/package.json",
 
   // 获取平台特定的下载URL
   getDownloadUrl(version: string): string {
-    return `https://ghfast.top/https://github.com/zimplexing/OrionTV/releases/download/v${version}/orionTV.${version}.apk`;
+    return `https://gh-proxy.com/https://github.com/zimplexing/OrionTV/releases/download/v${version}/orionTV.${version}.apk`;
   },
 
   // 是否显示更新日志

@@ -10,11 +10,11 @@ import { Search, Settings, LogOut, Heart } from "lucide-react-native";
 import { StyledButton } from "@/components/StyledButton";
 import useHomeStore, { RowItem, Category } from "@/stores/homeStore";
 import useAuthStore from "@/stores/authStore";
-import { useSettingsStore } from "@/stores/settingsStore";
 import CustomScrollView from "@/components/CustomScrollView";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { getCommonResponsiveStyles } from "@/utils/ResponsiveStyles";
 import ResponsiveNavigation from "@/components/navigation/ResponsiveNavigation";
+import { useApiConfig, getApiConfigErrorMessage } from "@/hooks/useApiConfig";
 
 const LOAD_MORE_THRESHOLD = 200;
 
@@ -44,7 +44,7 @@ export default function HomeScreen() {
     clearError,
   } = useHomeStore();
   const { isLoggedIn, logout } = useAuthStore();
-  const { apiBaseUrl } = useSettingsStore();
+  const apiConfigStatus = useApiConfig();
 
   useFocusEffect(
     useCallback(() => {
@@ -52,34 +52,44 @@ export default function HomeScreen() {
     }, [refreshPlayRecords])
   );
 
+  // 统一的数据获取逻辑
   useEffect(() => {
-    // 只有在 apiBaseUrl 存在时才调用 fetchInitialData，避免时序问题
-    if (selectedCategory && !selectedCategory.tags && apiBaseUrl) {
-      fetchInitialData();
-    } else if (selectedCategory?.tags && !selectedCategory.tag) {
+    if (!selectedCategory) return;
+
+    // 如果是容器分类且没有选择标签，设置默认标签
+    if (selectedCategory.tags && !selectedCategory.tag) {
       const defaultTag = selectedCategory.tags[0];
       setSelectedTag(defaultTag);
       selectCategory({ ...selectedCategory, tag: defaultTag });
+      return;
     }
-  }, [selectedCategory, fetchInitialData, selectCategory, apiBaseUrl]);
 
-  useEffect(() => {
-    // 只有在 apiBaseUrl 存在时才调用 fetchInitialData，避免时序问题
-    if (selectedCategory && selectedCategory.tag && apiBaseUrl) {
-      fetchInitialData();
+    // 只有在API配置完成且分类有效时才获取数据
+    if (apiConfigStatus.isConfigured && !apiConfigStatus.needsConfiguration) {
+      // 对于有标签的分类，需要确保有标签才获取数据
+      if (selectedCategory.tags && selectedCategory.tag) {
+        fetchInitialData();
+      }
+      // 对于无标签的分类，直接获取数据
+      else if (!selectedCategory.tags) {
+        fetchInitialData();
+      }
     }
-  }, [fetchInitialData, selectedCategory, selectedCategory.tag, apiBaseUrl]);
+  }, [
+    selectedCategory,
+    selectedCategory?.tag,
+    apiConfigStatus.isConfigured,
+    apiConfigStatus.needsConfiguration,
+    fetchInitialData,
+    selectCategory,
+  ]);
 
-  // 检查是否需要显示API配置提示
-  const shouldShowApiConfig = !apiBaseUrl && selectedCategory && !selectedCategory.tags;
-  
-  // 清除错误状态，当API未配置时
+  // 清除错误状态的逻辑
   useEffect(() => {
-    if (shouldShowApiConfig && error) {
-      // 如果需要显示API配置提示，清除之前的错误状态
+    if (apiConfigStatus.needsConfiguration && error) {
       clearError();
     }
-  }, [shouldShowApiConfig, error, clearError]);
+  }, [apiConfigStatus.needsConfiguration, error, clearError]);
 
   useEffect(() => {
     if (!loading && contentData.length > 0) {
@@ -119,7 +129,7 @@ export default function HomeScreen() {
     );
   };
 
-  const renderContentItem = ({ item, index }: { item: RowItem; index: number }) => (
+  const renderContentItem = ({ item }: { item: RowItem; index: number }) => (
     <VideoCard
       id={item.id}
       source={item.source}
@@ -141,6 +151,9 @@ export default function HomeScreen() {
     if (!loadingMore) return null;
     return <ActivityIndicator style={{ marginVertical: 20 }} size="large" />;
   };
+
+  // 检查是否需要显示API配置提示
+  const shouldShowApiConfig = apiConfigStatus.needsConfiguration && selectedCategory && !selectedCategory.tags;
 
   // TV端和平板端的顶部导航
   const renderHeader = () => {
@@ -280,8 +293,21 @@ export default function HomeScreen() {
       {/* 内容网格 */}
       {shouldShowApiConfig ? (
         <View style={commonStyles.center}>
-          <ThemedText type="subtitle" style={{ padding: spacing, textAlign: 'center' }}>
-            请点击右上角设置按钮，配置您的服务器地址
+          <ThemedText type="subtitle" style={{ padding: spacing, textAlign: "center" }}>
+            {getApiConfigErrorMessage(apiConfigStatus)}
+          </ThemedText>
+        </View>
+      ) : apiConfigStatus.isValidating ? (
+        <View style={commonStyles.center}>
+          <ActivityIndicator size="large" />
+          <ThemedText type="subtitle" style={{ padding: spacing, textAlign: "center" }}>
+            正在验证服务器配置...
+          </ThemedText>
+        </View>
+      ) : apiConfigStatus.error && !apiConfigStatus.isValid ? (
+        <View style={commonStyles.center}>
+          <ThemedText type="subtitle" style={{ padding: spacing, textAlign: "center" }}>
+            {apiConfigStatus.error}
           </ThemedText>
         </View>
       ) : loading ? (

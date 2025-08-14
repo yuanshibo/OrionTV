@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import updateService from '../services/updateService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Toast from 'react-native-toast-message';
 
 interface UpdateState {
   // 状态
@@ -15,6 +16,7 @@ interface UpdateState {
   lastCheckTime: number;
   skipVersion: string | null;
   showUpdateModal: boolean;
+  isLatestVersion: boolean; // 新增：是否已是最新版本
   
   // 操作
   checkForUpdate: (silent?: boolean) => Promise<void>;
@@ -43,11 +45,12 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
   lastCheckTime: 0,
   skipVersion: null,
   showUpdateModal: false,
+  isLatestVersion: false, // 新增：初始为false
 
   // 检查更新
   checkForUpdate: async (silent = false) => {
     try {
-      set({ error: null });
+      set({ error: null, isLatestVersion: false });
 
       // 获取跳过的版本
       const skipVersion = await AsyncStorage.getItem(STORAGE_KEYS.SKIP_VERSION);
@@ -58,6 +61,9 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
       // 如果有更新且不是要跳过的版本
       const shouldShowUpdate = isUpdateAvailable && versionInfo.version !== skipVersion;
 
+      // 检查是否已经是最新版本
+      const isLatest = !isUpdateAvailable;
+
       set({
         remoteVersion: versionInfo.version,
         downloadUrl: versionInfo.downloadUrl,
@@ -65,7 +71,18 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
         lastCheckTime: Date.now(),
         skipVersion,
         showUpdateModal: shouldShowUpdate && !silent,
+        isLatestVersion: isLatest,
       });
+
+      // 如果是手动检查且已是最新版本，显示提示
+      if (!silent && isLatest) {
+        Toast.show({
+          type: 'success',
+          text1: '已是最新版本',
+          text2: `当前版本 v${updateService.getCurrentVersion()} 已是最新版本`,
+          visibilityTime: 3000,
+        });
+      }
 
       // 保存最后检查时间
       await AsyncStorage.setItem(
@@ -76,7 +93,8 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
       // console.info('检查更新失败:', error);
       set({ 
         error: error instanceof Error ? error.message : '检查更新失败',
-        updateAvailable: false 
+        updateAvailable: false,
+        isLatestVersion: false,
       });
     }
   },
@@ -166,6 +184,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
       downloadedPath: null,
       error: null,
       showUpdateModal: false,
+      isLatestVersion: false, // 重置时也要重置这个状态
     });
   },
 }));
