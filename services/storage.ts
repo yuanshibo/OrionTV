@@ -22,6 +22,7 @@ export type Favorite = ApiFavorite;
 export interface PlayerSettings {
   introEndTime?: number;
   outroStartTime?: number;
+  playbackRate?: number;
 }
 
 export interface AppSettings {
@@ -60,10 +61,10 @@ export class PlayerSettingsManager {
     const allSettings = await this.getAll();
     const key = generateKey(source, id);
     // Only save if there are actual values to save
-    if (settings.introEndTime !== undefined || settings.outroStartTime !== undefined) {
+    if (settings.introEndTime !== undefined || settings.outroStartTime !== undefined || settings.playbackRate !== undefined) {
       allSettings[key] = { ...allSettings[key], ...settings };
     } else {
-      // If both are undefined, remove the key
+      // If all are undefined, remove the key
       delete allSettings[key];
     }
     await AsyncStorage.setItem(STORAGE_KEYS.PLAYER_SETTINGS, JSON.stringify(allSettings));

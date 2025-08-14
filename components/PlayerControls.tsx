@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet, Pressable } from "react-native";
-import { Pause, Play, SkipForward, List, Tv, ArrowDownToDot, ArrowUpFromDot } from "lucide-react-native";
+import { Pause, Play, SkipForward, List, Tv, ArrowDownToDot, ArrowUpFromDot, Gauge } from "lucide-react-native";
 import { ThemedText } from "@/components/ThemedText";
 import { MediaButton } from "@/components/MediaButton";
 
@@ -21,10 +21,12 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
     isSeeking,
     seekPosition,
     progressPosition,
+    playbackRate,
     togglePlayPause,
     playEpisode,
     setShowEpisodeModal,
     setShowSourceModal,
+    setShowSpeedModal,
     setIntroEndTime,
     setOutroStartTime,
     introEndTime,
@@ -107,6 +109,10 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
 
           <MediaButton onPress={() => setShowEpisodeModal(true)}>
             <List color="white" size={24} />
+          </MediaButton>
+
+          <MediaButton onPress={() => setShowSpeedModal(true)} timeLabel={playbackRate !== 1.0 ? `${playbackRate}x` : undefined}>
+            <Gauge color="white" size={24} />
           </MediaButton>
 
           <MediaButton onPress={() => setShowSourceModal(true)}>
