@@ -208,9 +208,31 @@ export class API {
   }
 
   async getResources(signal?: AbortSignal): Promise<ApiSite[]> {
-    const url = `/api/search/resources`;
+    const url = `/api/admin/config`;
     const response = await this._fetch(url, { signal });
-    return response.json();
+    const config = await response.json();
+    
+    // 添加安全检查
+    if (!config || !config.Config.SourceConfig) {
+      console.warn('API response missing SourceConfig:', config);
+      return [];
+    }
+    
+    // 确保 SourceConfig 是数组
+    if (!Array.isArray(config.Config.SourceConfig)) {
+      console.warn('SourceConfig is not an array:', config.Config.SourceConfig);
+      return [];
+    }
+    
+    // 过滤并验证每个站点配置
+    return config.Config.SourceConfig
+      .filter((site: any) => site && !site.disabled)
+      .map((site: any) => ({
+        key: site.key || '',
+        api: site.api || '',
+        name: site.name || '',
+        detail: site.detail
+      }));
   }
 
   async getVideoDetail(source: string, id: string): Promise<VideoDetail> {
