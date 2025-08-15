@@ -224,15 +224,27 @@ export class API {
       return [];
     }
     
-    // 过滤并验证每个站点配置
-    return config.Config.SourceConfig
+    // 过滤并验证每个站点配置，同时进行去重
+    const seenKeys = new Set<string>();
+    const uniqueSites: ApiSite[] = [];
+    
+    config.Config.SourceConfig
       .filter((site: any) => site && !site.disabled)
-      .map((site: any) => ({
-        key: site.key || '',
-        api: site.api || '',
-        name: site.name || '',
-        detail: site.detail
-      }));
+      .forEach((site: any) => {
+        const key = site.key || '';
+        // 基于 key 字段去重
+        if (key && !seenKeys.has(key)) {
+          seenKeys.add(key);
+          uniqueSites.push({
+            key: key,
+            api: site.api || '',
+            name: site.name || '',
+            detail: site.detail
+          });
+        }
+      });
+    
+    return uniqueSites;
   }
 
   async getVideoDetail(source: string, id: string): Promise<VideoDetail> {
