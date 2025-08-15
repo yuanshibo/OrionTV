@@ -204,7 +204,8 @@ export class API {
   async searchVideo(query: string, resourceId: string, signal?: AbortSignal): Promise<{ results: SearchResult[] }> {
     const url = `/api/search/one?q=${encodeURIComponent(query)}&resourceId=${encodeURIComponent(resourceId)}`;
     const response = await this._fetch(url, { signal });
-    return response.json();
+    const { results } = await response.json();
+    return { results: results.filter((item: any) => item.title === query )};
   }
 
   async getResources(signal?: AbortSignal): Promise<ApiSite[]> {

@@ -1,7 +1,7 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useCallback, memo, useMemo } from "react";
 import { StyleSheet, TouchableOpacity, BackHandler, AppState, AppStateStatus, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Video, ResizeMode } from "expo-av";
+import { Video } from "expo-av";
 import { useKeepAwake } from "expo-keep-awake";
 import { ThemedView } from "@/components/ThemedView";
 import { PlayerControls } from "@/components/PlayerControls";
@@ -16,6 +16,55 @@ import { useTVRemoteHandler } from "@/hooks/useTVRemoteHandler";
 import Toast from "react-native-toast-message";
 import usePlayerStore, { selectCurrentEpisode } from "@/stores/playerStore";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { useVideoHandlers } from "@/hooks/useVideoHandlers";
+
+// 优化的加载动画组件
+const LoadingContainer = memo(
+  ({ style, currentEpisode }: { style: any; currentEpisode: { url: string; title: string } | undefined }) => {
+    console.info(
+      `[PERF] Video component NOT rendered - waiting for valid URL. currentEpisode: ${!!currentEpisode}, url: ${
+        currentEpisode?.url ? "exists" : "missing"
+      }`
+    );
+    return (
+      <View style={style}>
+        <VideoLoadingAnimation showProgressBar />
+      </View>
+    );
+  }
+);
+
+LoadingContainer.displayName = "LoadingContainer";
+
+// 移到组件外部避免重复创建
+const createResponsiveStyles = (deviceType: string) => {
+  const isMobile = deviceType === "mobile";
+  const isTablet = deviceType === "tablet";
+
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: "black",
+      // 移动端和平板端可能需要状态栏处理
+      ...(isMobile || isTablet ? { paddingTop: 0 } : {}),
+    },
+    videoContainer: {
+      ...StyleSheet.absoluteFillObject,
+      // 为触摸设备添加更多的交互区域
+      ...(isMobile || isTablet ? { zIndex: 1 } : {}),
+    },
+    videoPlayer: {
+      ...StyleSheet.absoluteFillObject,
+    },
+    loadingContainer: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: "rgba(0, 0, 0, 0.8)",
+      justifyContent: "center",
+      alignItems: "center",
+      zIndex: 10,
+    },
+  });
+};
 
 export default function PlayScreen() {
   const videoRef = useRef<Video>(null);
@@ -61,16 +110,53 @@ export default function PlayScreen() {
   } = usePlayerStore();
   const currentEpisode = usePlayerStore(selectCurrentEpisode);
 
+  // 使用Video事件处理hook
+  const { videoProps } = useVideoHandlers({
+    videoRef,
+    currentEpisode,
+    initialPosition,
+    introEndTime,
+    playbackRate,
+    handlePlaybackStatusUpdate,
+    deviceType,
+    detail: detail || undefined,
+  });
+
+  // TV遥控器处理 - 总是调用hook，但根据设备类型决定是否使用结果
+  const tvRemoteHandler = useTVRemoteHandler();
+
+  // 优化的动态样式 - 使用useMemo避免重复计算
+  const dynamicStyles = useMemo(() => createResponsiveStyles(deviceType), [deviceType]);
+
   useEffect(() => {
+    const perfStart = performance.now();
+    console.info(`[PERF] PlayScreen useEffect START - source: ${source}, id: ${id}, title: ${title}`);
+
     setVideoRef(videoRef);
     if (source && id && title) {
+      console.info(`[PERF] Calling loadVideo with episodeIndex: ${episodeIndex}, position: ${position}`);
       loadVideo({ source, id, episodeIndex, position, title });
+    } else {
+      console.info(`[PERF] Missing required params - source: ${!!source}, id: ${!!id}, title: ${!!title}`);
     }
 
+    const perfEnd = performance.now();
+    console.info(`[PERF] PlayScreen useEffect END - took ${(perfEnd - perfStart).toFixed(2)}ms`);
+
     return () => {
+      console.info(`[PERF] PlayScreen unmounting - calling reset()`);
       reset(); // Reset state when component unmounts
     };
   }, [episodeIndex, source, position, setVideoRef, reset, loadVideo, id, title]);
+
+  // 优化的屏幕点击处理
+  const onScreenPress = useCallback(() => {
+    if (deviceType === "tv") {
+      tvRemoteHandler.onScreenPress();
+    } else {
+      setShowControls(!showControls);
+    }
+  }, [deviceType, tvRemoteHandler, setShowControls, showControls]);
 
   useEffect(() => {
     const handleAppStateChange = (nextAppState: AppStateStatus) => {
@@ -85,14 +171,6 @@ export default function PlayScreen() {
       subscription.remove();
     };
   }, []);
-
-  // TV遥控器处理 - 总是调用hook，但根据设备类型决定是否使用结果
-  const tvRemoteHandler = useTVRemoteHandler();
-  
-  // 根据设备类型使用不同的交互处理
-  const onScreenPress = deviceType === 'tv' 
-    ? tvRemoteHandler.onScreenPress 
-    : () => setShowControls(!showControls);
 
   useEffect(() => {
     const backAction = () => {
@@ -132,42 +210,29 @@ export default function PlayScreen() {
     return <VideoLoadingAnimation showProgressBar />;
   }
 
-  // 动态样式
-  const dynamicStyles = createResponsiveStyles(deviceType);
-
   return (
     <ThemedView focusable style={dynamicStyles.container}>
-      <TouchableOpacity 
-        activeOpacity={1} 
-        style={dynamicStyles.videoContainer} 
+      <TouchableOpacity
+        activeOpacity={1}
+        style={dynamicStyles.videoContainer}
         onPress={onScreenPress}
-        disabled={deviceType !== 'tv' && showControls} // 移动端和平板端在显示控制条时禁用触摸
+        disabled={deviceType !== "tv" && showControls} // 移动端和平板端在显示控制条时禁用触摸
       >
-        <Video
-          ref={videoRef}
-          style={dynamicStyles.videoPlayer}
-          source={{ uri: currentEpisode?.url || "" }}
-          posterSource={{ uri: detail?.poster ?? "" }}
-          resizeMode={ResizeMode.CONTAIN}
-          rate={playbackRate}
-          onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
-          onLoad={() => {
-            const jumpPosition = initialPosition || introEndTime || 0;
-            if (jumpPosition > 0) {
-              videoRef.current?.setPositionAsync(jumpPosition);
-            }
-            usePlayerStore.setState({ isLoading: false });
-          }}
-          onLoadStart={() => usePlayerStore.setState({ isLoading: true })}
-          useNativeControls={deviceType !== 'tv'}
-          shouldPlay
-        />
+        {/* 条件渲染Video组件：只有在有有效URL时才渲染 */}
+        {currentEpisode?.url ? (
+          <Video ref={videoRef} style={dynamicStyles.videoPlayer} {...videoProps} />
+        ) : (
+          <LoadingContainer style={dynamicStyles.loadingContainer} currentEpisode={currentEpisode} />
+        )}
 
-        {showControls && deviceType === 'tv' && <PlayerControls showControls={showControls} setShowControls={setShowControls} />}
+        {showControls && deviceType === "tv" && (
+          <PlayerControls showControls={showControls} setShowControls={setShowControls} />
+        )}
 
         <SeekingBar />
 
-        {isLoading && (
+        {/* 只在Video组件存在且正在加载时显示加载动画覆盖层 */}
+        {currentEpisode?.url && isLoading && (
           <View style={dynamicStyles.loadingContainer}>
             <VideoLoadingAnimation showProgressBar />
           </View>
@@ -182,32 +247,3 @@ export default function PlayScreen() {
     </ThemedView>
   );
 }
-
-const createResponsiveStyles = (deviceType: string) => {
-  const isMobile = deviceType === 'mobile';
-  const isTablet = deviceType === 'tablet';
-
-  return StyleSheet.create({
-    container: { 
-      flex: 1, 
-      backgroundColor: "black",
-      // 移动端和平板端可能需要状态栏处理
-      ...(isMobile || isTablet ? { paddingTop: 0 } : {}),
-    },
-    videoContainer: {
-      ...StyleSheet.absoluteFillObject,
-      // 为触摸设备添加更多的交互区域
-      ...(isMobile || isTablet ? { zIndex: 1 } : {}),
-    },
-    videoPlayer: {
-      ...StyleSheet.absoluteFillObject,
-    },
-    loadingContainer: {
-      ...StyleSheet.absoluteFillObject,
-      backgroundColor: 'rgba(0, 0, 0, 0.8)',
-      justifyContent: 'center',
-      alignItems: 'center',
-      zIndex: 10,
-    },
-  });
-};

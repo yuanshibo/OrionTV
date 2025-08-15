@@ -59,8 +59,16 @@ export class PlayerSettingsManager {
   }
 
   static async get(source: string, id: string): Promise<PlayerSettings | null> {
+    const perfStart = performance.now();
+    console.info(`[PERF] PlayerSettingsManager.get START - source: ${source}, id: ${id}`);
+    
     const allSettings = await this.getAll();
-    return allSettings[generateKey(source, id)] || null;
+    const result = allSettings[generateKey(source, id)] || null;
+    
+    const perfEnd = performance.now();
+    console.info(`[PERF] PlayerSettingsManager.get END - took ${(perfEnd - perfStart).toFixed(2)}ms, found: ${!!result}`);
+    
+    return result;
   }
 
   static async save(source: string, id: string, settings: PlayerSettings): Promise<void> {
@@ -165,8 +173,12 @@ export class PlayRecordManager {
   }
 
   static async getAll(): Promise<Record<string, PlayRecord>> {
+    const perfStart = performance.now();
+    const storageType = this.getStorageType();
+    console.info(`[PERF] PlayRecordManager.getAll START - storageType: ${storageType}`);
+    
     let apiRecords: Record<string, PlayRecord> = {};
-    if (this.getStorageType() === "localstorage") {
+    if (storageType === "localstorage") {
       try {
         const data = await AsyncStorage.getItem(STORAGE_KEYS.PLAY_RECORDS);
         apiRecords = data ? JSON.parse(data) : {};
@@ -175,7 +187,13 @@ export class PlayRecordManager {
         return {};
       }
     } else {
+      const apiStart = performance.now();
+      console.info(`[PERF] API getPlayRecords START`);
+      
       apiRecords = await api.getPlayRecords();
+      
+      const apiEnd = performance.now();
+      console.info(`[PERF] API getPlayRecords END - took ${(apiEnd - apiStart).toFixed(2)}ms, records: ${Object.keys(apiRecords).length}`);
     }
 
     const localSettings = await PlayerSettingsManager.getAll();
@@ -186,6 +204,10 @@ export class PlayRecordManager {
         ...localSettings[key],
       };
     }
+    
+    const perfEnd = performance.now();
+    console.info(`[PERF] PlayRecordManager.getAll END - took ${(perfEnd - perfStart).toFixed(2)}ms, total records: ${Object.keys(mergedRecords).length}`);
+    
     return mergedRecords;
   }
 
@@ -207,9 +229,18 @@ export class PlayRecordManager {
   }
 
   static async get(source: string, id: string): Promise<PlayRecord | null> {
+    const perfStart = performance.now();
     const key = generateKey(source, id);
+    const storageType = this.getStorageType();
+    console.info(`[PERF] PlayRecordManager.get START - source: ${source}, id: ${id}, storageType: ${storageType}`);
+    
     const records = await this.getAll();
-    return records[key] || null;
+    const result = records[key] || null;
+    
+    const perfEnd = performance.now();
+    console.info(`[PERF] PlayRecordManager.get END - took ${(perfEnd - perfStart).toFixed(2)}ms, found: ${!!result}`);
+    
+    return result;
   }
 
   static async remove(source: string, id: string): Promise<void> {
