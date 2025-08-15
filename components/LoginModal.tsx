@@ -6,6 +6,7 @@ import useAuthStore from "@/stores/authStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 import useHomeStore from "@/stores/homeStore";
 import { api } from "@/services/api";
+import { LoginCredentialsManager } from "@/services/storage";
 import { ThemedView } from "./ThemedView";
 import { ThemedText } from "./ThemedText";
 import { StyledButton } from "./StyledButton";
@@ -21,6 +22,20 @@ const LoginModal = () => {
   const passwordInputRef = useRef<TextInput>(null);
   const pathname = usePathname();
   const isSettingsPage = pathname.includes("settings");
+
+  // Load saved credentials when modal opens
+  useEffect(() => {
+    if (isLoginModalVisible && !isSettingsPage) {
+      const loadCredentials = async () => {
+        const savedCredentials = await LoginCredentialsManager.get();
+        if (savedCredentials) {
+          setUsername(savedCredentials.username);
+          setPassword(savedCredentials.password);
+        }
+      };
+      loadCredentials();
+    }
+  }, [isLoginModalVisible, isSettingsPage]);
 
   // Focus management with better TV remote handling
   useEffect(() => {
@@ -51,10 +66,12 @@ const LoginModal = () => {
       await api.login(isLocalStorage ? undefined : username, password);
       await checkLoginStatus(apiBaseUrl);
       await refreshPlayRecords();
+      
+      // Save credentials on successful login
+      await LoginCredentialsManager.save({ username, password });
+      
       Toast.show({ type: "success", text1: "登录成功" });
       hideLoginModal();
-      setUsername("");
-      setPassword("");
 
       // Show disclaimer alert after successful login
       Alert.alert(

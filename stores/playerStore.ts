@@ -2,7 +2,7 @@ import { create } from "zustand";
 import Toast from "react-native-toast-message";
 import { AVPlaybackStatus, Video } from "expo-av";
 import { RefObject } from "react";
-import { PlayRecord, PlayRecordManager } from "@/services/storage";
+import { PlayRecord, PlayRecordManager, PlayerSettingsManager } from "@/services/storage";
 import useDetailStore, { episodesSelectorBySource } from "./detailStore";
 
 interface Episode {
@@ -19,11 +19,13 @@ interface PlayerState {
   showControls: boolean;
   showEpisodeModal: boolean;
   showSourceModal: boolean;
+  showSpeedModal: boolean;
   showNextEpisodeOverlay: boolean;
   isSeeking: boolean;
   seekPosition: number;
   progressPosition: number;
   initialPosition: number;
+  playbackRate: number;
   introEndTime?: number;
   outroStartTime?: number;
   setVideoRef: (ref: RefObject<Video>) => void;
@@ -42,7 +44,9 @@ interface PlayerState {
   setShowControls: (show: boolean) => void;
   setShowEpisodeModal: (show: boolean) => void;
   setShowSourceModal: (show: boolean) => void;
+  setShowSpeedModal: (show: boolean) => void;
   setShowNextEpisodeOverlay: (show: boolean) => void;
+  setPlaybackRate: (rate: number) => void;
   setIntroEndTime: () => void;
   setOutroStartTime: () => void;
   reset: () => void;
@@ -61,11 +65,13 @@ const usePlayerStore = create<PlayerState>((set, get) => ({
   showControls: false,
   showEpisodeModal: false,
   showSourceModal: false,
+  showSpeedModal: false,
   showNextEpisodeOverlay: false,
   isSeeking: false,
   seekPosition: 0,
   progressPosition: 0,
   initialPosition: 0,
+  playbackRate: 1.0,
   introEndTime: undefined,
   outroStartTime: undefined,
   _seekTimeout: undefined,
@@ -93,17 +99,21 @@ const usePlayerStore = create<PlayerState>((set, get) => ({
 
     try {
       const playRecord = await PlayRecordManager.get(detail.source, detail.id.toString());
+      const playerSettings = await PlayerSettingsManager.get(detail.source, detail.id.toString());
       const initialPositionFromRecord = playRecord?.play_time ? playRecord.play_time * 1000 : 0;
+      const savedPlaybackRate = playerSettings?.playbackRate || 1.0;
+      
       set({
         isLoading: false,
         currentEpisodeIndex: episodeIndex,
         initialPosition: position || initialPositionFromRecord,
+        playbackRate: savedPlaybackRate,
         episodes: episodes.map((ep, index) => ({
           url: ep,
           title: `第 ${index + 1} 集`,
         })),
-        introEndTime: playRecord?.introEndTime,
-        outroStartTime: playRecord?.outroStartTime,
+        introEndTime: playRecord?.introEndTime || playerSettings?.introEndTime,
+        outroStartTime: playRecord?.outroStartTime || playerSettings?.outroStartTime,
       });
     } catch (error) {
       console.info("Failed to load play record", error);
@@ -305,7 +315,25 @@ const usePlayerStore = create<PlayerState>((set, get) => ({
   setShowControls: (show) => set({ showControls: show }),
   setShowEpisodeModal: (show) => set({ showEpisodeModal: show }),
   setShowSourceModal: (show) => set({ showSourceModal: show }),
+  setShowSpeedModal: (show) => set({ showSpeedModal: show }),
   setShowNextEpisodeOverlay: (show) => set({ showNextEpisodeOverlay: show }),
+
+  setPlaybackRate: async (rate) => {
+    const { videoRef } = get();
+    const detail = useDetailStore.getState().detail;
+    
+    try {
+      await videoRef?.current?.setRateAsync(rate, true);
+      set({ playbackRate: rate });
+      
+      // Save the playback rate preference
+      if (detail) {
+        await PlayerSettingsManager.save(detail.source, detail.id.toString(), { playbackRate: rate });
+      }
+    } catch (error) {
+      console.info("Failed to set playback rate:", error);
+    }
+  },
 
   reset: () => {
     set({
@@ -316,8 +344,10 @@ const usePlayerStore = create<PlayerState>((set, get) => ({
       showControls: false,
       showEpisodeModal: false,
       showSourceModal: false,
+      showSpeedModal: false,
       showNextEpisodeOverlay: false,
       initialPosition: 0,
+      playbackRate: 1.0,
       introEndTime: undefined,
       outroStartTime: undefined,
     });

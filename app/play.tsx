@@ -7,6 +7,7 @@ import { ThemedView } from "@/components/ThemedView";
 import { PlayerControls } from "@/components/PlayerControls";
 import { EpisodeSelectionModal } from "@/components/EpisodeSelectionModal";
 import { SourceSelectionModal } from "@/components/SourceSelectionModal";
+import { SpeedSelectionModal } from "@/components/SpeedSelectionModal";
 import { SeekingBar } from "@/components/SeekingBar";
 // import { NextEpisodeOverlay } from "@/components/NextEpisodeOverlay";
 import VideoLoadingAnimation from "@/components/VideoLoadingAnimation";
@@ -50,6 +51,7 @@ export default function PlayScreen() {
     // showNextEpisodeOverlay,
     initialPosition,
     introEndTime,
+    playbackRate,
     setVideoRef,
     handlePlaybackStatusUpdate,
     setShowControls,
@@ -147,6 +149,7 @@ export default function PlayScreen() {
           source={{ uri: currentEpisode?.url || "" }}
           posterSource={{ uri: detail?.poster ?? "" }}
           resizeMode={ResizeMode.CONTAIN}
+          rate={playbackRate}
           onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
           onLoad={() => {
             const jumpPosition = initialPosition || introEndTime || 0;
@@ -175,6 +178,7 @@ export default function PlayScreen() {
 
       <EpisodeSelectionModal />
       <SourceSelectionModal />
+      <SpeedSelectionModal />
     </ThemedView>
   );
 }

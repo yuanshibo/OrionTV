@@ -9,6 +9,7 @@ const STORAGE_KEYS = {
   FAVORITES: "mytv_favorites",
   PLAY_RECORDS: "mytv_play_records",
   SEARCH_HISTORY: "mytv_search_history",
+  LOGIN_CREDENTIALS: "mytv_login_credentials",
 } as const;
 
 // --- Type Definitions (aligned with api.ts) ---
@@ -22,6 +23,7 @@ export type Favorite = ApiFavorite;
 export interface PlayerSettings {
   introEndTime?: number;
   outroStartTime?: number;
+  playbackRate?: number;
 }
 
 export interface AppSettings {
@@ -34,6 +36,11 @@ export interface AppSettings {
     };
   };
   m3uUrl: string;
+}
+
+export interface LoginCredentials {
+  username: string;
+  password: string;
 }
 
 // --- Helper ---
@@ -60,10 +67,10 @@ export class PlayerSettingsManager {
     const allSettings = await this.getAll();
     const key = generateKey(source, id);
     // Only save if there are actual values to save
-    if (settings.introEndTime !== undefined || settings.outroStartTime !== undefined) {
+    if (settings.introEndTime !== undefined || settings.outroStartTime !== undefined || settings.playbackRate !== undefined) {
       allSettings[key] = { ...allSettings[key], ...settings };
     } else {
-      // If both are undefined, remove the key
+      // If all are undefined, remove the key
       delete allSettings[key];
     }
     await AsyncStorage.setItem(STORAGE_KEYS.PLAYER_SETTINGS, JSON.stringify(allSettings));
@@ -299,5 +306,34 @@ export class SettingsManager {
 
   static async reset(): Promise<void> {
     await AsyncStorage.removeItem(STORAGE_KEYS.SETTINGS);
+  }
+}
+
+// --- LoginCredentialsManager (Uses AsyncStorage) ---
+export class LoginCredentialsManager {
+  static async get(): Promise<LoginCredentials | null> {
+    try {
+      const data = await AsyncStorage.getItem(STORAGE_KEYS.LOGIN_CREDENTIALS);
+      return data ? JSON.parse(data) : null;
+    } catch (error) {
+      console.info("Failed to get login credentials:", error);
+      return null;
+    }
+  }
+
+  static async save(credentials: LoginCredentials): Promise<void> {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.LOGIN_CREDENTIALS, JSON.stringify(credentials));
+    } catch (error) {
+      console.error("Failed to save login credentials:", error);
+    }
+  }
+
+  static async clear(): Promise<void> {
+    try {
+      await AsyncStorage.removeItem(STORAGE_KEYS.LOGIN_CREDENTIALS);
+    } catch (error) {
+      console.error("Failed to clear login credentials:", error);
+    }
   }
 }
