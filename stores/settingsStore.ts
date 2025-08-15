@@ -2,6 +2,9 @@ import { create } from "zustand";
 import { SettingsManager } from "@/services/storage";
 import { api, ServerConfig } from "@/services/api";
 import { storageConfig } from "@/services/storageConfig";
+import Logger from "@/utils/Logger";
+
+const logger = Logger.withTag('SettingsStore');
 
 interface SettingsState {
   apiBaseUrl: string;
@@ -65,7 +68,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       }
     } catch (error) {
       set({ serverConfig: null });
-      console.info("Failed to fetch server config:", error);
+      logger.error("Failed to fetch server config:", error);
     } finally {
       set({ isLoadingServerConfig: false });
     }

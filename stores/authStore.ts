@@ -3,6 +3,9 @@ import Cookies from "@react-native-cookies/cookies";
 import { api } from "@/services/api";
 import { useSettingsStore } from "./settingsStore";
 import Toast from "react-native-toast-message";
+import Logger from "@/utils/Logger";
+
+const logger = Logger.withTag('AuthStore');
 
 interface AuthState {
   isLoggedIn: boolean;
@@ -69,7 +72,7 @@ const useAuthStore = create<AuthState>((set) => ({
         }
       }
     } catch (error) {
-      console.info("Failed to check login status:", error);
+      logger.error("Failed to check login status:", error);
       if (error instanceof Error && error.message === "UNAUTHORIZED") {
         set({ isLoggedIn: false, isLoginModalVisible: true });
       } else {
@@ -82,7 +85,7 @@ const useAuthStore = create<AuthState>((set) => ({
       await Cookies.clearAll();
       set({ isLoggedIn: false, isLoginModalVisible: true });
     } catch (error) {
-      console.info("Failed to logout:", error);
+      logger.error("Failed to logout:", error);
     }
   },
 }));

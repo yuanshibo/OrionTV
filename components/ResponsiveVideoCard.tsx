@@ -8,6 +8,9 @@ import { ThemedText } from "@/components/ThemedText";
 import { Colors } from "@/constants/Colors";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { DeviceUtils } from "@/utils/DeviceUtils";
+import Logger from '@/utils/Logger';
+
+const logger = Logger.withTag('ResponsiveVideoCard');
 
 interface VideoCardProps extends React.ComponentProps<typeof TouchableOpacity> {
   id: string;
@@ -138,7 +141,7 @@ const ResponsiveVideoCard = forwardRef<View, VideoCardProps>(
                 router.replace("/");
               }
             } catch (error) {
-              console.info("Failed to delete play record:", error);
+              logger.info("Failed to delete play record:", error);
               Alert.alert("错误", "删除观看记录失败，请重试");
             }
           },

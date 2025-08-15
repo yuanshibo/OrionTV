@@ -17,11 +17,14 @@ import Toast from "react-native-toast-message";
 import usePlayerStore, { selectCurrentEpisode } from "@/stores/playerStore";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { useVideoHandlers } from "@/hooks/useVideoHandlers";
+import Logger from '@/utils/Logger';
+
+const logger = Logger.withTag('PlayScreen');
 
 // 优化的加载动画组件
 const LoadingContainer = memo(
   ({ style, currentEpisode }: { style: any; currentEpisode: { url: string; title: string } | undefined }) => {
-    console.info(
+    logger.info(
       `[PERF] Video component NOT rendered - waiting for valid URL. currentEpisode: ${!!currentEpisode}, url: ${
         currentEpisode?.url ? "exists" : "missing"
       }`
@@ -130,21 +133,21 @@ export default function PlayScreen() {
 
   useEffect(() => {
     const perfStart = performance.now();
-    console.info(`[PERF] PlayScreen useEffect START - source: ${source}, id: ${id}, title: ${title}`);
+    logger.info(`[PERF] PlayScreen useEffect START - source: ${source}, id: ${id}, title: ${title}`);
 
     setVideoRef(videoRef);
     if (source && id && title) {
-      console.info(`[PERF] Calling loadVideo with episodeIndex: ${episodeIndex}, position: ${position}`);
+      logger.info(`[PERF] Calling loadVideo with episodeIndex: ${episodeIndex}, position: ${position}`);
       loadVideo({ source, id, episodeIndex, position, title });
     } else {
-      console.info(`[PERF] Missing required params - source: ${!!source}, id: ${!!id}, title: ${!!title}`);
+      logger.info(`[PERF] Missing required params - source: ${!!source}, id: ${!!id}, title: ${!!title}`);
     }
 
     const perfEnd = performance.now();
-    console.info(`[PERF] PlayScreen useEffect END - took ${(perfEnd - perfStart).toFixed(2)}ms`);
+    logger.info(`[PERF] PlayScreen useEffect END - took ${(perfEnd - perfStart).toFixed(2)}ms`);
 
     return () => {
-      console.info(`[PERF] PlayScreen unmounting - calling reset()`);
+      logger.info(`[PERF] PlayScreen unmounting - calling reset()`);
       reset(); // Reset state when component unmounts
     };
   }, [episodeIndex, source, position, setVideoRef, reset, loadVideo, id, title]);

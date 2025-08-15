@@ -3,6 +3,9 @@ import FileViewer from "react-native-file-viewer";
 import Toast from "react-native-toast-message";
 import { version as currentVersion } from "../package.json";
 import { UPDATE_CONFIG } from "../constants/UpdateConfig";
+import Logger from '@/utils/Logger';
+
+const logger = Logger.withTag('UpdateService');
 
 interface VersionInfo {
   version: string;
@@ -47,7 +50,7 @@ class UpdateService {
         };
       } catch (error) {
         retries++;
-        console.info(`Error checking version (attempt ${retries}/${maxRetries}):`, error);
+        logger.info(`Error checking version (attempt ${retries}/${maxRetries}):`, error);
         
         if (retries === maxRetries) {
           Toast.show({ type: "error", text1: "检查更新失败", text2: "无法获取版本信息，请检查网络连接" });
@@ -86,14 +89,14 @@ class UpdateService {
         for (const file of filesToDelete) {
           try {
             await ReactNativeBlobUtil.fs.unlink(`${dirs.DocumentDir}/${file}`);
-            console.log(`Cleaned old APK file: ${file}`);
+            logger.debug(`Cleaned old APK file: ${file}`);
           } catch (deleteError) {
-            console.warn(`Failed to delete old APK file ${file}:`, deleteError);
+            logger.warn(`Failed to delete old APK file ${file}:`, deleteError);
           }
         }
       }
     } catch (error) {
-      console.warn('Failed to clean old APK files:', error);
+      logger.warn('Failed to clean old APK files:', error);
     }
   }
 
@@ -138,11 +141,11 @@ class UpdateService {
         }
 
         const res = await task;
-        console.log(`APK downloaded successfully: ${filePath}`);
+        logger.debug(`APK downloaded successfully: ${filePath}`);
         return res.path();
       } catch (error) {
         retries++;
-        console.info(`Error downloading APK (attempt ${retries}/${maxRetries}):`, error);
+        logger.info(`Error downloading APK (attempt ${retries}/${maxRetries}):`, error);
         
         if (retries === maxRetries) {
           Toast.show({ type: "error", text1: "下载失败", text2: "APK下载失败，请检查网络连接" });
@@ -173,7 +176,7 @@ class UpdateService {
         displayName: "OrionTV Update",
       });
     } catch (error) {
-      console.info("Error installing APK:", error);
+      logger.info("Error installing APK:", error);
       
       // 提供更详细的错误信息
       if (error instanceof Error) {

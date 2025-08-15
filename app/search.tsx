@@ -18,6 +18,9 @@ import { getCommonResponsiveStyles } from "@/utils/ResponsiveStyles";
 import ResponsiveNavigation from "@/components/navigation/ResponsiveNavigation";
 import ResponsiveHeader from "@/components/navigation/ResponsiveHeader";
 import { DeviceUtils } from "@/utils/DeviceUtils";
+import Logger from '@/utils/Logger';
+
+const logger = Logger.withTag('SearchScreen');
 
 export default function SearchScreen() {
   const [keyword, setKeyword] = useState("");
@@ -37,7 +40,7 @@ export default function SearchScreen() {
 
   useEffect(() => {
     if (lastMessage && targetPage === 'search') {
-      console.log("Received remote input:", lastMessage);
+      logger.debug("Received remote input:", lastMessage);
       const realMessage = lastMessage.split("_")[0];
       setKeyword(realMessage);
       handleSearch(realMessage);
@@ -72,7 +75,7 @@ export default function SearchScreen() {
       }
     } catch (err) {
       setError("搜索失败，请稍后重试。");
-      console.info("Search failed:", err);
+      logger.info("Search failed:", err);
     } finally {
       setLoading(false);
     }

@@ -1,5 +1,8 @@
 import TcpSocket from 'react-native-tcp-socket';
 import NetInfo from '@react-native-community/netinfo';
+import Logger from '@/utils/Logger';
+
+const logger = Logger.withTag('TCPHttpServer');
 
 const PORT = 12346;
 
@@ -59,7 +62,7 @@ class TCPHttpServer {
 
       return { method, url, headers, body };
     } catch (error) {
-      console.info('[TCPHttpServer] Error parsing HTTP request:', error);
+      logger.info('[TCPHttpServer] Error parsing HTTP request:', error);
       return null;
     }
   }
@@ -108,14 +111,14 @@ class TCPHttpServer {
     }
 
     if (this.isRunning) {
-      console.log('[TCPHttpServer] Server is already running.');
+      logger.debug('[TCPHttpServer] Server is already running.');
       return `http://${ipAddress}:${PORT}`;
     }
 
     return new Promise((resolve, reject) => {
       try {
         this.server = TcpSocket.createServer((socket: TcpSocket.Socket) => {
-          console.log('[TCPHttpServer] Client connected');
+          logger.debug('[TCPHttpServer] Client connected');
           
           let requestData = '';
           
@@ -140,7 +143,7 @@ class TCPHttpServer {
                   socket.write(errorResponse);
                 }
               } catch (error) {
-                console.info('[TCPHttpServer] Error handling request:', error);
+                logger.info('[TCPHttpServer] Error handling request:', error);
                 const errorResponse = this.formatHttpResponse({
                   statusCode: 500,
                   headers: { 'Content-Type': 'text/plain' },
@@ -155,28 +158,28 @@ class TCPHttpServer {
           });
 
           socket.on('error', (error: Error) => {
-            console.info('[TCPHttpServer] Socket error:', error);
+            logger.info('[TCPHttpServer] Socket error:', error);
           });
 
           socket.on('close', () => {
-            console.log('[TCPHttpServer] Client disconnected');
+            logger.debug('[TCPHttpServer] Client disconnected');
           });
         });
 
         this.server.listen({ port: PORT, host: '0.0.0.0' }, () => {
-          console.log(`[TCPHttpServer] Server listening on ${ipAddress}:${PORT}`);
+          logger.debug(`[TCPHttpServer] Server listening on ${ipAddress}:${PORT}`);
           this.isRunning = true;
           resolve(`http://${ipAddress}:${PORT}`);
         });
 
         this.server.on('error', (error: Error) => {
-          console.info('[TCPHttpServer] Server error:', error);
+          logger.info('[TCPHttpServer] Server error:', error);
           this.isRunning = false;
           reject(error);
         });
 
       } catch (error) {
-        console.info('[TCPHttpServer] Failed to start server:', error);
+        logger.info('[TCPHttpServer] Failed to start server:', error);
         reject(error);
       }
     });
@@ -187,7 +190,7 @@ class TCPHttpServer {
       this.server.close();
       this.server = null;
       this.isRunning = false;
-      console.log('[TCPHttpServer] Server stopped');
+      logger.debug('[TCPHttpServer] Server stopped');
     }
   }
 

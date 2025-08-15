@@ -1,6 +1,9 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api, PlayRecord as ApiPlayRecord, Favorite as ApiFavorite } from "./api";
 import { storageConfig } from "./storageConfig";
+import Logger from '@/utils/Logger';
+
+const logger = Logger.withTag('Storage');
 
 // --- Storage Keys ---
 const STORAGE_KEYS = {
@@ -53,20 +56,20 @@ export class PlayerSettingsManager {
       const data = await AsyncStorage.getItem(STORAGE_KEYS.PLAYER_SETTINGS);
       return data ? JSON.parse(data) : {};
     } catch (error) {
-      console.info("Failed to get all player settings:", error);
+      logger.info("Failed to get all player settings:", error);
       return {};
     }
   }
 
   static async get(source: string, id: string): Promise<PlayerSettings | null> {
     const perfStart = performance.now();
-    console.info(`[PERF] PlayerSettingsManager.get START - source: ${source}, id: ${id}`);
+    logger.info(`[PERF] PlayerSettingsManager.get START - source: ${source}, id: ${id}`);
     
     const allSettings = await this.getAll();
     const result = allSettings[generateKey(source, id)] || null;
     
     const perfEnd = performance.now();
-    console.info(`[PERF] PlayerSettingsManager.get END - took ${(perfEnd - perfStart).toFixed(2)}ms, found: ${!!result}`);
+    logger.info(`[PERF] PlayerSettingsManager.get END - took ${(perfEnd - perfStart).toFixed(2)}ms, found: ${!!result}`);
     
     return result;
   }
@@ -107,7 +110,7 @@ export class FavoriteManager {
         const data = await AsyncStorage.getItem(STORAGE_KEYS.FAVORITES);
         return data ? JSON.parse(data) : {};
       } catch (error) {
-        console.info("Failed to get all local favorites:", error);
+        logger.info("Failed to get all local favorites:", error);
         return {};
       }
     }
@@ -175,7 +178,7 @@ export class PlayRecordManager {
   static async getAll(): Promise<Record<string, PlayRecord>> {
     const perfStart = performance.now();
     const storageType = this.getStorageType();
-    console.info(`[PERF] PlayRecordManager.getAll START - storageType: ${storageType}`);
+    logger.info(`[PERF] PlayRecordManager.getAll START - storageType: ${storageType}`);
     
     let apiRecords: Record<string, PlayRecord> = {};
     if (storageType === "localstorage") {
@@ -183,17 +186,17 @@ export class PlayRecordManager {
         const data = await AsyncStorage.getItem(STORAGE_KEYS.PLAY_RECORDS);
         apiRecords = data ? JSON.parse(data) : {};
       } catch (error) {
-        console.info("Failed to get all local play records:", error);
+        logger.info("Failed to get all local play records:", error);
         return {};
       }
     } else {
       const apiStart = performance.now();
-      console.info(`[PERF] API getPlayRecords START`);
+      logger.info(`[PERF] API getPlayRecords START`);
       
       apiRecords = await api.getPlayRecords();
       
       const apiEnd = performance.now();
-      console.info(`[PERF] API getPlayRecords END - took ${(apiEnd - apiStart).toFixed(2)}ms, records: ${Object.keys(apiRecords).length}`);
+      logger.info(`[PERF] API getPlayRecords END - took ${(apiEnd - apiStart).toFixed(2)}ms, records: ${Object.keys(apiRecords).length}`);
     }
 
     const localSettings = await PlayerSettingsManager.getAll();
@@ -206,7 +209,7 @@ export class PlayRecordManager {
     }
     
     const perfEnd = performance.now();
-    console.info(`[PERF] PlayRecordManager.getAll END - took ${(perfEnd - perfStart).toFixed(2)}ms, total records: ${Object.keys(mergedRecords).length}`);
+    logger.info(`[PERF] PlayRecordManager.getAll END - took ${(perfEnd - perfStart).toFixed(2)}ms, total records: ${Object.keys(mergedRecords).length}`);
     
     return mergedRecords;
   }
@@ -232,13 +235,13 @@ export class PlayRecordManager {
     const perfStart = performance.now();
     const key = generateKey(source, id);
     const storageType = this.getStorageType();
-    console.info(`[PERF] PlayRecordManager.get START - source: ${source}, id: ${id}, storageType: ${storageType}`);
+    logger.info(`[PERF] PlayRecordManager.get START - source: ${source}, id: ${id}, storageType: ${storageType}`);
     
     const records = await this.getAll();
     const result = records[key] || null;
     
     const perfEnd = performance.now();
-    console.info(`[PERF] PlayRecordManager.get END - took ${(perfEnd - perfStart).toFixed(2)}ms, found: ${!!result}`);
+    logger.info(`[PERF] PlayRecordManager.get END - took ${(perfEnd - perfStart).toFixed(2)}ms, found: ${!!result}`);
     
     return result;
   }
@@ -279,7 +282,7 @@ export class SearchHistoryManager {
         const data = await AsyncStorage.getItem(STORAGE_KEYS.SEARCH_HISTORY);
         return data ? JSON.parse(data) : [];
       } catch (error) {
-        console.info("Failed to get local search history:", error);
+        logger.info("Failed to get local search history:", error);
         return [];
       }
     }
@@ -324,7 +327,7 @@ export class SettingsManager {
       const data = await AsyncStorage.getItem(STORAGE_KEYS.SETTINGS);
       return data ? { ...defaultSettings, ...JSON.parse(data) } : defaultSettings;
     } catch (error) {
-      console.info("Failed to get settings:", error);
+      logger.info("Failed to get settings:", error);
       return defaultSettings;
     }
   }
@@ -347,7 +350,7 @@ export class LoginCredentialsManager {
       const data = await AsyncStorage.getItem(STORAGE_KEYS.LOGIN_CREDENTIALS);
       return data ? JSON.parse(data) : null;
     } catch (error) {
-      console.info("Failed to get login credentials:", error);
+      logger.info("Failed to get login credentials:", error);
       return null;
     }
   }
@@ -356,7 +359,7 @@ export class LoginCredentialsManager {
     try {
       await AsyncStorage.setItem(STORAGE_KEYS.LOGIN_CREDENTIALS, JSON.stringify(credentials));
     } catch (error) {
-      console.error("Failed to save login credentials:", error);
+      logger.error("Failed to save login credentials:", error);
     }
   }
 
@@ -364,7 +367,7 @@ export class LoginCredentialsManager {
     try {
       await AsyncStorage.removeItem(STORAGE_KEYS.LOGIN_CREDENTIALS);
     } catch (error) {
-      console.error("Failed to clear login credentials:", error);
+      logger.error("Failed to clear login credentials:", error);
     }
   }
 }

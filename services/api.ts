@@ -1,4 +1,8 @@
 
+import Logger from '@/utils/Logger';
+
+const logger = Logger.withTag('API');
+
 // region: --- Interface Definitions ---
 export interface DoubanItem {
   title: string;
@@ -215,13 +219,13 @@ export class API {
     
     // 添加安全检查
     if (!config || !config.Config.SourceConfig) {
-      console.warn('API response missing SourceConfig:', config);
+      logger.warn('API response missing SourceConfig:', config);
       return [];
     }
     
     // 确保 SourceConfig 是数组
     if (!Array.isArray(config.Config.SourceConfig)) {
-      console.warn('SourceConfig is not an array:', config.Config.SourceConfig);
+      logger.warn('SourceConfig is not an array:', config.Config.SourceConfig);
       return [];
     }
     

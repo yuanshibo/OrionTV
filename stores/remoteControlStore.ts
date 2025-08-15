@@ -1,5 +1,8 @@
 import { create } from 'zustand';
 import { remoteControlService } from '@/services/remoteControlService';
+import Logger from '@/utils/Logger';
+
+const logger = Logger.withTag('RemoteControlStore');
 
 interface RemoteControlState {
   isServerRunning: boolean;
@@ -30,23 +33,23 @@ export const useRemoteControlStore = create<RemoteControlState>((set, get) => ({
     }
     remoteControlService.init({
       onMessage: (message: string) => {
-        console.log('[RemoteControlStore] Received message:', message);
+        logger.debug('Received message:', message);
         const currentState = get();
         // Use the current targetPage from the store
         set({ lastMessage: message, targetPage: currentState.targetPage });
       },
       onHandshake: () => {
-        console.log('[RemoteControlStore] Handshake successful');
+        logger.debug('Handshake successful');
         set({ isModalVisible: false })
       },
     });
     try {
       const url = await remoteControlService.startServer();
-      console.log(`[RemoteControlStore] Server started, URL: ${url}`);
+      logger.info('Server started, URL:', url);
       set({ isServerRunning: true, serverUrl: url, error: null });
     } catch {
       const errorMessage = '启动失败，请强制退应用后重试。';
-      console.info('[RemoteControlStore] Failed to start server:', errorMessage);
+      logger.error('Failed to start server:', errorMessage);
       set({ error: errorMessage });
     }
   },

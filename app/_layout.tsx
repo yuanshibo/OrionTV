@@ -15,6 +15,9 @@ import { useUpdateStore, initUpdateStore } from "@/stores/updateStore";
 import { UpdateModal } from "@/components/UpdateModal";
 import { UPDATE_CONFIG } from "@/constants/UpdateConfig";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import Logger from '@/utils/Logger';
+
+const logger = Logger.withTag('RootLayout');
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -48,7 +51,7 @@ export default function RootLayout() {
     if (loaded || error) {
       SplashScreen.hideAsync();
       if (error) {
-        console.warn(`Error in loading fonts: ${error}`);
+        logger.warn(`Error in loading fonts: ${error}`);
       }
     }
   }, [loaded, error]);

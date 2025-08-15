@@ -2,6 +2,9 @@ import { create } from 'zustand';
 import updateService from '../services/updateService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Toast from 'react-native-toast-message';
+import Logger from '@/utils/Logger';
+
+const logger = Logger.withTag('UpdateStore');
 
 interface UpdateState {
   // 状态
@@ -151,7 +154,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
       // 安装开始后，关闭弹窗
       set({ showUpdateModal: false });
     } catch (error) {
-      console.info('安装失败:', error);
+      logger.error('安装失败:', error);
       set({ 
         error: error instanceof Error ? error.message : '安装失败',
       });
@@ -200,6 +203,6 @@ export const initUpdateStore = async () => {
       skipVersion: skipVersion || null,
     });
   } catch (error) {
-    console.info('初始化更新存储失败:', error);
+    logger.error('初始化更新存储失败:', error);
   }
 };

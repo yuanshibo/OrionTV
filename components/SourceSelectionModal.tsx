@@ -3,13 +3,16 @@ import { View, Text, StyleSheet, Modal, FlatList } from "react-native";
 import { StyledButton } from "./StyledButton";
 import useDetailStore from "@/stores/detailStore";
 import usePlayerStore from "@/stores/playerStore";
+import Logger from '@/utils/Logger';
+
+const logger = Logger.withTag('SourceSelectionModal');
 
 export const SourceSelectionModal: React.FC = () => {
   const { showSourceModal, setShowSourceModal, loadVideo, currentEpisodeIndex, status } = usePlayerStore();
   const { searchResults, detail, setDetail } = useDetailStore();
 
   const onSelectSource = (index: number) => {
-    console.log("onSelectSource", index, searchResults[index].source, detail?.source);
+    logger.debug("onSelectSource", index, searchResults[index].source, detail?.source);
     if (searchResults[index].source !== detail?.source) {
       const newDetail = searchResults[index];
       setDetail(newDetail);

@@ -1,4 +1,7 @@
 import TCPHttpServer from "./tcpHttpServer";
+import Logger from '@/utils/Logger';
+
+const logger = Logger.withTag('RemoteControl');
 
 const getRemotePageHTML = () => {
   return `
@@ -25,7 +28,7 @@ const getRemotePageHTML = () => {
     </div>
     <script>
       window.addEventListener('DOMContentLoaded', () => {
-        fetch('/handshake', { method: 'POST' }).catch(console.info);
+        fetch('/handshake', { method: 'POST' }).catch(err => logger.info('Handshake failed:', err));
       });
       function send() {
         const input = document.getElementById("text");
@@ -36,7 +39,7 @@ const getRemotePageHTML = () => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ message: value })
           })
-          .catch(err => console.info(err));
+          .catch(err => logger.info('Message send failed:', err));
           input.value = '';
         }
       }
@@ -58,7 +61,7 @@ class RemoteControlService {
 
   private setupRequestHandler() {
     this.httpServer.setRequestHandler((request) => {
-      console.log("[RemoteControl] Received request:", request.method, request.url);
+      logger.debug("[RemoteControl] Received request:", request.method, request.url);
 
       try {
         if (request.method === "GET" && request.url === "/") {
@@ -80,7 +83,7 @@ class RemoteControlService {
               body: JSON.stringify({ status: "ok" }),
             };
           } catch (parseError) {
-            console.info("[RemoteControl] Failed to parse message body:", parseError);
+            logger.info("[RemoteControl] Failed to parse message body:", parseError);
             return {
               statusCode: 400,
               headers: { "Content-Type": "application/json" },
@@ -102,7 +105,7 @@ class RemoteControlService {
           };
         }
       } catch (error) {
-        console.info("[RemoteControl] Request handler error:", error);
+        logger.info("[RemoteControl] Request handler error:", error);
         return {
           statusCode: 500,
           headers: { "Content-Type": "application/json" },
@@ -118,20 +121,20 @@ class RemoteControlService {
   }
 
   public async startServer(): Promise<string> {
-    console.log("[RemoteControl] Attempting to start server...");
+    logger.debug("[RemoteControl] Attempting to start server...");
 
     try {
       const url = await this.httpServer.start();
-      console.log(`[RemoteControl] Server started successfully at: ${url}`);
+      logger.debug(`[RemoteControl] Server started successfully at: ${url}`);
       return url;
     } catch (error) {
-      console.info("[RemoteControl] Failed to start server:", error);
+      logger.info("[RemoteControl] Failed to start server:", error);
       throw new Error(error instanceof Error ? error.message : "Failed to start server");
     }
   }
 
   public stopServer() {
-    console.log("[RemoteControl] Stopping server...");
+    logger.debug("[RemoteControl] Stopping server...");
     this.httpServer.stop();
   }
 
