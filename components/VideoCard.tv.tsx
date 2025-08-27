@@ -7,6 +7,7 @@ import { API } from "@/services/api";
 import { ThemedText } from "@/components/ThemedText";
 import { Colors } from "@/constants/Colors";
 import Logger from '@/utils/Logger';
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 
 const logger = Logger.withTag('VideoCardTV');
 
@@ -53,6 +54,8 @@ const VideoCard = forwardRef<View, VideoCardProps>(
     const longPressTriggered = useRef(false);
 
     const scale = useRef(new Animated.Value(1)).current;
+
+    const deviceType = useResponsiveLayout().deviceType;
 
     const animatedStyle = {
       transform: [{ scale }],
@@ -148,11 +151,7 @@ const VideoCard = forwardRef<View, VideoCardProps>(
     return (
       <Animated.View style={[styles.wrapper, animatedStyle, { opacity: fadeAnim }]}>
         <Pressable
-          android_ripple={Platform.isTV ? {color:'transparent'} : {
-            color: Colors.dark.link,
-            borderless: false,
-            foreground: true,
-          }}
+          android_ripple={Platform.isTV ? { color: 'transparent' } : (deviceType === 'tv' ? { color: Colors.dark.link } : { color: 'transparent' })}
           onPress={handlePress}
           onLongPress={handleLongPress}
           onFocus={handleFocus}
@@ -229,9 +228,14 @@ const styles = StyleSheet.create({
     marginHorizontal: 8,
   },
   pressable: {
+    width: CARD_WIDTH + 20,
+    height: CARD_HEIGHT + 60,
+    justifyContent: 'center',
     alignItems: "center",
+    overflow: "visible",
   },
   card: {
+    marginTop: 10,
     width: CARD_WIDTH,
     height: CARD_HEIGHT,
     borderRadius: 8,
