@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, forwardRef } from "react";
-import { View, Text, Image, StyleSheet, TouchableOpacity, Alert, Animated } from "react-native";
+import { View, Text, Image, StyleSheet, Pressable, TouchableOpacity, Alert, Animated } from "react-native";
 import { useRouter } from "expo-router";
 import { Star, Play } from "lucide-react-native";
 import { PlayRecordManager } from "@/services/storage";
@@ -147,13 +147,18 @@ const VideoCard = forwardRef<View, VideoCardProps>(
 
     return (
       <Animated.View style={[styles.wrapper, animatedStyle, { opacity: fadeAnim }]}>
-        <TouchableOpacity
+        <Pressable
+          android_ripple={{
+            color: Colors.dark.link,
+            borderless: false,
+            foreground: true,
+          }}
           onPress={handlePress}
           onLongPress={handleLongPress}
           onFocus={handleFocus}
           onBlur={handleBlur}
           style={styles.pressable}
-          activeOpacity={1}
+          // activeOpacity={1}
           delayLongPress={1000}
         >
           <View style={styles.card}>
@@ -203,7 +208,8 @@ const VideoCard = forwardRef<View, VideoCardProps>(
               </View>
             )}
           </View>
-        </TouchableOpacity>
+        </Pressable>
+
       </Animated.View>
     );
   }
