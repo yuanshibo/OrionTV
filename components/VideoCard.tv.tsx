@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, forwardRef } from "react";
-import { View, Text, Image, StyleSheet, Pressable, TouchableOpacity, Alert, Animated } from "react-native";
+import { View, Text, Image, StyleSheet, Pressable, TouchableOpacity, Alert, Animated, Platform } from "react-native";
 import { useRouter } from "expo-router";
 import { Star, Play } from "lucide-react-native";
 import { PlayRecordManager } from "@/services/storage";
@@ -148,7 +148,7 @@ const VideoCard = forwardRef<View, VideoCardProps>(
     return (
       <Animated.View style={[styles.wrapper, animatedStyle, { opacity: fadeAnim }]}>
         <Pressable
-          android_ripple={{
+          android_ripple={Platform.isTV ? {color:'transparent'} : {
             color: Colors.dark.link,
             borderless: false,
             foreground: true,
@@ -162,17 +162,18 @@ const VideoCard = forwardRef<View, VideoCardProps>(
           delayLongPress={1000}
         >
           <View style={styles.card}>
-            <Image source={{ uri: api.getImageProxyUrl(poster) }} style={styles.poster} />
-            {isFocused && (
-              <View style={styles.overlay}>
-                {isContinueWatching && (
-                  <View style={styles.continueWatchingBadge}>
-                    <Play size={16} color="#ffffff" fill="#ffffff" />
-                    <ThemedText style={styles.continueWatchingText}>继续观看</ThemedText>
-                  </View>
-                )}
-              </View>
-            )}
+
+              <Image source={{ uri: api.getImageProxyUrl(poster) }} style={styles.poster} />
+              {isFocused && (
+                <View style={styles.overlay}>
+                  {isContinueWatching && (
+                    <View style={styles.continueWatchingBadge}>
+                      <Play size={16} color="#ffffff" fill="#ffffff" />
+                      <ThemedText style={styles.continueWatchingText}>继续观看</ThemedText>
+                    </View>
+                  )}
+                </View>
+              )}
 
             {/* 进度条 */}
             {isContinueWatching && (
@@ -197,6 +198,7 @@ const VideoCard = forwardRef<View, VideoCardProps>(
                 <Text style={styles.badgeText}>{sourceName}</Text>
               </View>
             )}
+
           </View>
           <View style={styles.infoContainer}>
             <ThemedText numberOfLines={1}>{title}</ThemedText>
