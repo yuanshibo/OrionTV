@@ -110,7 +110,7 @@ export const StyledButton = forwardRef<View, StyledButtonProps>(
     return (
       <Animated.View style={[animationStyle, style]}>
         <Pressable
-          android_ripple={Platform.isTV ? { color: 'transparent' } : (deviceType === 'tv' ? { color: Colors.dark.link } : { color: 'transparent' })}
+          android_ripple={Platform.isTV || deviceType !== 'tv'? { color: 'transparent' } : { color: Colors.dark.link }}
           ref={ref}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}

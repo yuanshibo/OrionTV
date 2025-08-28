@@ -151,7 +151,7 @@ const VideoCard = forwardRef<View, VideoCardProps>(
     return (
       <Animated.View style={[styles.wrapper, animatedStyle, { opacity: fadeAnim }]}>
         <Pressable
-          android_ripple={Platform.isTV ? { color: 'transparent' } : (deviceType === 'tv' ? { color: Colors.dark.link } : { color: 'transparent' })}
+          android_ripple={Platform.isTV || deviceType !== 'tv'? { color: 'transparent' } : { color: Colors.dark.link }}
           onPress={handlePress}
           onLongPress={handleLongPress}
           onFocus={handleFocus}
