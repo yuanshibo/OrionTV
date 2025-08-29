@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, forwardRef } from "react";
-import { View, Text, Image, StyleSheet, TouchableOpacity, Alert, Animated } from "react-native";
+import { View, Text, Image, StyleSheet, Pressable, TouchableOpacity, Alert, Animated, Platform } from "react-native";
 import { useRouter } from "expo-router";
 import { Star, Play } from "lucide-react-native";
 import { PlayRecordManager } from "@/services/storage";
@@ -7,6 +7,7 @@ import { API } from "@/services/api";
 import { ThemedText } from "@/components/ThemedText";
 import { Colors } from "@/constants/Colors";
 import Logger from '@/utils/Logger';
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 
 const logger = Logger.withTag('VideoCardTV');
 
@@ -53,6 +54,8 @@ const VideoCard = forwardRef<View, VideoCardProps>(
     const longPressTriggered = useRef(false);
 
     const scale = useRef(new Animated.Value(1)).current;
+
+    const deviceType = useResponsiveLayout().deviceType;
 
     const animatedStyle = {
       transform: [{ scale }],
@@ -147,63 +150,126 @@ const VideoCard = forwardRef<View, VideoCardProps>(
 
     return (
       <Animated.View style={[styles.wrapper, animatedStyle, { opacity: fadeAnim }]}>
-        <TouchableOpacity
-          onPress={handlePress}
-          onLongPress={handleLongPress}
-          onFocus={handleFocus}
-          onBlur={handleBlur}
-          style={styles.pressable}
-          activeOpacity={1}
-          delayLongPress={1000}
-        >
-          <View style={styles.card}>
-            <Image source={{ uri: api.getImageProxyUrl(poster) }} style={styles.poster} />
-            {isFocused && (
-              <View style={styles.overlay}>
-                {isContinueWatching && (
-                  <View style={styles.continueWatchingBadge}>
-                    <Play size={16} color="#ffffff" fill="#ffffff" />
-                    <ThemedText style={styles.continueWatchingText}>继续观看</ThemedText>
-                  </View>
-                )}
-              </View>
-            )}
+        {Platform.isTV || deviceType !== 'tv' ? (
+          <TouchableOpacity
+            onPress={handlePress}
+            onLongPress={handleLongPress}
+            onFocus={handleFocus}
+            onBlur={handleBlur}
+            style={styles.pressable}
+            activeOpacity={1}
+            delayLongPress={1000}
+          >
+            <View style={styles.card}>
+              <Image source={{ uri: api.getImageProxyUrl(poster) }} style={styles.poster} />
+              {isFocused && (
+                <View style={styles.overlay}>
+                  {isContinueWatching && (
+                    <View style={styles.continueWatchingBadge}>
+                      <Play size={16} color="#ffffff" fill="#ffffff" />
+                      <ThemedText style={styles.continueWatchingText}>继续观看</ThemedText>
+                    </View>
+                  )}
+                </View>
+              )}
 
-            {/* 进度条 */}
-            {isContinueWatching && (
-              <View style={styles.progressContainer}>
-                <View style={[styles.progressBar, { width: `${(progress || 0) * 100}%` }]} />
-              </View>
-            )}
+              {/* 进度条 */}
+              {isContinueWatching && (
+                <View style={styles.progressContainer}>
+                  <View style={[styles.progressBar, { width: `${(progress || 0) * 100}%` }]} />
+                </View>
+              )}
 
-            {rate && (
-              <View style={styles.ratingContainer}>
-                <Star size={12} color="#FFD700" fill="#FFD700" />
-                <ThemedText style={styles.ratingText}>{rate}</ThemedText>
-              </View>
-            )}
-            {year && (
-              <View style={styles.yearBadge}>
-                <Text style={styles.badgeText}>{year}</Text>
-              </View>
-            )}
-            {sourceName && (
-              <View style={styles.sourceNameBadge}>
-                <Text style={styles.badgeText}>{sourceName}</Text>
-              </View>
-            )}
-          </View>
-          <View style={styles.infoContainer}>
-            <ThemedText numberOfLines={1}>{title}</ThemedText>
-            {isContinueWatching && (
-              <View style={styles.infoRow}>
-                <ThemedText style={styles.continueLabel}>
-                  第{episodeIndex}集 已观看 {Math.round((progress || 0) * 100)}%
-                </ThemedText>
-              </View>
-            )}
-          </View>
-        </TouchableOpacity>
+              {rate && (
+                <View style={styles.ratingContainer}>
+                  <Star size={12} color="#FFD700" fill="#FFD700" />
+                  <ThemedText style={styles.ratingText}>{rate}</ThemedText>
+                </View>
+              )}
+              {year && (
+                <View style={styles.yearBadge}>
+                  <Text style={styles.badgeText}>{year}</Text>
+                </View>
+              )}
+              {sourceName && (
+                <View style={styles.sourceNameBadge}>
+                  <Text style={styles.badgeText}>{sourceName}</Text>
+                </View>
+              )}
+            </View>
+            <View style={styles.infoContainer}>
+              <ThemedText numberOfLines={1}>{title}</ThemedText>
+              {isContinueWatching && (
+                <View style={styles.infoRow}>
+                  <ThemedText style={styles.continueLabel}>
+                    第{episodeIndex}集 已观看 {Math.round((progress || 0) * 100)}%
+                  </ThemedText>
+                </View>
+              )}
+            </View>
+          </TouchableOpacity>
+        ) : (
+          <Pressable
+            android_ripple={{ color: Colors.dark.link }}
+            onPress={handlePress}
+            onLongPress={handleLongPress}
+            onFocus={handleFocus}
+            onBlur={handleBlur}
+            style={styles.pressable}
+            // activeOpacity={1}
+            delayLongPress={1000}
+          >
+            <View style={styles.card}>
+              <Image source={{ uri: api.getImageProxyUrl(poster) }} style={styles.poster} />
+              {isFocused && (
+                <View style={styles.overlay}>
+                  {isContinueWatching && (
+                    <View style={styles.continueWatchingBadge}>
+                      <Play size={16} color="#ffffff" fill="#ffffff" />
+                      <ThemedText style={styles.continueWatchingText}>继续观看</ThemedText>
+                    </View>
+                  )}
+                </View>
+              )}
+
+              {/* 进度条 */}
+              {isContinueWatching && (
+                <View style={styles.progressContainer}>
+                  <View style={[styles.progressBar, { width: `${(progress || 0) * 100}%` }]} />
+                </View>
+              )}
+
+              {rate && (
+                <View style={styles.ratingContainer}>
+                  <Star size={12} color="#FFD700" fill="#FFD700" />
+                  <ThemedText style={styles.ratingText}>{rate}</ThemedText>
+                </View>
+              )}
+              {year && (
+                <View style={styles.yearBadge}>
+                  <Text style={styles.badgeText}>{year}</Text>
+                </View>
+              )}
+              {sourceName && (
+                <View style={styles.sourceNameBadge}>
+                  <Text style={styles.badgeText}>{sourceName}</Text>
+                </View>
+              )}
+            </View>
+            <View style={styles.infoContainer}>
+              <ThemedText numberOfLines={1}>{title}</ThemedText>
+              {isContinueWatching && (
+                <View style={styles.infoRow}>
+                  <ThemedText style={styles.continueLabel}>
+                    第{episodeIndex}集 已观看 {Math.round((progress || 0) * 100)}%
+                  </ThemedText>
+                </View>
+              )}
+            </View>
+          </Pressable>
+
+        )}
+
       </Animated.View>
     );
   }
@@ -221,9 +287,14 @@ const styles = StyleSheet.create({
     marginHorizontal: 8,
   },
   pressable: {
+    width: CARD_WIDTH + 20,
+    height: CARD_HEIGHT + 60,
+    justifyContent: 'center',
     alignItems: "center",
+    overflow: "visible",
   },
   card: {
+    marginTop: 10,
     width: CARD_WIDTH,
     height: CARD_HEIGHT,
     borderRadius: 8,

@@ -1,8 +1,9 @@
 import React, { forwardRef } from "react";
-import { Animated, Pressable, StyleSheet, StyleProp, ViewStyle, PressableProps, TextStyle, View } from "react-native";
+import { Animated, Pressable, StyleSheet, StyleProp, ViewStyle, PressableProps, TextStyle, View, Platform } from "react-native";
 import { ThemedText } from "./ThemedText";
 import { Colors } from "@/constants/Colors";
 import { useButtonAnimation } from "@/hooks/useAnimation";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 
 interface StyledButtonProps extends PressableProps {
   children?: React.ReactNode;
@@ -19,6 +20,7 @@ export const StyledButton = forwardRef<View, StyledButtonProps>(
     const colors = Colors[colorScheme];
     const [isFocused, setIsFocused] = React.useState(false);
     const animationStyle = useButtonAnimation(isFocused);
+    const deviceType = useResponsiveLayout().deviceType;
 
     const variantStyles = {
       default: StyleSheet.create({
@@ -108,6 +110,7 @@ export const StyledButton = forwardRef<View, StyledButtonProps>(
     return (
       <Animated.View style={[animationStyle, style]}>
         <Pressable
+          android_ripple={Platform.isTV || deviceType !== 'tv'? { color: 'transparent' } : { color: Colors.dark.link }}
           ref={ref}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
