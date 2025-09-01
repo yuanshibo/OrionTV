@@ -1,5 +1,5 @@
 import React, { useState, useRef, useImperativeHandle, forwardRef } from "react";
-import { View, TextInput, StyleSheet, Animated } from "react-native";
+import { View, TextInput, StyleSheet, Animated, Platform } from "react-native";
 import { useTVEventHandler } from "react-native";
 import { ThemedText } from "@/components/ThemedText";
 import { SettingsSection } from "./SettingsSection";
@@ -7,11 +7,13 @@ import { useSettingsStore } from "@/stores/settingsStore";
 import { useRemoteControlStore } from "@/stores/remoteControlStore";
 import { useButtonAnimation } from "@/hooks/useAnimation";
 import { Colors } from "@/constants/Colors";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 
 interface APIConfigSectionProps {
   onChanged: () => void;
   onFocus?: () => void;
   onBlur?: () => void;
+  onPress?: () => void;
   hideDescription?: boolean;
 }
 
@@ -20,13 +22,14 @@ export interface APIConfigSectionRef {
 }
 
 export const APIConfigSection = forwardRef<APIConfigSectionRef, APIConfigSectionProps>(
-  ({ onChanged, onFocus, onBlur, hideDescription = false }, ref) => {
+  ({ onChanged, onFocus, onBlur, onPress, hideDescription = false }, ref) => {
     const { apiBaseUrl, setApiBaseUrl, remoteInputEnabled } = useSettingsStore();
     const { serverUrl } = useRemoteControlStore();
     const [isInputFocused, setIsInputFocused] = useState(false);
     const [isSectionFocused, setIsSectionFocused] = useState(false);
     const inputRef = useRef<TextInput>(null);
     const inputAnimationStyle = useButtonAnimation(isSectionFocused, 1.01);
+    const deviceType = useResponsiveLayout().deviceType;
 
     const handleUrlChange = (url: string) => {
       setApiBaseUrl(url);
@@ -60,10 +63,17 @@ export const APIConfigSection = forwardRef<APIConfigSectionRef, APIConfigSection
       [isSectionFocused]
     );
 
+    const handlePress = () => {
+      inputRef.current?.focus();
+      onPress?.();
+    }
+
     useTVEventHandler(handleTVEvent);
 
     return (
-      <SettingsSection focusable onFocus={handleSectionFocus} onBlur={handleSectionBlur}>
+      <SettingsSection focusable onFocus={handleSectionFocus} onBlur={handleSectionBlur}
+       {...Platform.isTV||deviceType !=='tv'? undefined :{ onPress: handlePress}}
+       >
         <View style={styles.inputContainer}>
           <View style={styles.titleContainer}>
             <ThemedText style={styles.sectionTitle}>API 地址</ThemedText>
