@@ -68,9 +68,21 @@ export const LiveStreamSection = forwardRef<LiveStreamSectionRef, LiveStreamSect
 
     useTVEventHandler(handleTVEvent);
 
+
+        const [selection, setSelection] = useState<{ start: number; end: number }>({
+          start: 0,
+          end: 0,
+        });
+        // 当用户手动移动光标或选中文本时，同步到 state（可选）
+        const onSelectionChange = ({
+          nativeEvent: { selection },
+        }: any) => {
+          setSelection(selection);
+        };
+
     return (
       <SettingsSection focusable onFocus={handleSectionFocus} onBlur={handleSectionBlur}
-      onPress={Platform.isTV||deviceType !=='tv' ? undefined : handlePress}
+        onPress={Platform.isTV || deviceType !== 'tv' ? undefined : handlePress}
       >
         <View style={styles.inputContainer}>
           <View style={styles.titleContainer}>
@@ -89,9 +101,23 @@ export const LiveStreamSection = forwardRef<LiveStreamSectionRef, LiveStreamSect
               placeholderTextColor="#888"
               autoCapitalize="none"
               autoCorrect={false}
-              onFocus={() => setIsInputFocused(true)}
+              onFocus={() => {
+                setIsInputFocused(true);
+                // 将光标移动到文本末尾
+                const end = m3uUrl.length;
+                setSelection({ start: end, end: end });
+                // 有时需要延迟一下，让系统先完成 focus 再设置 selection
+                //（在 Android 上更可靠）
+                setTimeout(() => {
+                  // 对于受控的 selection 已经生效，这里仅作保险
+                  inputRef.current?.setNativeProps({ selection: { start: end, end: end } });
+                }, 0);
+              }}
+              selection={selection}
+              onSelectionChange={onSelectionChange} // 可选
+
               onBlur={() => setIsInputFocused(false)}
-              // onPress={handlePress}
+            // onPress={handlePress}
             />
           </Animated.View>
         </View>

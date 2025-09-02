@@ -51,6 +51,7 @@ export default function SettingsScreen() {
       const realMessage = lastMessage.split("_")[0];
       handleRemoteInput(realMessage);
       clearMessage(); // Clear the message after processing
+      markAsChanged();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastMessage, targetPage]);
