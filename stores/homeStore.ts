@@ -215,7 +215,7 @@ const useHomeStore = create<HomeState>((set, get) => ({
           set({
             contentData: newItems, // 使用完整的新数据
             pageStart: newItems.length,
-            hasMore: result.list.length === 20,
+            hasMore: result.list.length !== 0,
           });
         } else {
           // 增量加载时更新缓存
@@ -238,7 +238,7 @@ const useHomeStore = create<HomeState>((set, get) => ({
           set((state) => ({
             contentData: [...state.contentData, ...newItems],
             pageStart: state.pageStart + newItems.length,
-            hasMore: result.list.length === 20,
+            hasMore: result.list.length !== 0,
           }));
         }
       } else if (selectedCategory.tags) {
