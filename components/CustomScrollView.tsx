@@ -31,7 +31,7 @@ const CustomScrollView: React.FC<CustomScrollViewProps> = ({
 }) => {
   const responsiveConfig = useResponsiveLayout();
   const commonStyles = getCommonResponsiveStyles(responsiveConfig);
-  
+
   // 使用响应式列数，如果没有明确指定的话
   const effectiveColumns = numColumns || responsiveConfig.columns;
 
@@ -111,7 +111,8 @@ const CustomScrollView: React.FC<CustomScrollViewProps> = ({
       marginBottom: responsiveConfig.spacing,
     },
     fullRowContainer: {
-      justifyContent: "space-between",
+      justifyContent: "space-around",
+      marginRight: responsiveConfig.spacing / 2,
     },
     partialRowContainer: {
       justifyContent: "flex-start",
@@ -126,9 +127,9 @@ const CustomScrollView: React.FC<CustomScrollViewProps> = ({
   });
 
   return (
-    <ScrollView 
-      contentContainerStyle={dynamicStyles.listContent} 
-      onScroll={handleScroll} 
+    <ScrollView
+      contentContainerStyle={dynamicStyles.listContent}
+      onScroll={handleScroll}
       scrollEventThrottle={16}
       showsVerticalScrollIndicator={responsiveConfig.deviceType !== 'tv'}
     >
@@ -137,14 +138,14 @@ const CustomScrollView: React.FC<CustomScrollViewProps> = ({
           {rows.map((row, rowIndex) => {
             const isFullRow = row.length === effectiveColumns;
             const rowStyle = isFullRow ? dynamicStyles.fullRowContainer : dynamicStyles.partialRowContainer;
-            
+
             return (
               <View key={rowIndex} style={[dynamicStyles.rowContainer, rowStyle]}>
                 {row.map((item, itemIndex) => {
                   const actualIndex = rowIndex * effectiveColumns + itemIndex;
                   const isLastItemInPartialRow = !isFullRow && itemIndex === row.length - 1;
                   const itemStyle = isLastItemInPartialRow ? dynamicStyles.itemContainer : dynamicStyles.itemWithMargin;
-                  
+
                   return (
                     <View key={actualIndex} style={isFullRow ? dynamicStyles.itemContainer : itemStyle}>
                       {renderItem({ item, index: actualIndex })}
