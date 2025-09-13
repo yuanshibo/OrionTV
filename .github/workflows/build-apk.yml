@@ -18,7 +18,9 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: 18
-          cache: "yarn"
+          
+      - name: Install Yarn
+        run: npm install -g yarn
 
       - name: Install dependencies
         run: yarn install --frozen-lockfile
@@ -32,6 +34,12 @@ jobs:
         with:
           distribution: "zulu"
           java-version: "17"
+      
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          api-level: 33
+          build-tools: 33.0.0
 
       - name: Prebuild TV App
         run: yarn prebuild
@@ -45,7 +53,7 @@ jobs:
           cp android/app/build/outputs/apk/release/app-release.apk artifacts/orionTV.${{ steps.package-version.outputs.version }}.apk
 
       - name: Create Release and Upload APK
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v1
         with:
           tag_name: v${{ steps.package-version.outputs.version }}
           name: Release v${{ steps.package-version.outputs.version }}
@@ -54,4 +62,4 @@ jobs:
           prerelease: false
           files: artifacts/orionTV.${{ steps.package-version.outputs.version }}.apk
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITEA_TOKEN }}
