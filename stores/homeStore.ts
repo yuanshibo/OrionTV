@@ -150,7 +150,7 @@ const useHomeStore = create<HomeState>((set, get) => ({
           set({ contentData: [], hasMore: false });
           return;
         }
-        const records = await PlayRecordManager.getAll();
+        const records = await PlayRecordManager.getAllLatestByTitle();
         const rowItems = Object.entries(records)
           .map(([key, record]) => {
             const [source, id] = key.split("+");
@@ -326,7 +326,7 @@ const useHomeStore = create<HomeState>((set, get) => ({
       });
       return;
     }
-    const records = await PlayRecordManager.getAll();
+    const records = await PlayRecordManager.getAllLatestByTitle();
     const hasRecords = Object.keys(records).length > 0;
     set((state) => {
       const recordCategoryExists = state.categories.some((c) => c.type === "record");

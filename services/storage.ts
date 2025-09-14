@@ -214,6 +214,30 @@ export class PlayRecordManager {
     return mergedRecords;
   }
 
+  static async getAllLatestByTitle(): Promise<Record<string, PlayRecord>> {
+    const records = await this.getAll(); // reuse existing behavior
+    const latestByTitle = new Map<string, { key: string; rec: PlayRecord }>();
+
+    for (const [key, rec] of Object.entries(records)) {
+      const normTitle = (rec?.title ?? '').trim().replace(/\s+/g, ' ');
+      const groupKey = normTitle || `${key}::NO_TITLE`; // do not merge items with empty title
+
+      const cur = latestByTitle.get(groupKey);
+      const curTime = cur?.rec?.save_time ?? 0;
+      const newTime = rec?.save_time ?? 0;
+
+      if (!cur || newTime >= curTime) {
+          latestByTitle.set(groupKey, { key, rec });
+      }
+    }
+
+    const result: Record<string, PlayRecord> = {};
+    for (const { key, rec } of latestByTitle.values()) {
+        result[key] = rec;
+    }
+    return result;
+  }
+
   static async save(source: string, id: string, record: Omit<PlayRecord, "save_time">): Promise<void> {
     const key = generateKey(source, id);
     const { introEndTime, outroStartTime, ...apiRecord } = record;
