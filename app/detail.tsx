@@ -226,9 +226,11 @@ export default function DetailScreen() {
                 <ThemedText style={dynamicStyles.sourcesTitle}>选择播放源 共 {searchResults.length} 个</ThemedText>
                 {!allSourcesLoaded && <ActivityIndicator style={{ marginLeft: 10 }} />}
               </View>
-              <View style={dynamicStyles.sourceList}>
+              <ScrollView horizontal style={dynamicStyles.sourceList}>
                 {searchResults.map((item, index) => {
                   const isSelected = detail?.source === item.source;
+                  const episodesDisplay = item.episodes.length > 99 ? "99+集" : `${item.episodes.length}集`;
+                  const metaLine = item.resolution ? `${episodesDisplay} · ${item.resolution}` : episodesDisplay;
                   return (
                     <StyledButton
                       key={index}
@@ -237,27 +239,22 @@ export default function DetailScreen() {
                       isSelected={isSelected}
                       style={dynamicStyles.sourceButton}
                     >
-                      <ThemedText style={dynamicStyles.sourceButtonText}>{item.source_name}</ThemedText>
-                      {item.episodes.length > 1 && (
-                        <View style={[dynamicStyles.badge, isSelected && dynamicStyles.selectedBadge]}>
-                          <Text style={dynamicStyles.badgeText}>
-                            {item.episodes.length > 99 ? "99+" : `${item.episodes.length}`} 集
-                          </Text>
-                        </View>
-                      )}
-                      {item.resolution && (
-                        <View style={[dynamicStyles.badge, { backgroundColor: "#666" }, isSelected && dynamicStyles.selectedBadge]}>
-                          <Text style={dynamicStyles.badgeText}>{item.resolution}</Text>
-                        </View>
-                      )}
+                      <View style={dynamicStyles.sourceButtonContent}>
+                        <ThemedText style={dynamicStyles.sourceNameText} numberOfLines={1}>
+                            {item.source_name}
+                        </ThemedText>
+                        <ThemedText style={dynamicStyles.sourceMetaText} numberOfLines={1}>
+                            {metaLine}
+                        </ThemedText>
+                       </View>
                     </StyledButton>
                   );
                 })}
-              </View>
+              </ScrollView>
             </View>
             <View style={dynamicStyles.episodesContainer}>
               <ThemedText style={dynamicStyles.episodesTitle}>播放列表</ThemedText>
-              <ScrollView contentContainerStyle={dynamicStyles.episodeList}>
+              <View style={dynamicStyles.episodeList}>
                 {detail.episodes.map((episode, index) => (
                   <StyledButton
                     key={index}
@@ -267,7 +264,7 @@ export default function DetailScreen() {
                     textStyle={dynamicStyles.episodeButtonText}
                   />
                 ))}
-              </ScrollView>
+              </View>
             </View>
           </View>
         </ScrollView>
@@ -396,7 +393,7 @@ const createResponsiveStyles = (deviceType: string, spacing: number) => {
     },
     sourceList: {
       flexDirection: "row",
-      flexWrap: "wrap",
+      flexWrap: isMobile ? "wrap" : "nowrap",
     },
     sourceButton: {
       margin: isMobile ? 4 : 8,
@@ -422,6 +419,17 @@ const createResponsiveStyles = (deviceType: string, spacing: number) => {
     selectedBadge: {
       backgroundColor: "#4c4c4c",
     },
+    sourceNameText: {
+      color: "white",
+      fontSize: isMobile ? 14 : 14,
+      fontWeight: "600"
+    },
+    sourceMetaText: {
+      color: "#ccc",
+      fontSize: isMobile ? 11 : 12,
+      marginTop: 2,
+      textAlign: 'center',
+    },
 
     episodesContainer: {
       marginTop: spacing,
@@ -440,10 +448,12 @@ const createResponsiveStyles = (deviceType: string, spacing: number) => {
     episodeButton: {
       margin: isMobile ? 3 : 5,
       minHeight: isMobile ? 32 : 36,
+      width: isMobile ? '23%': isTablet ? '11.5%' : '8.88%',
     },
     episodeButtonText: {
       color: "white",
-      fontSize: isMobile ? 12 : 14,
+      fontSize: isMobile ? 12 : 11,
+      textAlign: 'center',
     },
   });
 };

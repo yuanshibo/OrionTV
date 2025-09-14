@@ -41,7 +41,7 @@ export const SourceSelectionModal: React.FC = () => {
           <Text style={styles.modalTitle}>选择播放源</Text>
           <FlatList
             data={searchResults}
-            numColumns={3}
+            numColumns={4}
             contentContainerStyle={styles.sourceList}
             keyExtractor={(item, index) => `source-${item.source}-${index}`}
             renderItem={({ item, index }) => (
@@ -89,7 +89,7 @@ const styles = StyleSheet.create({
     margin: 4,
     marginLeft: 10,
     marginRight: 8,
-    width: "30%",
+    width: "20%",
   },
   sourceItemText: {
     fontSize: 14,
