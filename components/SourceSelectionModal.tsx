@@ -92,6 +92,6 @@ const styles = StyleSheet.create({
     width: "20%",
   },
   sourceItemText: {
-    fontSize: 14,
+    fontSize: 12,
   },
 });
