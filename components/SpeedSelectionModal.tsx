@@ -37,7 +37,7 @@ export const SpeedSelectionModal: React.FC = () => {
           <Text style={styles.modalTitle}>播放速度</Text>
           <FlatList
             data={SPEED_OPTIONS}
-            numColumns={3}
+            numColumns={4}
             contentContainerStyle={styles.speedList}
             keyExtractor={(item) => `speed-${item.rate}`}
             renderItem={({ item }) => (
@@ -65,9 +65,9 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
   },
   modalContent: {
-    width: 500,
+    width: 400,
     height: "100%",
-    backgroundColor: "rgba(0, 0, 0, 0.85)",
+    backgroundColor: "rgba(0, 0, 0, 0.1)",
     padding: 20,
   },
   modalTitle: {
@@ -85,9 +85,9 @@ const styles = StyleSheet.create({
     margin: 4,
     marginLeft: 10,
     marginRight: 8,
-    width: "30%",
+    width: "20%",
   },
   speedItemText: {
-    fontSize: 16,
+    fontSize: 14,
   },
 });

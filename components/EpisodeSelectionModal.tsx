@@ -79,9 +79,9 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
   },
   modalContent: {
-    width: 600,
+    width: 500,
     height: "100%",
-    backgroundColor: "rgba(0, 0, 0, 0.85)",
+    backgroundColor: "rgba(0, 0, 0, 0.1)",
     padding: 20,
   },
   modalTitle: {
@@ -100,7 +100,7 @@ const styles = StyleSheet.create({
     width: "18%",
   },
   episodeItemText: {
-    fontSize: 14,
+    fontSize: 12,
   },
   episodeGroupContainer: {
     flexDirection: "row",

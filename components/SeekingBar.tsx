@@ -70,12 +70,12 @@ const styles = StyleSheet.create({
   seekingBarContainer: {
     width: "100%",
     height: 5,
-    backgroundColor: "rgba(255, 255, 255, 0.3)",
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
     borderRadius: 2.5,
   },
   seekingBarBackground: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(255, 255, 255, 0.3)",
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
     borderRadius: 2.5,
   },
   seekingBarFilled: {
