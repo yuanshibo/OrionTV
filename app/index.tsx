@@ -159,6 +159,7 @@ export default function HomeScreen() {
         text={item.title}
         onPress={() => handleCategorySelect(item)}
         isSelected={isSelected}
+        hasTVPreferredFocus={isSelected}
         style={dynamicStyles.categoryButton}
         textStyle={dynamicStyles.categoryText}
       />
@@ -357,7 +358,7 @@ export default function HomeScreen() {
           </ThemedText>
         </View>
       ) : (
-        <Animated.View style={[dynamicStyles.contentContainer, { opacity: fadeAnim }]}>
+        <Animated.View style={[dynamicStyles.contentContainer, { opacity: 1 }]}>
           <CustomScrollView
             data={contentData}
             renderItem={renderContentItem}
