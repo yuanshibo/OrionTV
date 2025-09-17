@@ -165,6 +165,8 @@ export default function PlayScreen() {
     const handleAppStateChange = (nextAppState: AppStateStatus) => {
       if (nextAppState === "background" || nextAppState === "inactive") {
         videoRef.current?.pauseAsync();
+      } else if (nextAppState === "active") {
+        videoRef.current?.playAsync();
       }
     };
 

@@ -426,7 +426,7 @@ const createResponsiveStyles = (deviceType: string, spacing: number) => {
     },
     sourceMetaText: {
       color: "#ccc",
-      fontSize: isMobile ? 11 : 12,
+      fontSize: isMobile ? 10 : 10,
       marginTop: 2,
       textAlign: 'center',
     },
