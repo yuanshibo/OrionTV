@@ -55,11 +55,15 @@ export default function HomeScreen() {
 
     // 双击返回退出逻辑（只限当前页面）
   const backPressTimeRef = useRef<number | null>(null);
-  const exitToastShownRef = useRef(false); // 防止重复显示提示
 
   useFocusEffect(
     useCallback(() => {
     const handleBackPress = () => {
+      // 如果导航栈中还有其他页面，交由默认返回逻辑处理
+      if (router.canGoBack()) {
+        return false;
+      }
+
       const now = Date.now();
 
       // 如果还没按过返回键，或距离上次超过2秒
@@ -82,10 +86,9 @@ export default function HomeScreen() {
       return () => {
         backHandler.remove();
         backPressTimeRef.current = null;
-        exitToastShownRef.current = false;
       };
     }
-  }, [])
+  }, [router])
 );
 
   // 统一的数据获取逻辑
