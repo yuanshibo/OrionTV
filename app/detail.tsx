@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, Image, ScrollView, ActivityIndicator } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ThemedView } from "@/components/ThemedView";
@@ -11,6 +11,10 @@ import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { getCommonResponsiveStyles } from "@/utils/ResponsiveStyles";
 import ResponsiveNavigation from "@/components/navigation/ResponsiveNavigation";
 import ResponsiveHeader from "@/components/navigation/ResponsiveHeader";
+import { PlayRecordManager } from "@/services/storage";
+import Logger from "@/utils/Logger";
+
+const logger = Logger.withTag("DetailScreen");
 
 export default function DetailScreen() {
   const { q, source, id } = useLocalSearchParams<{ q: string; source?: string; id?: string }>();
@@ -34,6 +38,10 @@ export default function DetailScreen() {
     toggleFavorite,
   } = useDetailStore();
 
+  const [recordInfo, setRecordInfo] = useState<{ source: string; id: string; episodeIndex: number } | null>(null);
+  const [recentEpisodeIndex, setRecentEpisodeIndex] = useState<number | null>(null);
+  const [recordLookupComplete, setRecordLookupComplete] = useState(false);
+
   useEffect(() => {
     if (q) {
       init(q, source, id);
@@ -42,6 +50,125 @@ export default function DetailScreen() {
       abort();
     };
   }, [abort, init, q, source, id]);
+
+  useEffect(() => {
+    setRecordInfo(null);
+    setRecentEpisodeIndex(null);
+    setRecordLookupComplete(false);
+  }, [detail?.title]);
+
+  useEffect(() => {
+    if (!detail?.title) {
+      return;
+    }
+
+    let isCancelled = false;
+    const normalizeTitle = (value: string) => value.trim().replace(/\s+/g, " ");
+
+    const fetchRecord = async () => {
+      try {
+        const records = await PlayRecordManager.getAllLatestByTitle();
+        const normalizedDetailTitle = normalizeTitle(detail.title);
+        const matchedEntry = Object.entries(records).find(([, record]) =>
+          record.title ? normalizeTitle(record.title) === normalizedDetailTitle : false
+        );
+
+        if (!matchedEntry) {
+          if (!isCancelled) {
+            setRecordLookupComplete(true);
+          }
+          return;
+        }
+
+        const [key, record] = matchedEntry;
+        const separatorIndex = key.indexOf("+");
+        if (separatorIndex === -1) {
+          if (!isCancelled) {
+            setRecordLookupComplete(true);
+          }
+          return;
+        }
+
+        const recordSource = key.slice(0, separatorIndex);
+        const recordId = key.slice(separatorIndex + 1);
+        if (!recordSource || !recordId) {
+          if (!isCancelled) {
+            setRecordLookupComplete(true);
+          }
+          return;
+        }
+
+        const targetEpisodeIndex = Math.max(0, (record.index ?? 1) - 1);
+
+        if (!isCancelled) {
+          setRecordInfo({
+            source: recordSource,
+            id: recordId,
+            episodeIndex: targetEpisodeIndex,
+          });
+          setRecordLookupComplete(true);
+        }
+      } catch (error) {
+        logger.debug("Failed to load play record for detail page", error);
+        if (!isCancelled) {
+          setRecordLookupComplete(true);
+        }
+      }
+    };
+
+    fetchRecord();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [detail?.title]);
+
+  useEffect(() => {
+    if (!recordInfo || recentEpisodeIndex !== null) {
+      return;
+    }
+
+    let isCancelled = false;
+
+    const matchedSource = searchResults.find(
+      (item) => item.source === recordInfo.source && item.id.toString() === recordInfo.id
+    );
+
+    if (!matchedSource || !matchedSource.episodes || matchedSource.episodes.length === 0) {
+      return;
+    }
+
+    const applyRecordSelection = async () => {
+      try {
+        const episodesCount = matchedSource.episodes.length;
+        const clampedEpisodeIndex = Math.min(
+          Math.max(recordInfo.episodeIndex, 0),
+          Math.max(episodesCount - 1, 0)
+        );
+
+        const currentDetailId = detail?.id != null ? detail.id.toString() : undefined;
+        if (
+          !detail ||
+          detail.source !== matchedSource.source ||
+          currentDetailId !== recordInfo.id
+        ) {
+          await setDetail(matchedSource);
+        }
+
+        if (!isCancelled) {
+          setRecentEpisodeIndex(clampedEpisodeIndex);
+        }
+      } catch (error) {
+        logger.debug("Failed to apply play record selection", error);
+      }
+    };
+
+    applyRecordSelection();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [detail, recordInfo, recentEpisodeIndex, searchResults, setDetail]);
 
   const handlePlay = (episodeIndex: number) => {
     if (!detail) return;
@@ -104,6 +231,12 @@ export default function DetailScreen() {
 
   // 动态样式
   const dynamicStyles = createResponsiveStyles(deviceType, spacing);
+  const isTVDevice = deviceType === 'tv';
+  const fallbackEpisodeIndex =
+    recordLookupComplete && recordInfo === null && detail.episodes.length > 0 ? 0 : null;
+  const tvFocusEpisodeIndex = recentEpisodeIndex ?? fallbackEpisodeIndex;
+  const shouldFocusEpisode = isTVDevice && tvFocusEpisodeIndex !== null;
+  const shouldHighlightEpisode = recentEpisodeIndex !== null;
 
   const renderDetailContent = () => {
     if (deviceType === 'mobile') {
@@ -153,6 +286,7 @@ export default function DetailScreen() {
                     onPress={() => setDetail(item)}
                     isSelected={isSelected}
                     style={dynamicStyles.sourceButton}
+                    hasTVPreferredFocus={isTVDevice && index === 0 && !shouldFocusEpisode}
                   >
                     <ThemedText style={dynamicStyles.sourceButtonText}>{item.source_name}</ThemedText>
                     {item.episodes.length > 1 && (
@@ -184,6 +318,8 @@ export default function DetailScreen() {
                   onPress={() => handlePlay(index)}
                   text={`第 ${index + 1} 集`}
                   textStyle={dynamicStyles.episodeButtonText}
+                  isSelected={shouldHighlightEpisode && recentEpisodeIndex === index}
+                  hasTVPreferredFocus={shouldFocusEpisode && tvFocusEpisodeIndex === index}
                 />
               ))}
             </View>
@@ -235,18 +371,18 @@ export default function DetailScreen() {
                     <StyledButton
                       key={index}
                       onPress={() => setDetail(item)}
-                      hasTVPreferredFocus={index === 0}
+                      hasTVPreferredFocus={isTVDevice && index === 0 && !shouldFocusEpisode}
                       isSelected={isSelected}
                       style={dynamicStyles.sourceButton}
                     >
                       <View style={dynamicStyles.sourceButtonContent}>
                         <ThemedText style={dynamicStyles.sourceNameText} numberOfLines={1}>
-                            {item.source_name}
+                          {item.source_name}
                         </ThemedText>
                         <ThemedText style={dynamicStyles.sourceMetaText} numberOfLines={1}>
-                            {metaLine}
+                          {metaLine}
                         </ThemedText>
-                       </View>
+                      </View>
                     </StyledButton>
                   );
                 })}
@@ -262,6 +398,8 @@ export default function DetailScreen() {
                     onPress={() => handlePlay(index)}
                     text={`第 ${index + 1} 集`}
                     textStyle={dynamicStyles.episodeButtonText}
+                    isSelected={shouldHighlightEpisode && recentEpisodeIndex === index}
+                    hasTVPreferredFocus={shouldFocusEpisode && tvFocusEpisodeIndex === index}
                   />
                 ))}
               </View>
@@ -423,6 +561,9 @@ const createResponsiveStyles = (deviceType: string, spacing: number) => {
       color: "white",
       fontSize: isMobile ? 14 : 14,
       fontWeight: "600"
+    },
+    sourceButtonContent: {
+      alignItems: "center",
     },
     sourceMetaText: {
       color: "#ccc",
