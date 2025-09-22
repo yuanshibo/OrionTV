@@ -1,5 +1,6 @@
 import React, { useEffect, useCallback, useRef, useState } from "react";
 import { View, StyleSheet, ActivityIndicator, FlatList, Pressable, Animated, StatusBar, Platform, BackHandler, ToastAndroid } from "react-native";
+import { useIsFocused } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
@@ -24,7 +25,9 @@ export default function HomeScreen() {
   const colorScheme = "dark";
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const hasAnimatedContentRef = useRef(false);
   const insets = useSafeAreaInsets();
+  const isFocused = useIsFocused();
 
   // 响应式布局配置
   const responsiveConfig = useResponsiveLayout();
@@ -128,16 +131,36 @@ export default function HomeScreen() {
   }, [apiConfigStatus.needsConfiguration, error, clearError]);
 
   useEffect(() => {
-    if (!loading && contentData.length > 0) {
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }).start();
-    } else if (loading) {
-      fadeAnim.setValue(0);
+    if (!isFocused) {
+      return;
     }
-  }, [loading, contentData.length, fadeAnim]);
+
+    if (loading) {
+      fadeAnim.stopAnimation();
+      fadeAnim.setValue(0);
+      hasAnimatedContentRef.current = false;
+      return;
+    }
+
+    if (contentData.length > 0) {
+      if (hasAnimatedContentRef.current) {
+        fadeAnim.stopAnimation();
+        fadeAnim.setValue(1);
+      } else {
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }).start(() => {
+          hasAnimatedContentRef.current = true;
+        });
+      }
+    } else {
+      fadeAnim.stopAnimation();
+      fadeAnim.setValue(1);
+      hasAnimatedContentRef.current = false;
+    }
+  }, [isFocused, loading, contentData.length, fadeAnim]);
 
   const handleCategorySelect = (category: Category) => {
     setSelectedTag(null);
