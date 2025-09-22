@@ -1,22 +1,53 @@
-import React, { useRef, useState, useEffect } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, StyleSheet, Text, ActivityIndicator } from "react-native";
-import { Video, ResizeMode, AVPlaybackStatus } from "expo-av";
+import { VideoView, useVideoPlayer } from "expo-video";
+import type {
+  VideoPlayerEvents,
+  StatusChangeEventPayload,
+  PlayingChangeEventPayload,
+  TimeUpdateEventPayload,
+  SourceLoadEventPayload,
+} from "expo-video";
 import { useKeepAwake } from "expo-keep-awake";
+import { PlaybackState, createInitialPlaybackState } from "@/stores/playerStore";
 
 interface LivePlayerProps {
   streamUrl: string | null;
   channelTitle?: string | null;
-  onPlaybackStatusUpdate: (status: AVPlaybackStatus) => void;
+  onPlaybackStatusUpdate: (status: PlaybackState) => void;
 }
 
 const PLAYBACK_TIMEOUT = 15000; // 15 seconds
 
+type EventfulVideoPlayer = {
+  addListener<K extends keyof VideoPlayerEvents>(eventName: K, listener: VideoPlayerEvents[K]): { remove(): void };
+} & ReturnType<typeof useVideoPlayer>;
+
 export default function LivePlayer({ streamUrl, channelTitle, onPlaybackStatusUpdate }: LivePlayerProps) {
-  const video = useRef<Video>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isTimeout, setIsTimeout] = useState(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const statusRef = useRef<PlaybackState>(createInitialPlaybackState());
   useKeepAwake();
+
+  const player = useVideoPlayer(streamUrl ?? null, (instance) => {
+    instance.loop = true;
+    instance.keepScreenOnWhilePlaying = true;
+    instance.timeUpdateEventInterval = 0.5;
+  });
+
+  const emitStatusUpdate = useCallback(
+    (updates: Partial<PlaybackState>) => {
+      statusRef.current = { ...statusRef.current, ...updates };
+      onPlaybackStatusUpdate({ ...statusRef.current });
+    },
+    [onPlaybackStatusUpdate],
+  );
+
+  useEffect(() => {
+    statusRef.current = createInitialPlaybackState();
+    onPlaybackStatusUpdate({ ...statusRef.current });
+  }, [streamUrl, onPlaybackStatusUpdate, player]);
 
   useEffect(() => {
     if (timeoutRef.current) {
@@ -42,28 +73,85 @@ export default function LivePlayer({ streamUrl, channelTitle, onPlaybackStatusUp
     };
   }, [streamUrl]);
 
-  const handlePlaybackStatusUpdate = (status: AVPlaybackStatus) => {
-    if (status.isLoaded) {
-      if (status.isPlaying) {
-        if (timeoutRef.current) {
-          clearTimeout(timeoutRef.current);
+  useEffect(() => {
+    if (!player) {
+      return undefined;
+    }
+
+    const eventedPlayer = player as EventfulVideoPlayer;
+
+    const subscriptions = [
+      eventedPlayer.addListener("statusChange", ({ status, error }: StatusChangeEventPayload) => {
+        switch (status) {
+          case "loading":
+            setIsLoading(true);
+            setIsTimeout(false);
+            emitStatusUpdate({ isLoaded: false, isBuffering: true, error: undefined, didJustFinish: false });
+            break;
+          case "readyToPlay":
+            setIsLoading(false);
+            setIsTimeout(false);
+            emitStatusUpdate({ isLoaded: true, isBuffering: false, error: undefined });
+            try {
+              player.play();
+            } catch (err) {
+              console.warn("[LIVE] Failed to start playback automatically", err);
+            }
+            break;
+          case "idle":
+            emitStatusUpdate({ isLoaded: false, isPlaying: false, isBuffering: false });
+            break;
+          case "error": {
+            const message = error?.message ?? "Live playback error";
+            setIsLoading(false);
+            setIsTimeout(true);
+            emitStatusUpdate({
+              isLoaded: false,
+              isPlaying: false,
+              isBuffering: false,
+              error: message,
+            });
+            if (timeoutRef.current) {
+              clearTimeout(timeoutRef.current);
+            }
+            break;
+          }
+          default:
+            break;
         }
+      }),
+      eventedPlayer.addListener("playingChange", ({ isPlaying }: PlayingChangeEventPayload) => {
+        if (isPlaying) {
+          setIsLoading(false);
+          setIsTimeout(false);
+          if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+          }
+        }
+        emitStatusUpdate({ isPlaying, isBuffering: false, didJustFinish: false });
+      }),
+      eventedPlayer.addListener("timeUpdate", ({ currentTime }: TimeUpdateEventPayload) => {
+        emitStatusUpdate({ positionMillis: currentTime * 1000 });
+      }),
+      eventedPlayer.addListener("sourceLoad", (_payload: SourceLoadEventPayload) => {
+        const durationSeconds = player.duration;
+        const durationMillis =
+          Number.isFinite(durationSeconds) && durationSeconds > 0 ? durationSeconds * 1000 : undefined;
+        emitStatusUpdate({ durationMillis });
         setIsLoading(false);
         setIsTimeout(false);
-      } else if (status.isBuffering) {
-        setIsLoading(true);
-      }
-    } else {
-      if (status.error) {
-        setIsLoading(false);
-        setIsTimeout(true);
-        if (timeoutRef.current) {
-          clearTimeout(timeoutRef.current);
+        try {
+          player.play();
+        } catch (err) {
+          console.warn("[LIVE] Failed to resume playback after loading source", err);
         }
-      }
-    }
-    onPlaybackStatusUpdate(status);
-  };
+      }),
+    ];
+
+    return () => {
+      subscriptions.forEach((subscription) => subscription.remove());
+    };
+  }, [player, emitStatusUpdate]);
 
   if (!streamUrl) {
     return (
@@ -83,20 +171,7 @@ export default function LivePlayer({ streamUrl, channelTitle, onPlaybackStatusUp
 
   return (
     <View style={styles.container}>
-      <Video
-        ref={video}
-        style={styles.video}
-        source={{
-          uri: streamUrl,
-        }}
-        resizeMode={ResizeMode.CONTAIN}
-        shouldPlay
-        onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
-        onError={(e) => {
-          setIsTimeout(true);
-          setIsLoading(false);
-        }}
-      />
+      <VideoView player={player} style={styles.video} contentFit="contain" nativeControls={false} />
       {isLoading && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color="#fff" />
