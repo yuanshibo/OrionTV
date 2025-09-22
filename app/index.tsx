@@ -55,7 +55,6 @@ export default function HomeScreen() {
 
     // 双击返回退出逻辑（只限当前页面）
   const backPressTimeRef = useRef<number | null>(null);
-  const exitToastShownRef = useRef(false); // 防止重复显示提示
 
   useFocusEffect(
     useCallback(() => {
@@ -82,7 +81,6 @@ export default function HomeScreen() {
       return () => {
         backHandler.remove();
         backPressTimeRef.current = null;
-        exitToastShownRef.current = false;
       };
     }
   }, [])
@@ -250,6 +248,7 @@ export default function HomeScreen() {
       fontSize: deviceType === "mobile" ? 24 : deviceType === "tablet" ? 28 : 32,
       fontWeight: "bold",
       paddingTop: 16,
+      height: 45
     },
     rightHeaderButtons: {
       flexDirection: "row",

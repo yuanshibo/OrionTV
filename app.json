@@ -1,5 +1,6 @@
 {
   "expo": {
+    "newArchEnabled": true,
     "plugins": [
       [
         "@react-native-tvos/config-tv",
@@ -19,11 +20,11 @@
       [
         "expo-build-properties",
         {
-          "ios": {
-            "newArchEnabled": false
-          },
           "android": {
-            "newArchEnabled": false,
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
+            "buildToolsVersion": "35.0.0",
+            "kotlinVersion": "2.0.21",
             "enableProguardInReleaseBuilds": true,
             "enableShrinkResourcesInReleaseBuilds": true
           }
@@ -56,15 +57,15 @@
       "screenOrientation": "unspecified",
       "intentFilters": [
         {
-          "action": "VIEW",
+          "action": "android.intent.action.VIEW",
           "data": [
             {
               "scheme": "oriontv"
             }
           ],
           "category": [
-            "BROWSABLE",
-            "DEFAULT"
+            "android.intent.action.BROWSABLE",
+            "android.intent.action.DEFAULT"
           ]
         }
       ]

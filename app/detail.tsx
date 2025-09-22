@@ -77,7 +77,7 @@ export default function DetailScreen() {
 
     return (
       <ResponsiveNavigation>
-        <ResponsiveHeader title="详情" showBackButton />
+        <ResponsiveHeader title="详情" showBackButton showBottomBorder={false} />
         {content}
       </ResponsiveNavigation>
     );
@@ -96,7 +96,7 @@ export default function DetailScreen() {
 
     return (
       <ResponsiveNavigation>
-        <ResponsiveHeader title="详情" showBackButton />
+        <ResponsiveHeader title="详情" showBackButton showBottomBorder={false} />
         {content}
       </ResponsiveNavigation>
     );
@@ -109,7 +109,10 @@ export default function DetailScreen() {
     if (deviceType === 'mobile') {
       // 移动端垂直布局
       return (
-        <ScrollView style={dynamicStyles.scrollContainer}>
+        <ScrollView
+          style={dynamicStyles.scrollContainer}
+          showsVerticalScrollIndicator={false}
+        >
           {/* 海报和基本信息 */}
           <View style={dynamicStyles.mobileTopContainer}>
             <Image source={{ uri: detail.poster }} style={dynamicStyles.mobilePoster} />
@@ -193,7 +196,10 @@ export default function DetailScreen() {
     } else {
       // 平板和TV端水平布局
       return (
-        <ScrollView style={dynamicStyles.scrollContainer}>
+        <ScrollView
+          style={dynamicStyles.scrollContainer}
+          showsVerticalScrollIndicator={false}
+        >
           <View style={dynamicStyles.topContainer}>
             <Image source={{ uri: detail.poster }} style={dynamicStyles.poster} />
             <View style={dynamicStyles.infoContainer}>
@@ -214,7 +220,10 @@ export default function DetailScreen() {
                 <ThemedText style={dynamicStyles.metaText}>{detail.type_name}</ThemedText>
               </View>
 
-              <ScrollView style={dynamicStyles.descriptionScrollView}>
+              <ScrollView
+                style={dynamicStyles.descriptionScrollView}
+                showsVerticalScrollIndicator={false}
+              >
                 <ThemedText style={dynamicStyles.description}>{detail.desc}</ThemedText>
               </ScrollView>
             </View>
@@ -226,7 +235,11 @@ export default function DetailScreen() {
                 <ThemedText style={dynamicStyles.sourcesTitle}>选择播放源 共 {searchResults.length} 个</ThemedText>
                 {!allSourcesLoaded && <ActivityIndicator style={{ marginLeft: 10 }} />}
               </View>
-              <ScrollView horizontal style={dynamicStyles.sourceList}>
+              <ScrollView
+                horizontal
+                style={dynamicStyles.sourceList}
+                showsHorizontalScrollIndicator={false}
+              >
                 {searchResults.map((item, index) => {
                   const isSelected = detail?.source === item.source;
                   const episodesDisplay = item.episodes.length > 99 ? "99+集" : `${item.episodes.length}集`;
@@ -285,7 +298,7 @@ export default function DetailScreen() {
 
   return (
     <ResponsiveNavigation>
-      <ResponsiveHeader title={detail?.title || "详情"} showBackButton />
+      <ResponsiveHeader title={detail?.title || "详情"} showBackButton showBottomBorder={false} />
       {content}
     </ResponsiveNavigation>
   );
@@ -398,6 +411,10 @@ const createResponsiveStyles = (deviceType: string, spacing: number) => {
     sourceButton: {
       margin: isMobile ? 4 : 8,
       minHeight: isMobile ? 36 : 44,
+    },
+    sourceButtonContent: {
+      flexDirection: "column",
+      alignItems: "stretch",
     },
     sourceButtonText: {
       color: "white",

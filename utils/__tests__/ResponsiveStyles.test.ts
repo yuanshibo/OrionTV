@@ -33,11 +33,13 @@ const mockedDeviceUtils = DeviceUtils as jest.Mocked<typeof DeviceUtils>;
 describe("ResponsiveStyles", () => {
   const mockConfig: ResponsiveConfig = {
     deviceType: "mobile",
+    columns: 3,
+    cardWidth: 120,
+    cardHeight: 180,
     spacing: 16,
-    safeAreaInsets: { top: 0, bottom: 0, left: 0, right: 0 },
-    windowWidth: 375,
-    windowHeight: 812,
-    isLandscape: false,
+    isPortrait: true,
+    screenWidth: 375,
+    screenHeight: 812,
   };
 
   beforeEach(() => {
@@ -120,6 +122,11 @@ describe("ResponsiveStyles", () => {
         ...mockConfig,
         deviceType: "tablet",
         spacing: 20,
+        columns: 4,
+        cardWidth: 180,
+        cardHeight: 252,
+        screenWidth: 1024,
+        screenHeight: 1366,
       };
 
       mockedDeviceUtils.getMinTouchTargetSize.mockReturnValue(48);
@@ -136,6 +143,12 @@ describe("ResponsiveStyles", () => {
         ...mockConfig,
         deviceType: "tv",
         spacing: 24,
+        columns: 5,
+        cardWidth: 160,
+        cardHeight: 240,
+        screenWidth: 1920,
+        screenHeight: 1080,
+        isPortrait: false,
       };
 
       mockedDeviceUtils.getMinTouchTargetSize.mockReturnValue(60);
@@ -152,6 +165,12 @@ describe("ResponsiveStyles", () => {
         ...mockConfig,
         deviceType: "tv",
         spacing: 24,
+        columns: 5,
+        cardWidth: 160,
+        cardHeight: 240,
+        screenWidth: 1920,
+        screenHeight: 1080,
+        isPortrait: false,
       };
 
       const styles = getCommonResponsiveStyles(tvConfig);

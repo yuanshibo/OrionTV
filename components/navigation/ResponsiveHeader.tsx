@@ -12,6 +12,7 @@ interface ResponsiveHeaderProps {
   showBackButton?: boolean;
   rightComponent?: React.ReactNode;
   onBackPress?: () => void;
+  showBottomBorder?: boolean;
 }
 
 const ResponsiveHeader: React.FC<ResponsiveHeaderProps> = ({
@@ -19,6 +20,7 @@ const ResponsiveHeader: React.FC<ResponsiveHeaderProps> = ({
   showBackButton = false,
   rightComponent,
   onBackPress,
+  showBottomBorder = true,
 }) => {
   const router = useRouter();
   const { deviceType, spacing } = useResponsiveLayout();
@@ -37,7 +39,7 @@ const ResponsiveHeader: React.FC<ResponsiveHeaderProps> = ({
     }
   };
 
-  const dynamicStyles = createStyles(spacing, deviceType, insets);
+  const dynamicStyles = createStyles(spacing, deviceType, insets, showBottomBorder);
 
   return (
     <>
@@ -76,15 +78,20 @@ const ResponsiveHeader: React.FC<ResponsiveHeaderProps> = ({
   );
 };
 
-const createStyles = (spacing: number, deviceType: string, insets: any) => {
+const createStyles = (
+  spacing: number,
+  deviceType: string,
+  insets: any,
+  showBottomBorder: boolean,
+) => {
   const minTouchTarget = DeviceUtils.getMinTouchTargetSize();
   
   return StyleSheet.create({
     container: {
       backgroundColor: '#1c1c1e',
       paddingTop: insets.top,
-      borderBottomWidth: 1,
-      borderBottomColor: '#333',
+      borderBottomWidth: showBottomBorder ? 1 : 0,
+      borderBottomColor: showBottomBorder ? '#333' : 'transparent',
       shadowColor: '#000',
       shadowOffset: {
         width: 0,

@@ -49,7 +49,7 @@ const CustomScrollView: React.FC<CustomScrollViewProps> = ({
 
       return () => backHandler.remove();
     }
-  }, [showScrollToTop,deviceType]);
+  }, [showScrollToTop, deviceType]);
 
   // 使用响应式列数，如果没有明确指定的话
   const effectiveColumns = numColumns || responsiveConfig.columns;
@@ -185,15 +185,18 @@ const CustomScrollView: React.FC<CustomScrollViewProps> = ({
                   {row.map((item, itemIndex) => {
                     const actualIndex = rowIndex * effectiveColumns + itemIndex;
                     const isLastItemInPartialRow = !isFullRow && itemIndex === row.length - 1;
-                    const itemStyle = isLastItemInPartialRow ? dynamicStyles.itemContainer : dynamicStyles.itemWithMargin;
-
-                    const cardProps = {
-                      key: actualIndex,
-                      style: isFullRow ? dynamicStyles.itemContainer : itemStyle,
-                    };
+                    const containerStyle =
+                      isFullRow || isLastItemInPartialRow
+                        ? dynamicStyles.itemContainer
+                        : dynamicStyles.itemWithMargin;
+                    const isFirstCard = rowIndex === 0 && itemIndex === 0;
 
                     return (
-                      <View {...cardProps}>
+                      <View
+                        key={actualIndex}
+                        ref={isFirstCard ? firstCardRef : undefined}
+                        style={containerStyle}
+                      >
                         {renderItem({ item, index: actualIndex })}
                       </View>
                     );
