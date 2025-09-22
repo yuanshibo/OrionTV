@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, StyleSheet, Text, ActivityIndicator } from "react-native";
-import { VideoView, useVideoPlayer } from "expo-video";
+import { VideoView, useVideoPlayer, VideoPlayer } from "expo-video";
 import type {
   VideoPlayerEvents,
   StatusChangeEventPayload,
@@ -21,7 +21,7 @@ const PLAYBACK_TIMEOUT = 15000; // 15 seconds
 
 type EventfulVideoPlayer = {
   addListener<K extends keyof VideoPlayerEvents>(eventName: K, listener: VideoPlayerEvents[K]): { remove(): void };
-} & ReturnType<typeof useVideoPlayer>;
+} & VideoPlayer;
 
 export default function LivePlayer({ streamUrl, channelTitle, onPlaybackStatusUpdate }: LivePlayerProps) {
   const [isLoading, setIsLoading] = useState(false);
@@ -30,7 +30,7 @@ export default function LivePlayer({ streamUrl, channelTitle, onPlaybackStatusUp
   const statusRef = useRef<PlaybackState>(createInitialPlaybackState());
   useKeepAwake();
 
-  const player = useVideoPlayer(streamUrl ?? null, (instance) => {
+  const player = useVideoPlayer(streamUrl ?? null, (instance: VideoPlayer) => {
     instance.loop = true;
     instance.keepScreenOnWhilePlaying = true;
     instance.timeUpdateEventInterval = 0.5;

@@ -1,5 +1,5 @@
 import React, { useEffect, useCallback, memo, useMemo } from "react";
-import { StyleSheet, TouchableOpacity, BackHandler, AppState, AppStateStatus, View } from "react-native";
+import { StyleSheet, TouchableOpacity, BackHandler, AppState, AppStateStatus, View, Image } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { VideoView } from "expo-video";
 import { useKeepAwake } from "expo-keep-awake";
@@ -59,6 +59,12 @@ const createResponsiveStyles = (deviceType: string) => {
     videoPlayer: {
       ...StyleSheet.absoluteFillObject,
     },
+    posterContainer: {
+      ...StyleSheet.absoluteFillObject,
+    },
+    posterImage: {
+      flex: 1,
+    },
     loadingContainer: {
       ...StyleSheet.absoluteFillObject,
       backgroundColor: "rgba(0, 0, 0, 0.8)",
@@ -109,6 +115,7 @@ export default function PlayScreen() {
     // setShowNextEpisodeOverlay,
     reset,
     loadVideo,
+    status,
   } = usePlayerStore();
   const currentEpisode = usePlayerStore(selectCurrentEpisode);
 
@@ -127,6 +134,7 @@ export default function PlayScreen() {
 
   // 优化的动态样式 - 使用useMemo避免重复计算
   const dynamicStyles = useMemo(() => createResponsiveStyles(deviceType), [deviceType]);
+  const shouldShowPoster = Boolean(detail?.poster && !status?.isLoaded);
 
   useEffect(() => {
     const perfStart = performance.now();
@@ -230,6 +238,13 @@ export default function PlayScreen() {
         onPress={onScreenPress}
         disabled={deviceType !== "tv" && showControls} // 移动端和平板端在显示控制条时禁用触摸
       >
+        {/* 加载期间展示海报保持与旧播放器一致的视觉体验 */}
+        {shouldShowPoster && (
+          <View pointerEvents="none" style={dynamicStyles.posterContainer}>
+            <Image source={{ uri: detail.poster }} style={dynamicStyles.posterImage} resizeMode="contain" />
+          </View>
+        )}
+
         {/* 条件渲染Video组件：只有在有有效URL时才渲染 */}
         {currentEpisode?.url && player ? (
           <VideoView player={player} style={dynamicStyles.videoPlayer} {...videoViewProps} />

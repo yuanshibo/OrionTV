@@ -90,7 +90,7 @@ export const useVideoHandlers = ({
   handlePlaybackStatusUpdate,
   deviceType,
 }: UseVideoHandlersProps): UseVideoHandlersResult => {
-  const player = useVideoPlayer(currentEpisode?.url ?? null, (instance) => {
+  const player = useVideoPlayer(currentEpisode?.url ?? null, (instance: VideoPlayer) => {
     instance.loop = false;
     instance.timeUpdateEventInterval = 0.5;
     instance.keepScreenOnWhilePlaying = true;

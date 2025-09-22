@@ -401,7 +401,7 @@ const createResponsiveStyles = (deviceType: string, spacing: number) => {
     },
     sourceButtonContent: {
       flexDirection: "column",
-      alignItems: "flex-start",
+      alignItems: "stretch",
     },
     sourceButtonText: {
       color: "white",
