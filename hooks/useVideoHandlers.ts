@@ -1,4 +1,4 @@
-import { useCallback, RefObject, useMemo } from 'react';
+import { useCallback, RefObject, useMemo, useState } from 'react';
 import { Video, ResizeMode } from 'expo-av';
 import Toast from 'react-native-toast-message';
 import usePlayerStore from '@/stores/playerStore';
@@ -24,6 +24,12 @@ export const useVideoHandlers = ({
   deviceType,
   detail,
 }: UseVideoHandlersProps) => {
+
+  const [shouldPlay, setShouldPlay] = useState(false);
+
+  const setShouldPlayFlag = useCallback((value: boolean) => {
+    setShouldPlay(value);
+  }, []);
   
   const onLoad = useCallback(async () => {
     console.info(`[PERF] Video onLoad - video ready to play`);
@@ -38,6 +44,7 @@ export const useVideoHandlers = ({
       
       // 2. 显式调用播放以确保自动播放
       console.info(`[AUTOPLAY] Attempting to start playback after onLoad`);
+      setShouldPlayFlag(true);
       await videoRef.current?.playAsync();
       console.info(`[AUTOPLAY] Auto-play successful after onLoad`);
       
@@ -46,19 +53,22 @@ export const useVideoHandlers = ({
     } catch (error) {
       console.warn(`[AUTOPLAY] Failed to auto-play after onLoad:`, error);
       // 即使自动播放失败，也要设置加载完成状态
+      setShouldPlayFlag(false);
       usePlayerStore.setState({ isLoading: false });
       // 不显示错误提示，因为自动播放失败是常见且预期的情况
     }
-  }, [videoRef, initialPosition, introEndTime]);
+  }, [videoRef, initialPosition, introEndTime, setShouldPlayFlag]);
 
   const onLoadStart = useCallback(() => {
+    setShouldPlayFlag(false);
     if (!currentEpisode?.url) return;
     
     console.info(`[PERF] Video onLoadStart - starting to load video: ${currentEpisode.url.substring(0, 100)}...`);
     usePlayerStore.setState({ isLoading: true });
-  }, [currentEpisode?.url]);
+  }, [currentEpisode?.url, setShouldPlayFlag]);
 
   const onError = useCallback((error: any) => {
+    setShouldPlayFlag(false);
     if (!currentEpisode?.url) return;
     
     console.error(`[ERROR] Video playback error:`, error);
@@ -97,7 +107,7 @@ export const useVideoHandlers = ({
       });
       usePlayerStore.getState().handleVideoError('other', currentEpisode.url);
     }
-  }, [currentEpisode?.url]);
+  }, [currentEpisode?.url, setShouldPlayFlag]);
 
   // 优化的Video组件props
   const videoProps = useMemo(() => ({
@@ -110,7 +120,7 @@ export const useVideoHandlers = ({
     onLoadStart,
     onError,
     useNativeControls: deviceType !== 'tv',
-    shouldPlay: true,
+    shouldPlay,
   }), [
     currentEpisode?.url,
     detail?.poster,
@@ -120,6 +130,7 @@ export const useVideoHandlers = ({
     onLoadStart,
     onError,
     deviceType,
+    shouldPlay,
   ]);
 
   return {
@@ -127,5 +138,6 @@ export const useVideoHandlers = ({
     onLoadStart,
     onError,
     videoProps,
+    setShouldPlayFlag,
   };
 };
