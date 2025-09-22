@@ -71,6 +71,7 @@ const createResponsiveStyles = (deviceType: string) => {
 
 export default function PlayScreen() {
   const videoRef = useRef<Video>(null);
+  const pausedByAppStateRef = useRef(false);
   const router = useRouter();
   useKeepAwake();
 
@@ -114,7 +115,7 @@ export default function PlayScreen() {
   const currentEpisode = usePlayerStore(selectCurrentEpisode);
 
   // 使用Video事件处理hook
-  const { videoProps } = useVideoHandlers({
+  const { videoProps, setShouldPlayFlag } = useVideoHandlers({
     videoRef,
     currentEpisode,
     initialPosition,
@@ -163,8 +164,27 @@ export default function PlayScreen() {
 
   useEffect(() => {
     const handleAppStateChange = (nextAppState: AppStateStatus) => {
-      if (nextAppState === "background" || nextAppState === "inactive") {
-        videoRef.current?.pauseAsync();
+      if (nextAppState === "active") {
+        if (pausedByAppStateRef.current) {
+          pausedByAppStateRef.current = false;
+          setShouldPlayFlag(true);
+          videoRef.current
+            ?.playAsync()
+            .catch((error) => {
+              setShouldPlayFlag(false);
+              logger.warn(`[AUTOPLAY] Failed to resume playback after app became active:`, error);
+            });
+        }
+      } else if (nextAppState === "background" || nextAppState === "inactive") {
+        const status = usePlayerStore.getState().status;
+        const wasPlaying = status?.isLoaded && status.isPlaying;
+        pausedByAppStateRef.current = !!wasPlaying;
+        setShouldPlayFlag(false);
+        videoRef.current
+          ?.pauseAsync()
+          .catch((error) => {
+            logger.warn(`[AUTOPLAY] Failed to pause playback when app moved to background:`, error);
+          });
       }
     };
 
@@ -173,7 +193,7 @@ export default function PlayScreen() {
     return () => {
       subscription.remove();
     };
-  }, []);
+  }, [setShouldPlayFlag]);
 
   useEffect(() => {
     const backAction = () => {
