@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import Toast from "react-native-toast-message";
-import { VideoPlayer } from "expo-video";
+import { AVPlaybackStatus, Video } from "expo-av";
+import { RefObject } from "react";
 import { PlayRecord, PlayRecordManager, PlayerSettingsManager } from "@/services/storage";
 import useDetailStore, { episodesSelectorBySource } from "./detailStore";
 import Logger from '@/utils/Logger';
@@ -12,33 +13,11 @@ interface Episode {
   title: string;
 }
 
-export interface PlaybackState {
-  isLoaded: boolean;
-  isPlaying: boolean;
-  isBuffering: boolean;
-  positionMillis: number;
-  durationMillis?: number;
-  bufferedMillis?: number;
-  didJustFinish: boolean;
-  error?: string;
-}
-
-export const createInitialPlaybackState = (): PlaybackState => ({
-  isLoaded: false,
-  isPlaying: false,
-  isBuffering: false,
-  positionMillis: 0,
-  durationMillis: undefined,
-  bufferedMillis: undefined,
-  didJustFinish: false,
-  error: undefined,
-});
-
 interface PlayerState {
-  videoPlayer: VideoPlayer | null;
+  videoRef: RefObject<Video> | null;
   currentEpisodeIndex: number;
   episodes: Episode[];
-  status: PlaybackState | null;
+  status: AVPlaybackStatus | null;
   isLoading: boolean;
   showControls: boolean;
   showEpisodeModal: boolean;
@@ -52,7 +31,7 @@ interface PlayerState {
   playbackRate: number;
   introEndTime?: number;
   outroStartTime?: number;
-  setVideoPlayer: (player: VideoPlayer | null) => void;
+  setVideoRef: (ref: RefObject<Video>) => void;
   loadVideo: (options: {
     source: string;
     id: string;
@@ -63,7 +42,7 @@ interface PlayerState {
   playEpisode: (index: number) => void;
   togglePlayPause: () => void;
   seek: (duration: number) => void;
-  handlePlaybackStatusUpdate: (newStatus: PlaybackState) => void;
+  handlePlaybackStatusUpdate: (newStatus: AVPlaybackStatus) => void;
   setLoading: (loading: boolean) => void;
   setShowControls: (show: boolean) => void;
   setShowEpisodeModal: (show: boolean) => void;
@@ -82,7 +61,7 @@ interface PlayerState {
 }
 
 const usePlayerStore = create<PlayerState>((set, get) => ({
-  videoPlayer: null,
+  videoRef: null,
   episodes: [],
   currentEpisodeIndex: -1,
   status: null,
@@ -102,7 +81,7 @@ const usePlayerStore = create<PlayerState>((set, get) => ({
   _seekTimeout: undefined,
   _isRecordSaveThrottled: false,
 
-  setVideoPlayer: (player) => set({ videoPlayer: player }),
+  setVideoRef: (ref) => set({ videoRef: ref }),
 
   loadVideo: async ({ source, id, episodeIndex, position, title }) => {
     const perfStart = performance.now();
@@ -258,8 +237,8 @@ const usePlayerStore = create<PlayerState>((set, get) => ({
     }
   },
 
-  playEpisode: (index) => {
-    const { episodes, videoPlayer } = get();
+  playEpisode: async (index) => {
+    const { episodes, videoRef } = get();
     if (index >= 0 && index < episodes.length) {
       set({
         currentEpisodeIndex: index,
@@ -269,7 +248,7 @@ const usePlayerStore = create<PlayerState>((set, get) => ({
         seekPosition: 0,
       });
       try {
-        videoPlayer?.replay();
+        await videoRef?.current?.replayAsync();
       } catch (error) {
         logger.debug("Failed to replay video:", error);
         Toast.show({ type: "error", text1: "播放失败" });
@@ -277,14 +256,14 @@ const usePlayerStore = create<PlayerState>((set, get) => ({
     }
   },
 
-  togglePlayPause: () => {
-    const { status, videoPlayer } = get();
-    if (status?.isLoaded && videoPlayer) {
+  togglePlayPause: async () => {
+    const { status, videoRef } = get();
+    if (status?.isLoaded) {
       try {
         if (status.isPlaying) {
-          videoPlayer.pause();
+          await videoRef?.current?.pauseAsync();
         } else {
-          videoPlayer.play();
+          await videoRef?.current?.playAsync();
         }
       } catch (error) {
         logger.debug("Failed to toggle play/pause:", error);
@@ -293,13 +272,13 @@ const usePlayerStore = create<PlayerState>((set, get) => ({
     }
   },
 
-  seek: (duration) => {
-    const { status, videoPlayer } = get();
-    if (!status?.isLoaded || !status.durationMillis || !videoPlayer) return;
+  seek: async (duration) => {
+    const { status, videoRef } = get();
+    if (!status?.isLoaded || !status.durationMillis) return;
 
     const newPosition = Math.max(0, Math.min(status.positionMillis + duration, status.durationMillis));
     try {
-      videoPlayer.currentTime = newPosition / 1000;
+      await videoRef?.current?.setPositionAsync(newPosition);
     } catch (error) {
       logger.debug("Failed to seek video:", error);
       Toast.show({ type: "error", text1: "快进/快退失败" });
@@ -456,15 +435,13 @@ const usePlayerStore = create<PlayerState>((set, get) => ({
   setShowNextEpisodeOverlay: (show) => set({ showNextEpisodeOverlay: show }),
 
   setPlaybackRate: async (rate) => {
-    const { videoPlayer } = get();
+    const { videoRef } = get();
     const detail = useDetailStore.getState().detail;
-
+    
     try {
-      if (videoPlayer) {
-        videoPlayer.playbackRate = rate;
-      }
+      await videoRef?.current?.setRateAsync(rate, true);
       set({ playbackRate: rate });
-
+      
       // Save the playback rate preference
       if (detail) {
         await PlayerSettingsManager.save(detail.source, detail.id.toString(), { playbackRate: rate });
@@ -476,7 +453,6 @@ const usePlayerStore = create<PlayerState>((set, get) => ({
 
   reset: () => {
     set({
-      videoPlayer: null,
       episodes: [],
       currentEpisodeIndex: 0,
       status: null,

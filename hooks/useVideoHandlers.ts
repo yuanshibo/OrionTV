@@ -1,265 +1,131 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
-import { useVideoPlayer, VideoPlayer, VideoViewProps } from 'expo-video';
-import type {
-  VideoPlayerEvents,
-  StatusChangeEventPayload,
-  PlayingChangeEventPayload,
-  TimeUpdateEventPayload,
-  SourceLoadEventPayload,
-} from 'expo-video';
+import { useCallback, RefObject, useMemo } from 'react';
+import { Video, ResizeMode } from 'expo-av';
 import Toast from 'react-native-toast-message';
-import usePlayerStore, { PlaybackState, createInitialPlaybackState } from '@/stores/playerStore';
+import usePlayerStore from '@/stores/playerStore';
 
 interface UseVideoHandlersProps {
+  videoRef: RefObject<Video>;
   currentEpisode: { url: string; title: string } | undefined;
   initialPosition: number;
   introEndTime?: number;
   playbackRate: number;
-  handlePlaybackStatusUpdate: (status: PlaybackState) => void;
+  handlePlaybackStatusUpdate: (status: any) => void;
   deviceType: string;
+  detail?: { poster?: string };
 }
-
-interface UseVideoHandlersResult {
-  player: VideoPlayer | null;
-  videoViewProps: Pick<VideoViewProps, 'nativeControls' | 'contentFit'>;
-}
-
-type EventfulVideoPlayer = VideoPlayer & {
-  addListener<K extends keyof VideoPlayerEvents>(eventName: K, listener: VideoPlayerEvents[K]): { remove(): void };
-};
-
-const ERROR_SIGNATURES = {
-  ssl: [
-    'SSLHandshakeException',
-    'CertPathValidatorException',
-    'Trust anchor for certification path not found',
-  ],
-  network: ['HttpDataSourceException', 'IOException', 'SocketTimeoutException'],
-} as const;
-
-type ErrorType = keyof typeof ERROR_SIGNATURES | 'other';
-
-const detectErrorType = (message: string): ErrorType => {
-  if (!message) {
-    return 'other';
-  }
-
-  const normalizedMessage = message.toLowerCase();
-
-  if (ERROR_SIGNATURES.ssl.some((token) => normalizedMessage.includes(token.toLowerCase()))) {
-    return 'ssl';
-  }
-
-  if (ERROR_SIGNATURES.network.some((token) => normalizedMessage.includes(token.toLowerCase()))) {
-    return 'network';
-  }
-
-  return 'other';
-};
-
-const showErrorToast = (type: ErrorType) => {
-  switch (type) {
-    case 'ssl':
-      Toast.show({
-        type: 'error',
-        text1: 'SSL证书错误，正在尝试其他播放源...',
-        text2: '请稍候',
-      });
-      break;
-    case 'network':
-      Toast.show({
-        type: 'error',
-        text1: '网络连接失败，正在尝试其他播放源...',
-        text2: '请稍候',
-      });
-      break;
-    default:
-      Toast.show({
-        type: 'error',
-        text1: '视频播放失败，正在尝试其他播放源...',
-        text2: '请稍候',
-      });
-  }
-};
 
 export const useVideoHandlers = ({
+  videoRef,
   currentEpisode,
   initialPosition,
   introEndTime,
   playbackRate,
   handlePlaybackStatusUpdate,
   deviceType,
-}: UseVideoHandlersProps): UseVideoHandlersResult => {
-  const player = useVideoPlayer(currentEpisode?.url ?? null, (instance) => {
-    instance.loop = false;
-    instance.timeUpdateEventInterval = 0.5;
-    instance.keepScreenOnWhilePlaying = true;
-  });
+  detail,
+}: UseVideoHandlersProps) => {
+  
+  const onLoad = useCallback(async () => {
+    console.info(`[PERF] Video onLoad - video ready to play`);
+    
+    try {
+      // 1. 先设置位置（如果需要）
+      const jumpPosition = initialPosition || introEndTime || 0;
+      if (jumpPosition > 0) {
+        console.info(`[PERF] Setting initial position to ${jumpPosition}ms`);
+        await videoRef.current?.setPositionAsync(jumpPosition);
+      }
+      
+      // 2. 显式调用播放以确保自动播放
+      console.info(`[AUTOPLAY] Attempting to start playback after onLoad`);
+      await videoRef.current?.playAsync();
+      console.info(`[AUTOPLAY] Auto-play successful after onLoad`);
+      
+      usePlayerStore.setState({ isLoading: false });
+      console.info(`[PERF] Video loading complete - isLoading set to false`);
+    } catch (error) {
+      console.warn(`[AUTOPLAY] Failed to auto-play after onLoad:`, error);
+      // 即使自动播放失败，也要设置加载完成状态
+      usePlayerStore.setState({ isLoading: false });
+      // 不显示错误提示，因为自动播放失败是常见且预期的情况
+    }
+  }, [videoRef, initialPosition, introEndTime]);
 
-  const statusRef = useRef<PlaybackState>(createInitialPlaybackState());
-  const pendingSeekRef = useRef<number>(0);
-  const lastErrorRef = useRef<string | null>(null);
+  const onLoadStart = useCallback(() => {
+    if (!currentEpisode?.url) return;
+    
+    console.info(`[PERF] Video onLoadStart - starting to load video: ${currentEpisode.url.substring(0, 100)}...`);
+    usePlayerStore.setState({ isLoading: true });
+  }, [currentEpisode?.url]);
 
-  const emitStatusUpdate = useCallback(
-    (updates: Partial<PlaybackState>) => {
-      statusRef.current = { ...statusRef.current, ...updates };
-      handlePlaybackStatusUpdate({ ...statusRef.current });
-    },
-    [handlePlaybackStatusUpdate],
-  );
-
-  useEffect(() => {
-    statusRef.current = createInitialPlaybackState();
-    handlePlaybackStatusUpdate({ ...statusRef.current });
-    lastErrorRef.current = null;
-  }, [player, handlePlaybackStatusUpdate]);
-
-  useEffect(() => {
-    pendingSeekRef.current = initialPosition || introEndTime || 0;
-  }, [initialPosition, introEndTime, currentEpisode?.url]);
-
-  useEffect(() => {
-    if (currentEpisode?.url) {
-      usePlayerStore.setState({ isLoading: true });
+  const onError = useCallback((error: any) => {
+    if (!currentEpisode?.url) return;
+    
+    console.error(`[ERROR] Video playback error:`, error);
+    
+    // 检测SSL证书错误和其他网络错误
+    const errorString = (error as any)?.error?.toString() || error?.toString() || '';
+    const isSSLError = errorString.includes('SSLHandshakeException') || 
+                      errorString.includes('CertPathValidatorException') ||
+                      errorString.includes('Trust anchor for certification path not found');
+    const isNetworkError = errorString.includes('HttpDataSourceException') ||
+                         errorString.includes('IOException') ||
+                         errorString.includes('SocketTimeoutException');
+    
+    if (isSSLError) {
+      console.error(`[SSL_ERROR] SSL certificate validation failed for URL: ${currentEpisode.url}`);
+      Toast.show({ 
+        type: "error", 
+        text1: "SSL证书错误，正在尝试其他播放源...",
+        text2: "请稍候"
+      });
+      usePlayerStore.getState().handleVideoError('ssl', currentEpisode.url);
+    } else if (isNetworkError) {
+      console.error(`[NETWORK_ERROR] Network connection failed for URL: ${currentEpisode.url}`);
+      Toast.show({ 
+        type: "error", 
+        text1: "网络连接失败，正在尝试其他播放源...",
+        text2: "请稍候"
+      });
+      usePlayerStore.getState().handleVideoError('network', currentEpisode.url);
+    } else {
+      console.error(`[VIDEO_ERROR] Other video error for URL: ${currentEpisode.url}`);
+      Toast.show({ 
+        type: "error", 
+        text1: "视频播放失败，正在尝试其他播放源...",
+        text2: "请稍候"
+      });
+      usePlayerStore.getState().handleVideoError('other', currentEpisode.url);
     }
   }, [currentEpisode?.url]);
 
-  const applyPendingSeek = useCallback(() => {
-    if (!player) {
-      return;
-    }
-
-    const target = pendingSeekRef.current;
-    if (target && target > 0) {
-      try {
-        player.currentTime = target / 1000;
-      } catch (error) {
-        console.warn('[VIDEO] Failed to apply initial seek', error);
-      }
-    }
-    pendingSeekRef.current = 0;
-  }, [player]);
-
-  const updateDuration = useCallback(() => {
-    if (!player) {
-      emitStatusUpdate({ durationMillis: undefined });
-      return;
-    }
-
-    const durationSeconds = player.duration;
-    const durationMillis =
-      Number.isFinite(durationSeconds) && durationSeconds > 0 ? durationSeconds * 1000 : undefined;
-    emitStatusUpdate({ durationMillis });
-  }, [player, emitStatusUpdate]);
-
-  useEffect(() => {
-    if (!player) {
-      return undefined;
-    }
-
-    const eventedPlayer = player as EventfulVideoPlayer;
-
-    const subscriptions = [
-      eventedPlayer.addListener('statusChange', ({ status, error }: StatusChangeEventPayload) => {
-        switch (status) {
-          case 'loading':
-            emitStatusUpdate({
-              isLoaded: false,
-              isBuffering: true,
-              error: undefined,
-              didJustFinish: false,
-            });
-            usePlayerStore.setState({ isLoading: true });
-            break;
-          case 'readyToPlay':
-            emitStatusUpdate({ isLoaded: true, isBuffering: false, error: undefined });
-            updateDuration();
-            applyPendingSeek();
-            try {
-              player.play();
-            } catch (err) {
-              console.warn('[VIDEO] Failed to start playback automatically', err);
-            }
-            usePlayerStore.setState({ isLoading: false });
-            lastErrorRef.current = null;
-            break;
-          case 'idle':
-            emitStatusUpdate({ isLoaded: false, isPlaying: false, isBuffering: false });
-            break;
-          case 'error': {
-            const message = error?.message ?? 'Unknown playback error';
-            emitStatusUpdate({
-              isLoaded: false,
-              isPlaying: false,
-              isBuffering: false,
-              error: message,
-            });
-            usePlayerStore.setState({ isLoading: false });
-            if (currentEpisode?.url && lastErrorRef.current !== message) {
-              lastErrorRef.current = message;
-              const errorType = detectErrorType(message);
-              showErrorToast(errorType);
-              usePlayerStore.getState().handleVideoError(errorType === 'other' ? 'other' : errorType, currentEpisode.url);
-            }
-            break;
-          }
-          default:
-            break;
-        }
-      }),
-      eventedPlayer.addListener('playingChange', ({ isPlaying }: PlayingChangeEventPayload) => {
-        emitStatusUpdate({ isPlaying, isBuffering: false, didJustFinish: false });
-        if (isPlaying) {
-          usePlayerStore.setState({ isLoading: false });
-        }
-      }),
-      eventedPlayer.addListener(
-        'timeUpdate',
-        ({ currentTime, bufferedPosition }: TimeUpdateEventPayload) => {
-          emitStatusUpdate({
-            positionMillis: currentTime * 1000,
-            bufferedMillis: bufferedPosition >= 0 ? bufferedPosition * 1000 : undefined,
-            didJustFinish: false,
-          });
-        },
-      ),
-      eventedPlayer.addListener('playToEnd', () => {
-        emitStatusUpdate({ didJustFinish: true, isPlaying: false });
-      }),
-      eventedPlayer.addListener('sourceLoad', (_payload: SourceLoadEventPayload) => {
-        updateDuration();
-        applyPendingSeek();
-        try {
-          player.play();
-        } catch (err) {
-          console.warn('[VIDEO] Failed to start playback after loading source', err);
-        }
-        usePlayerStore.setState({ isLoading: false });
-      }),
-    ];
-
-    return () => {
-      subscriptions.forEach((subscription) => subscription.remove());
-    };
-  }, [player, currentEpisode?.url, applyPendingSeek, updateDuration, emitStatusUpdate]);
-
-  useEffect(() => {
-    if (!player) {
-      return;
-    }
-    player.playbackRate = playbackRate;
-  }, [player, playbackRate]);
-
-  const videoViewProps = useMemo<Pick<VideoViewProps, 'nativeControls' | 'contentFit'>>(
-    () => ({
-      nativeControls: deviceType !== 'tv',
-      contentFit: 'contain',
-    }),
-    [deviceType],
-  );
+  // 优化的Video组件props
+  const videoProps = useMemo(() => ({
+    source: { uri: currentEpisode?.url || '' },
+    posterSource: { uri: detail?.poster ?? "" },
+    resizeMode: ResizeMode.CONTAIN,
+    rate: playbackRate,
+    onPlaybackStatusUpdate: handlePlaybackStatusUpdate,
+    onLoad,
+    onLoadStart,
+    onError,
+    useNativeControls: deviceType !== 'tv',
+    shouldPlay: true,
+  }), [
+    currentEpisode?.url,
+    detail?.poster,
+    playbackRate,
+    handlePlaybackStatusUpdate,
+    onLoad,
+    onLoadStart,
+    onError,
+    deviceType,
+  ]);
 
   return {
-    player,
-    videoViewProps,
+    onLoad,
+    onLoadStart,
+    onError,
+    videoProps,
   };
 };

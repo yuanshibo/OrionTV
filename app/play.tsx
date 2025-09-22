@@ -1,7 +1,7 @@
-import React, { useEffect, useCallback, memo, useMemo } from "react";
+import React, { useEffect, useRef, useCallback, memo, useMemo } from "react";
 import { StyleSheet, TouchableOpacity, BackHandler, AppState, AppStateStatus, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { VideoView } from "expo-video";
+import { Video } from "expo-av";
 import { useKeepAwake } from "expo-keep-awake";
 import { ThemedView } from "@/components/ThemedView";
 import { PlayerControls } from "@/components/PlayerControls";
@@ -70,6 +70,7 @@ const createResponsiveStyles = (deviceType: string) => {
 };
 
 export default function PlayScreen() {
+  const videoRef = useRef<Video>(null);
   const router = useRouter();
   useKeepAwake();
 
@@ -103,7 +104,7 @@ export default function PlayScreen() {
     initialPosition,
     introEndTime,
     playbackRate,
-    setVideoPlayer,
+    setVideoRef,
     handlePlaybackStatusUpdate,
     setShowControls,
     // setShowNextEpisodeOverlay,
@@ -113,13 +114,15 @@ export default function PlayScreen() {
   const currentEpisode = usePlayerStore(selectCurrentEpisode);
 
   // 使用Video事件处理hook
-  const { player, videoViewProps } = useVideoHandlers({
+  const { videoProps } = useVideoHandlers({
+    videoRef,
     currentEpisode,
     initialPosition,
     introEndTime,
     playbackRate,
     handlePlaybackStatusUpdate,
     deviceType,
+    detail: detail || undefined,
   });
 
   // TV遥控器处理 - 总是调用hook，但根据设备类型决定是否使用结果
@@ -132,6 +135,7 @@ export default function PlayScreen() {
     const perfStart = performance.now();
     logger.info(`[PERF] PlayScreen useEffect START - source: ${source}, id: ${id}, title: ${title}`);
 
+    setVideoRef(videoRef);
     if (source && id && title) {
       logger.info(`[PERF] Calling loadVideo with episodeIndex: ${episodeIndex}, position: ${position}`);
       loadVideo({ source, id, episodeIndex, position, title });
@@ -146,14 +150,7 @@ export default function PlayScreen() {
       logger.info(`[PERF] PlayScreen unmounting - calling reset()`);
       reset(); // Reset state when component unmounts
     };
-  }, [episodeIndex, source, position, reset, loadVideo, id, title]);
-
-  useEffect(() => {
-    setVideoPlayer(player);
-    return () => {
-      setVideoPlayer(null);
-    };
-  }, [player, setVideoPlayer]);
+  }, [episodeIndex, source, position, setVideoRef, reset, loadVideo, id, title]);
 
   // 优化的屏幕点击处理
   const onScreenPress = useCallback(() => {
@@ -166,14 +163,10 @@ export default function PlayScreen() {
 
   useEffect(() => {
     const handleAppStateChange = (nextAppState: AppStateStatus) => {
-      if (!player) {
-        return;
-      }
-
       if (nextAppState === "background" || nextAppState === "inactive") {
-        player.pause();
+        videoRef.current?.pauseAsync();
       } else if (nextAppState === "active") {
-        player.play();
+        videoRef.current?.playAsync();
       }
     };
 
@@ -182,7 +175,7 @@ export default function PlayScreen() {
     return () => {
       subscription.remove();
     };
-  }, [player]);
+  }, []);
 
   useEffect(() => {
     const backAction = () => {
@@ -231,8 +224,8 @@ export default function PlayScreen() {
         disabled={deviceType !== "tv" && showControls} // 移动端和平板端在显示控制条时禁用触摸
       >
         {/* 条件渲染Video组件：只有在有有效URL时才渲染 */}
-        {currentEpisode?.url && player ? (
-          <VideoView player={player} style={dynamicStyles.videoPlayer} {...videoViewProps} />
+        {currentEpisode?.url ? (
+          <Video ref={videoRef} style={dynamicStyles.videoPlayer} {...videoProps} />
         ) : (
           <LoadingContainer style={dynamicStyles.loadingContainer} currentEpisode={currentEpisode} />
         )}
