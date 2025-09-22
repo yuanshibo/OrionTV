@@ -57,15 +57,15 @@
       "screenOrientation": "unspecified",
       "intentFilters": [
         {
-          "action": "VIEW",
+          "action": "android.intent.action.VIEW",
           "data": [
             {
               "scheme": "oriontv"
             }
           ],
           "category": [
-            "BROWSABLE",
-            "DEFAULT"
+            "android.intent.action.BROWSABLE",
+            "android.intent.action.DEFAULT"
           ]
         }
       ]

@@ -22,6 +22,18 @@ import ResponsiveHeader from "@/components/navigation/ResponsiveHeader";
 import { DeviceUtils } from "@/utils/DeviceUtils";
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 
+type SectionItem = {
+  component: React.ReactElement;
+  key: string;
+};
+
+/** 过滤掉 false/undefined，帮 TypeScript 推断出真正的数组元素类型 */
+function isSectionItem(
+  item: false | undefined | SectionItem
+): item is SectionItem {
+  return !!item;
+}
+
 export default function SettingsScreen() {
   const { loadSettings, saveSettings, setApiBaseUrl, setM3uUrl } = useSettingsStore();
   const { lastMessage, targetPage, clearMessage } = useRemoteControlStore();
@@ -87,7 +99,7 @@ export default function SettingsScreen() {
     setHasChanges(true);
   };
 
-  const sections = [
+  const rawSections = [
     // 远程输入配置 - 仅在非手机端显示
     deviceType !== "mobile" && {
       component: (
@@ -129,23 +141,13 @@ export default function SettingsScreen() {
       ),
       key: "livestream",
     },
-    // {
-    //   component: (
-    //     <VideoSourceSection
-    //       onChanged={markAsChanged}
-    //       onFocus={() => {
-    //         setCurrentFocusIndex(3);
-    //         setCurrentSection("videoSource");
-    //       }}
-    //     />
-    //   ),
-    //   key: "videoSource",
-    // },
     Platform.OS === "android" && {
       component: <UpdateSection />,
       key: "update",
     },
-  ].filter(Boolean);
+  ] as const; // 把每个对象都当作字面量保留
+  /** 这里得到的 sections 已经是 SectionItem[]（没有 false） */
+  const sections: SectionItem[] = rawSections.filter(isSectionItem);
 
   // TV遥控器事件处理 - 仅在TV设备上启用
   const handleTVEvent = React.useCallback(
@@ -190,18 +192,12 @@ export default function SettingsScreen() {
         )}
 
         <View style={dynamicStyles.scrollView}>
-          <FlatList
-            data={sections}
-            renderItem={({ item }) => {
-              if (item) {
-                return item.component;
-              }
-              return null;
-            }}
-            keyExtractor={(item) => (item ? item.key : "default")}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={dynamicStyles.listContent}
-          />
+          {sections.map(item => (
+            // 必须把 key 放在最外层的 View 上
+            <View key={item.key} style={dynamicStyles.itemWrapper}>
+              {item.component}
+            </View>
+          ))}
         </View>
 
         <View style={dynamicStyles.footer}>
@@ -272,6 +268,9 @@ const createResponsiveStyles = (deviceType: string, spacing: number, insets: any
     },
     disabledButton: {
       opacity: 0.5,
+    },
+    itemWrapper: {
+      marginBottom: spacing,   // 这里的 spacing 来自 useResponsiveLayout()
     },
   });
 };
