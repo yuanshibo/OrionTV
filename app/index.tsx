@@ -250,6 +250,7 @@ export default function HomeScreen() {
       fontSize: deviceType === "mobile" ? 24 : deviceType === "tablet" ? 28 : 32,
       fontWeight: "bold",
       paddingTop: 16,
+      height: 45
     },
     rightHeaderButtons: {
       flexDirection: "row",
@@ -358,7 +359,7 @@ export default function HomeScreen() {
           </ThemedText>
         </View>
       ) : (
-        <Animated.View style={[dynamicStyles.contentContainer, { opacity: 1 }]}>
+        <Animated.View style={[dynamicStyles.contentContainer, { opacity: fadeAnim }]}>
           <CustomScrollView
             data={contentData}
             renderItem={renderContentItem}
