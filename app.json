@@ -29,6 +29,7 @@
           }
         }
       ],
+      "./plugins/withExpoModuleGradlePlugin",
       "expo-router"
     ],
     "experiments": {
