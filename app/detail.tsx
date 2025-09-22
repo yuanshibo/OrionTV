@@ -399,6 +399,10 @@ const createResponsiveStyles = (deviceType: string, spacing: number) => {
       margin: isMobile ? 4 : 8,
       minHeight: isMobile ? 36 : 44,
     },
+    sourceButtonContent: {
+      flexDirection: "column",
+      alignItems: "flex-start",
+    },
     sourceButtonText: {
       color: "white",
       fontSize: isMobile ? 14 : 16,

@@ -4559,11 +4559,6 @@ expo-asset@~10.0.10:
     invariant "^2.2.4"
     md5-file "^3.2.3"
 
-expo-av@~14.0.7:
-  version "14.0.7"
-  resolved "https://registry.yarnpkg.com/expo-av/-/expo-av-14.0.7.tgz#deb967325e58b2c4d408f5d76a7ccb269442cba1"
-  integrity sha512-FvKZxyy+2/qcCmp+e1GTK3s4zH8ZO1RfjpqNxh7ARlS1oH8HPtk1AyZAMo52tHz3yQ3UIqxQ2YbI9CFb4065lA==
-
 expo-build-properties@~0.12.3:
   version "0.12.5"
   resolved "https://registry.yarnpkg.com/expo-build-properties/-/expo-build-properties-0.12.5.tgz#4d6232389f00c846ba37ca5df2c0b5527c2d94ca"
@@ -4664,6 +4659,11 @@ expo-system-ui@~3.0.6:
   dependencies:
     "@react-native/normalize-colors" "0.74.85"
     debug "^4.3.2"
+
+expo-video@^3.0.11:
+  version "3.0.11"
+  resolved "https://registry.yarnpkg.com/expo-video/-/expo-video-3.0.11.tgz#9ba2c4da694fe3d54f191f160702ddc70412e782"
+  integrity sha512-k/xz8Ml/LekuD2U2LomML2mUISvkHzYDz3fXY8Au1fEaYVNTfTs7Gyfo1lvF6S1X7u3XutoAfew8e8e1ZUR2fg==
 
 expo-web-browser@~13.0.3:
   version "13.0.3"
