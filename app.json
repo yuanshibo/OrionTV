@@ -30,8 +30,6 @@
           }
         }
       ],
-      "./plugins/withExpoModuleGradlePlugin",
-      "./plugins/withAndroidGradleUpgrade",
       "expo-router"
     ],
     "experiments": {
