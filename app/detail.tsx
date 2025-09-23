@@ -366,6 +366,7 @@ const createResponsiveStyles = (deviceType: string, spacing: number) => {
       fontWeight: "bold",
       flexShrink: 1,
       color: 'white',
+      height: 45,
     },
     favoriteButton: {
       padding: 10,
