@@ -23,25 +23,29 @@ const normalizeIdentifier = (value?: string | null): string => {
     .replace(/[·•~!@#$%^&*()_+=[\]{}|\\;:'",.<>/?`！￥…（）—【】「」『』、《》？。，、丨-]/g, "");
 };
 
+const VARIANT_SUFFIX_PATTERNS: readonly RegExp[] = [
+  /(?:第?\d{1,3}(?:线|源))$/u, // “第1线”“1源”等线路编号
+  /(?:线路?\d{1,3})$/u, // “线路1”“线1” 等简写
+  /(?:line\d{1,3})$/u, // “line1” 等英文线路标签
+  /(?:主线|多线|备用)$/u, // “主线”“备用”等调度说明
+  /(?:无广|无广告)$/u, // “无广”一类去广告说明
+  /(?:超清|高清|蓝光|标清|普清)$/u, // 画质标签
+  /(?:\d{3,4}p)$/u, // 1080p 等数字画质标签
+  /(?:4k|2k|uhd|fhd)$/u, // UHD/FHD 等英文画质标签
+  /(?:资源|源|source)\d{1,3}$/u, // “资源1”“source2”等编号
+];
+
+/**
+ * Remove marketing/line suffixes that aggregators append to provider names so that
+ * "暴风资源线路1"、"暴风资源蓝光" 等变体都会映射到同一个去重键。
+ */
 const stripVariantSuffixes = (value: string): string => {
   let result = value;
   let previous: string;
 
-  const variantPatterns = [
-    /(?:第?\d{1,3}(?:线|源))$/u,
-    /(?:线路?\d{1,3})$/u,
-    /(?:line\d{1,3})$/u,
-    /(?:主线|多线|备用)$/u,
-    /(?:无广|无广告)$/u,
-    /(?:超清|高清|蓝光|标清|普清)$/u,
-    /(?:\d{3,4}p)$/u,
-    /(?:4k|2k|uhd|fhd)$/u,
-    /(?:资源|源|source)\d{1,3}$/u,
-  ];
-
   do {
     previous = result;
-    for (const pattern of variantPatterns) {
+    for (const pattern of VARIANT_SUFFIX_PATTERNS) {
       result = result.replace(pattern, "");
     }
   } while (previous !== result);
