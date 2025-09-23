@@ -10,6 +10,46 @@ const logger = Logger.withTag('DetailStore');
 const MAX_PLAY_SOURCES = 8;
 const MAX_CONCURRENT_SOURCE_REQUESTS = 3;
 
+const normalizeSourceName = (sourceName?: string | null): string => {
+  if (!sourceName) {
+    return "";
+  }
+
+  return sourceName
+    .trim()
+    .replace(/\s+/g, "")
+    .toLowerCase();
+};
+
+const dedupeSearchResultsBySourceName = (
+  items: SearchResultWithResolution[]
+): SearchResultWithResolution[] => {
+  const seenSources = new Set<string>();
+  const seenSourceNames = new Set<string>();
+  const deduped: SearchResultWithResolution[] = [];
+
+  for (const item of items) {
+    const normalizedName = normalizeSourceName(item.source_name);
+
+    if (seenSources.has(item.source)) {
+      continue;
+    }
+
+    if (normalizedName && seenSourceNames.has(normalizedName)) {
+      continue;
+    }
+
+    seenSources.add(item.source);
+    if (normalizedName) {
+      seenSourceNames.add(normalizedName);
+    }
+
+    deduped.push(item);
+  }
+
+  return deduped;
+};
+
 export type SearchResultWithResolution = SearchResult & { resolution?: string | null };
 
 interface DetailState {
@@ -70,6 +110,9 @@ const useDetailStore = create<DetailState>((set, get) => ({
     const processAndSetResults = async (results: SearchResult[], merge = false): Promise<number> => {
       const snapshot = get();
       const existingSourcesSnapshot = new Set(snapshot.searchResults.map((r) => r.source));
+      const existingSourceNamesSnapshot = new Set(
+        snapshot.searchResults.map((r) => normalizeSourceName(r.source_name))
+      );
       const remainingCapacity = MAX_PLAY_SOURCES - snapshot.searchResults.length;
 
       if (remainingCapacity <= 0) {
@@ -80,12 +123,34 @@ const useDetailStore = create<DetailState>((set, get) => ({
         return 0;
       }
 
-      const filteredResults = results.filter(
-        (result) =>
-          result.episodes &&
-          result.episodes.length > 0 &&
-          !existingSourcesSnapshot.has(result.source)
-      );
+      const seenSourcesInBatch = new Set<string>();
+      const seenSourceNamesInBatch = new Set<string>();
+
+      const filteredResults = results.filter((result) => {
+        if (!result.episodes || result.episodes.length === 0) {
+          return false;
+        }
+
+        if (existingSourcesSnapshot.has(result.source) || seenSourcesInBatch.has(result.source)) {
+          return false;
+        }
+
+        const normalizedName = normalizeSourceName(result.source_name);
+
+        if (
+          normalizedName &&
+          (existingSourceNamesSnapshot.has(normalizedName) || seenSourceNamesInBatch.has(normalizedName))
+        ) {
+          return false;
+        }
+
+        seenSourcesInBatch.add(result.source);
+        if (normalizedName) {
+          seenSourceNamesInBatch.add(normalizedName);
+        }
+
+        return true;
+      });
 
       if (filteredResults.length === 0) {
         logger.info(`[INFO] No new valid results to process from batch (merge: ${merge})`);
@@ -129,25 +194,42 @@ const useDetailStore = create<DetailState>((set, get) => ({
 
       let addedCount = 0;
       set((state) => {
-        const base = merge ? state.searchResults : [];
+        const previousResults = state.searchResults;
+        const base = merge ? previousResults : [];
         const baseSources = new Set(base.map((r) => r.source));
-        const dedupedNew = resultsWithResolution.filter((r) => !baseSources.has(r.source));
+        const baseSourceNames = new Set(base.map((r) => normalizeSourceName(r.source_name)));
+
+        const dedupedNew = resultsWithResolution.filter((r) => {
+          if (baseSources.has(r.source)) {
+            return false;
+          }
+
+          const normalizedName = normalizeSourceName(r.source_name);
+
+          if (normalizedName && baseSourceNames.has(normalizedName)) {
+            return false;
+          }
+
+          baseSources.add(r.source);
+          if (normalizedName) {
+            baseSourceNames.add(normalizedName);
+          }
+
+          return true;
+        });
 
         let combined: SearchResultWithResolution[];
         if (merge) {
-          combined = [...base, ...dedupedNew];
+          combined = [...previousResults, ...dedupedNew];
         } else if (dedupedNew.length > 0) {
           combined = dedupedNew;
         } else {
-          combined = state.searchResults;
+          combined = previousResults;
         }
 
-        const truncated = combined.slice(0, MAX_PLAY_SOURCES);
-        const prevCount = merge
-          ? state.searchResults.length
-          : dedupedNew.length > 0
-          ? 0
-          : state.searchResults.length;
+        const dedupedCombined = dedupeSearchResultsBySourceName(combined);
+        const truncated = dedupedCombined.slice(0, MAX_PLAY_SOURCES);
+        const prevCount = merge ? previousResults.length : 0;
         addedCount = Math.max(0, truncated.length - prevCount);
         const reachedMax = truncated.length >= MAX_PLAY_SOURCES;
 
