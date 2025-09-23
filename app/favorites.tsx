@@ -102,6 +102,7 @@ const createResponsiveStyles = (deviceType: string, spacing: number) => {
       fontWeight: "bold",
       paddingTop: spacing,
       color: 'white',
+      height: 45
     },
   });
 };

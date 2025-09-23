@@ -250,6 +250,7 @@ const createResponsiveStyles = (deviceType: string, spacing: number, insets: any
       fontWeight: "bold",
       paddingTop: spacing,
       color: "white",
+      height: 45
     },
     scrollView: {
       flex: 1,
