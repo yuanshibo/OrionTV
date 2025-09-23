@@ -204,10 +204,11 @@ export class API {
     type: "movie" | "tv",
     tag: string,
     pageSize: number = 16,
-    pageStart: number = 0
+    pageStart: number = 0,
+    signal?: AbortSignal
   ): Promise<DoubanResponse> {
     const url = `/api/douban?type=${type}&tag=${encodeURIComponent(tag)}&pageSize=${pageSize}&pageStart=${pageStart}`;
-    const response = await this._fetch(url);
+    const response = await this._fetch(url, { signal });
     return response.json();
   }
 

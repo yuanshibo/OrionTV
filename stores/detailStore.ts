@@ -7,6 +7,9 @@ import Logger from "@/utils/Logger";
 
 const logger = Logger.withTag('DetailStore');
 
+const MAX_PLAY_SOURCES = 8;
+const MAX_CONCURRENT_SOURCE_REQUESTS = 3;
+
 export type SearchResultWithResolution = SearchResult & { resolution?: string | null };
 
 interface DetailState {
@@ -64,12 +67,40 @@ const useDetailStore = create<DetailState>((set, get) => ({
 
     const { videoSource } = useSettingsStore.getState();
 
-    const processAndSetResults = async (results: SearchResult[], merge = false) => {
+    const processAndSetResults = async (results: SearchResult[], merge = false): Promise<number> => {
+      const snapshot = get();
+      const existingSourcesSnapshot = new Set(snapshot.searchResults.map((r) => r.source));
+      const remainingCapacity = MAX_PLAY_SOURCES - snapshot.searchResults.length;
+
+      if (remainingCapacity <= 0) {
+        logger.info(
+          `[LIMIT] Max play sources (${MAX_PLAY_SOURCES}) reached before processing new batch (merge: ${merge})`
+        );
+        set({ allSourcesLoaded: true });
+        return 0;
+      }
+
+      const filteredResults = results.filter(
+        (result) =>
+          result.episodes &&
+          result.episodes.length > 0 &&
+          !existingSourcesSnapshot.has(result.source)
+      );
+
+      if (filteredResults.length === 0) {
+        logger.info(`[INFO] No new valid results to process from batch (merge: ${merge})`);
+        return 0;
+      }
+
+      const limitedResults = filteredResults.slice(0, remainingCapacity);
+
       const resolutionStart = performance.now();
-      logger.info(`[PERF] Resolution detection START - processing ${results.length} sources`);
-      
+      logger.info(
+        `[PERF] Resolution detection START - processing ${limitedResults.length} sources (merge: ${merge})`
+      );
+
       const resultsWithResolution = await Promise.all(
-        results.map(async (searchResult) => {
+        limitedResults.map(async (searchResult) => {
           let resolution;
           const m3u8Start = performance.now();
           try {
@@ -82,31 +113,69 @@ const useDetailStore = create<DetailState>((set, get) => ({
             }
           }
           const m3u8End = performance.now();
-          logger.info(`[PERF] M3U8 resolution for ${searchResult.source_name}: ${(m3u8End - m3u8Start).toFixed(2)}ms (${resolution || 'failed'})`);
+          logger.info(
+            `[PERF] M3U8 resolution for ${searchResult.source_name}: ${(m3u8End - m3u8Start).toFixed(2)}ms (${resolution || "failed"})`
+          );
           return { ...searchResult, resolution };
         })
       );
-      
+
       const resolutionEnd = performance.now();
       logger.info(`[PERF] Resolution detection COMPLETE - took ${(resolutionEnd - resolutionStart).toFixed(2)}ms`);
 
-      if (signal.aborted) return;
+      if (signal.aborted) {
+        return 0;
+      }
 
+      let addedCount = 0;
       set((state) => {
-        const existingSources = new Set(state.searchResults.map((r) => r.source));
-        const newResults = resultsWithResolution.filter((r) => !existingSources.has(r.source));
-        const finalResults = merge ? [...state.searchResults, ...newResults] : resultsWithResolution;
+        const base = merge ? state.searchResults : [];
+        const baseSources = new Set(base.map((r) => r.source));
+        const dedupedNew = resultsWithResolution.filter((r) => !baseSources.has(r.source));
+
+        let combined: SearchResultWithResolution[];
+        if (merge) {
+          combined = [...base, ...dedupedNew];
+        } else if (dedupedNew.length > 0) {
+          combined = dedupedNew;
+        } else {
+          combined = state.searchResults;
+        }
+
+        const truncated = combined.slice(0, MAX_PLAY_SOURCES);
+        const prevCount = merge
+          ? state.searchResults.length
+          : dedupedNew.length > 0
+          ? 0
+          : state.searchResults.length;
+        addedCount = Math.max(0, truncated.length - prevCount);
+        const reachedMax = truncated.length >= MAX_PLAY_SOURCES;
+
+        const nextDetail =
+          state.detail &&
+          truncated.some(
+            (item) => item.source === state.detail?.source && item.id === state.detail?.id
+          )
+            ? state.detail
+            : truncated[0] ?? null;
 
         return {
-          searchResults: finalResults,
-          sources: finalResults.map((r) => ({
+          searchResults: truncated,
+          sources: truncated.map((r) => ({
             source: r.source,
             source_name: r.source_name,
             resolution: r.resolution,
           })),
-          detail: state.detail ?? finalResults[0] ?? null,
+          detail: nextDetail,
+          ...(reachedMax ? { allSourcesLoaded: true } : {}),
         };
       });
+
+      if (addedCount > 0) {
+        logger.info(`[INFO] Added ${addedCount} new sources (merge: ${merge}).`);
+      }
+
+      return addedCount;
     };
 
     try {
@@ -132,63 +201,95 @@ const useDetailStore = create<DetailState>((set, get) => ({
         if (signal.aborted) return;
         
         // 检查preferred source结果
+        let preferredAddedCount = 0;
         if (preferredResult.length > 0) {
-          logger.info(`[SUCCESS] Preferred source "${preferredSource}" found ${preferredResult.length} results for "${q}"`);
-          await processAndSetResults(preferredResult, false);
-          set({ loading: false });
-        } else {
-          // 降级策略：preferred source失败时立即尝试所有源
-          if (preferredSearchError) {
-            logger.warn(`[FALLBACK] Preferred source "${preferredSource}" failed with error, trying all sources immediately`);
+          logger.info(
+            `[SUCCESS] Preferred source "${preferredSource}" found ${preferredResult.length} results for "${q}"`
+          );
+          preferredAddedCount = await processAndSetResults(preferredResult, false);
+
+          if (preferredAddedCount > 0) {
+            set({ loading: false });
           } else {
-            logger.warn(`[FALLBACK] Preferred source "${preferredSource}" returned 0 results for "${q}", trying all sources immediately`);
+            logger.warn(
+              `[FALLBACK] Preferred source "${preferredSource}" returned results but none were usable, trying all sources immediately`
+            );
           }
-          
+        }
+
+        const shouldFallback = preferredAddedCount <= 0;
+
+        if (shouldFallback) {
+          // 降级策略：preferred source失败时立即尝试所有源
+          if (preferredResult.length === 0) {
+            if (preferredSearchError) {
+              logger.warn(
+                `[FALLBACK] Preferred source "${preferredSource}" failed with error, trying all sources immediately`
+              );
+            } else {
+              logger.warn(
+                `[FALLBACK] Preferred source "${preferredSource}" returned 0 results for "${q}", trying all sources immediately`
+              );
+            }
+          }
+
           // 立即尝试所有源，不再依赖后台搜索
           const fallbackStart = performance.now();
           logger.info(`[PERF] FALLBACK search (all sources) START - query: "${q}"`);
-          
+
           try {
             const { results: allResults } = await api.searchVideos(q);
             const fallbackEnd = performance.now();
-            logger.info(`[PERF] FALLBACK search END - took ${(fallbackEnd - fallbackStart).toFixed(2)}ms, total results: ${allResults.length}`);
-            
-            const filteredResults = allResults.filter(item => item.title === q);
+            logger.info(
+              `[PERF] FALLBACK search END - took ${(fallbackEnd - fallbackStart).toFixed(2)}ms, total results: ${allResults.length}`
+            );
+
+            const filteredResults = allResults.filter((item) => item.title === q);
             logger.info(`[FALLBACK] Filtered results: ${filteredResults.length} matches for "${q}"`);
-            
+
             if (filteredResults.length > 0) {
               logger.info(`[SUCCESS] FALLBACK search found results, proceeding with ${filteredResults[0].source_name}`);
-              await processAndSetResults(filteredResults, false);
-              set({ loading: false });
+              const addedFromFallback = await processAndSetResults(filteredResults, false);
+              if (addedFromFallback > 0) {
+                set({ loading: false });
+              } else {
+                logger.error(
+                  `[ERROR] FALLBACK search returned results but none were usable for "${q}"`
+                );
+                set({
+                  error: `未找到 "${q}" 的播放源，请检查标题或稍后重试`,
+                  loading: false,
+                });
+              }
             } else {
               logger.error(`[ERROR] FALLBACK search found no matching results for "${q}"`);
-              set({ 
+              set({
                 error: `未找到 "${q}" 的播放源，请检查标题或稍后重试`,
-                loading: false 
+                loading: false,
               });
             }
           } catch (fallbackError) {
             logger.error(`[ERROR] FALLBACK search FAILED:`, fallbackError);
-            set({ 
-              error: `搜索失败：${fallbackError instanceof Error ? fallbackError.message : '网络错误，请稍后重试'}`,
-              loading: false 
+            set({
+              error: `搜索失败：${fallbackError instanceof Error ? fallbackError.message : "网络错误，请稍后重试"}`,
+              loading: false,
             });
           }
         }
-        
+
         // 后台搜索（如果preferred source成功的话）
-        if (preferredResult.length > 0) {
+        if (!shouldFallback) {
           const searchAllStart = performance.now();
           logger.info(`[PERF] API searchVideos (background) START`);
-          
+
           try {
             const { results: allResults } = await api.searchVideos(q);
-            
+
             const searchAllEnd = performance.now();
             logger.info(`[PERF] API searchVideos (background) END - took ${(searchAllEnd - searchAllStart).toFixed(2)}ms, results: ${allResults.length}`);
-            
+
             if (signal.aborted) return;
-            await processAndSetResults(allResults.filter(item => item.title === q), true);
+            await processAndSetResults(allResults.filter((item) => item.title === q), true);
           } catch (backgroundError) {
             logger.warn(`[WARN] Background search failed, but preferred source already succeeded:`, backgroundError);
           }
@@ -221,41 +322,117 @@ const useDetailStore = create<DetailState>((set, get) => ({
 
           let firstResultFound = false;
           let totalResults = 0;
-          const searchPromises = enabledResources.map(async (resource) => {
+          let resourceIndex = 0;
+
+          const runResource = async (resource: (typeof enabledResources)[number]) => {
+            if (signal.aborted) {
+              logger.info(`[INFO] Search aborted before requesting ${resource.name}`);
+              return;
+            }
+
+            if (get().searchResults.length >= MAX_PLAY_SOURCES) {
+              logger.info(
+                `[LIMIT] Max play sources (${MAX_PLAY_SOURCES}) reached before requesting ${resource.name}, skipping request`
+              );
+              return;
+            }
+
             try {
               const searchStart = performance.now();
               const { results } = await api.searchVideo(q, resource.key, signal);
               const searchEnd = performance.now();
-              logger.info(`[PERF] API searchVideo (${resource.name}) took ${(searchEnd - searchStart).toFixed(2)}ms, results: ${results.length}`);
-              
-              if (results.length > 0) {
-                totalResults += results.length;
-                logger.info(`[SUCCESS] Source "${resource.name}" found ${results.length} results for "${q}"`);
-                await processAndSetResults(results, true);
-                if (!firstResultFound) {
-                  set({ loading: false }); // Stop loading indicator on first result
-                  firstResultFound = true;
-                  logger.info(`[SUCCESS] First result found from "${resource.name}", stopping loading indicator`);
+              logger.info(
+                `[PERF] API searchVideo (${resource.name}) took ${(searchEnd - searchStart).toFixed(2)}ms, results: ${results.length}`
+              );
+
+              if (signal.aborted) {
+                logger.info(`[INFO] Search aborted after fetching ${resource.name}`);
+                return;
+              }
+
+              const validResults = results.filter((item) => item.episodes && item.episodes.length > 0);
+
+              if (validResults.length > 0) {
+                logger.info(
+                  `[SUCCESS] Source "${resource.name}" found ${validResults.length} valid results for "${q}"`
+                );
+
+                if (get().searchResults.length >= MAX_PLAY_SOURCES) {
+                  logger.info(
+                    `[LIMIT] Max play sources (${MAX_PLAY_SOURCES}) reached before processing ${resource.name}, skipping`
+                  );
+                  return;
+                }
+
+                const added = await processAndSetResults(validResults, true);
+
+                if (added > 0) {
+                  totalResults += added;
+                  logger.info(
+                    `[SUCCESS] Source "${resource.name}" added ${added} result(s). Total cached sources: ${get().searchResults.length}`
+                  );
+                  if (!firstResultFound) {
+                    set({ loading: false });
+                    firstResultFound = true;
+                    logger.info(
+                      `[SUCCESS] First result found from "${resource.name}", stopping loading indicator`
+                    );
+                  }
+                } else {
+                  logger.info(
+                    `[INFO] Source "${resource.name}" produced results but none were added (duplicates or limit reached)`
+                  );
                 }
               } else {
-                logger.warn(`[WARN] Source "${resource.name}" returned 0 results for "${q}"`);
+                logger.warn(`[WARN] Source "${resource.name}" returned 0 valid results for "${q}"`);
               }
             } catch (error) {
+              if ((error as Error)?.name === "AbortError") {
+                logger.info(`[INFO] searchVideo request for ${resource.name} aborted`);
+                return;
+              }
               logger.error(`[ERROR] Failed to fetch from ${resource.name}:`, error);
+            }
+          };
+
+          const workerCount = Math.min(MAX_CONCURRENT_SOURCE_REQUESTS, enabledResources.length);
+          const workers = Array.from({ length: workerCount }, async (_, workerIndex) => {
+            while (true) {
+              if (signal.aborted) {
+                logger.info(`[INFO] Aborting worker ${workerIndex} due to signal abort`);
+                return;
+              }
+
+              if (get().searchResults.length >= MAX_PLAY_SOURCES) {
+                logger.info(
+                  `[LIMIT] Worker ${workerIndex} exiting after reaching max play sources (${MAX_PLAY_SOURCES})`
+                );
+                return;
+              }
+
+              const currentIndex = resourceIndex++;
+              if (currentIndex >= enabledResources.length) {
+                return;
+              }
+
+              const resource = enabledResources[currentIndex];
+              await runResource(resource);
             }
           });
 
-          await Promise.all(searchPromises);
-          
+          await Promise.all(workers);
+
           // 检查是否找到任何结果
           if (totalResults === 0) {
             logger.error(`[ERROR] All sources returned 0 results for "${q}"`);
-            set({ 
+            set({
               error: `未找到 "${q}" 的播放源，请尝试其他关键词或稍后重试`,
               loading: false 
             });
           } else {
-            logger.info(`[SUCCESS] Standard search completed, total results: ${totalResults}`);
+            logger.info(
+              `[SUCCESS] Standard search completed, cached ${get().searchResults.length} unique sources (added ${totalResults})`
+            );
           }
         } catch (resourceError) {
           logger.error(`[ERROR] Failed to get resources:`, resourceError);

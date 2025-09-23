@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useRef, useState } from "react";
+import React, { useEffect, useCallback, useMemo, useRef, useState } from "react";
 import { View, StyleSheet, ActivityIndicator, FlatList, Pressable, Animated, StatusBar, Platform, BackHandler, ToastAndroid } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ThemedView } from "@/components/ThemedView";
@@ -86,36 +86,44 @@ export default function HomeScreen() {
   }, [])
 );
 
+  useEffect(() => {
+    if (!selectedCategory) {
+      setSelectedTag(null);
+      return;
+    }
+
+    if (selectedCategory.tag) {
+      setSelectedTag(selectedCategory.tag);
+      return;
+    }
+
+    if (selectedCategory.tags?.length) {
+      setSelectedTag(selectedCategory.tags[0]);
+      return;
+    }
+
+    setSelectedTag(null);
+  }, [selectedCategory, selectedCategory?.tag, selectedCategory?.tags, selectedCategory?.title]);
+
   // 统一的数据获取逻辑
   useEffect(() => {
     if (!selectedCategory) return;
 
-    // 如果是容器分类且没有选择标签，设置默认标签
     if (selectedCategory.tags && !selectedCategory.tag) {
-      const defaultTag = selectedCategory.tags[0];
-      setSelectedTag(defaultTag);
-      selectCategory({ ...selectedCategory, tag: defaultTag });
       return;
     }
 
-    // 只有在API配置完成且分类有效时才获取数据
-    if (apiConfigStatus.isConfigured && !apiConfigStatus.needsConfiguration) {
-      // 对于有标签的分类，需要确保有标签才获取数据
-      if (selectedCategory.tags && selectedCategory.tag) {
-        fetchInitialData();
-      }
-      // 对于无标签的分类，直接获取数据
-      else if (!selectedCategory.tags) {
-        fetchInitialData();
-      }
+    if (!apiConfigStatus.isConfigured || apiConfigStatus.needsConfiguration) {
+      return;
     }
+
+    fetchInitialData();
   }, [
     selectedCategory,
     selectedCategory?.tag,
     apiConfigStatus.isConfigured,
     apiConfigStatus.needsConfiguration,
     fetchInitialData,
-    selectCategory,
   ]);
 
   // 清除错误状态的逻辑
@@ -137,55 +145,68 @@ export default function HomeScreen() {
     }
   }, [loading, contentData.length, fadeAnim]);
 
-  const handleCategorySelect = (category: Category) => {
-    setSelectedTag(null);
-    selectCategory(category);
-  };
-
-  const handleTagSelect = (tag: string) => {
-    setSelectedTag(tag);
-    if (selectedCategory) {
-      const categoryWithTag = { ...selectedCategory, tag: tag };
-      selectCategory(categoryWithTag);
-    }
-  };
-
-  const renderCategory = ({ item }: { item: Category }) => {
-    const isSelected = selectedCategory?.title === item.title;
-    return (
-      <StyledButton
-        text={item.title}
-        onPress={() => handleCategorySelect(item)}
-        isSelected={isSelected}
-        hasTVPreferredFocus={isSelected}
-        style={dynamicStyles.categoryButton}
-        textStyle={dynamicStyles.categoryText}
-      />
-    );
-  };
-
-  const renderContentItem = ({ item }: { item: RowItem; index: number }) => (
-    <VideoCard
-      id={item.id}
-      source={item.source}
-      title={item.title}
-      poster={item.poster}
-      year={item.year}
-      rate={item.rate}
-      progress={item.progress}
-      playTime={item.play_time}
-      episodeIndex={item.episodeIndex}
-      sourceName={item.sourceName}
-      totalEpisodes={item.totalEpisodes}
-      api={api}
-      onRecordDeleted={fetchInitialData}
-    />
+  const handleCategorySelect = useCallback(
+    (category: Category) => {
+      const nextTag = category.tag ?? category.tags?.[0] ?? null;
+      setSelectedTag(nextTag ?? null);
+      selectCategory(category);
+    },
+    [selectCategory]
   );
 
-  const renderFooter = () => {
+  const handleTagSelect = useCallback(
+    (tag: string) => {
+      setSelectedTag(tag);
+      if (selectedCategory) {
+        const categoryWithTag = { ...selectedCategory, tag };
+        selectCategory(categoryWithTag);
+      }
+    },
+    [selectCategory, selectedCategory]
+  );
+
+  const renderCategory = useCallback(
+    ({ item }: { item: Category }) => {
+      const isSelected = selectedCategory?.title === item.title;
+      return (
+        <StyledButton
+          text={item.title}
+          onPress={() => handleCategorySelect(item)}
+          isSelected={isSelected}
+          hasTVPreferredFocus={isSelected}
+          style={dynamicStyles.categoryButton}
+          textStyle={dynamicStyles.categoryText}
+        />
+      );
+    },
+    [dynamicStyles, handleCategorySelect, selectedCategory?.title]
+  );
+
+  const renderContentItem = useCallback(
+    ({ item }: { item: RowItem; index: number }) => (
+      <VideoCard
+        id={item.id}
+        source={item.source}
+        title={item.title}
+        poster={item.poster}
+        year={item.year}
+        rate={item.rate}
+        progress={item.progress}
+        playTime={item.play_time}
+        episodeIndex={item.episodeIndex}
+        sourceName={item.sourceName}
+        totalEpisodes={item.totalEpisodes}
+        api={api}
+        onRecordDeleted={fetchInitialData}
+      />
+    ),
+    [fetchInitialData]
+  );
+
+  const footerComponent = useMemo(() => {
     if (!loadingMore) return null;
     return <ActivityIndicator style={{ marginVertical: 20 }} size="large" />;
-  };
+  }, [loadingMore]);
 
   // 检查是否需要显示API配置提示
   const shouldShowApiConfig = apiConfigStatus.needsConfiguration && selectedCategory && !selectedCategory.tags;
@@ -232,52 +253,58 @@ export default function HomeScreen() {
   };
 
   // 动态样式
-  const dynamicStyles = StyleSheet.create({
-    container: {
-      flex: 1,
-      paddingTop: deviceType === "mobile" ? insets.top : deviceType === "tablet" ? insets.top + 20 : 40,
-    },
-    headerContainer: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      paddingHorizontal: spacing * 1.5,
-      marginBottom: spacing,
-    },
-    headerTitle: {
-      fontSize: deviceType === "mobile" ? 24 : deviceType === "tablet" ? 28 : 32,
-      fontWeight: "bold",
-      paddingTop: 16,
-      height: 45
-    },
-    rightHeaderButtons: {
-      flexDirection: "row",
-      alignItems: "center",
-    },
-    iconButton: {
-      borderRadius: 30,
-      marginLeft: spacing / 2,
-    },
-    categoryContainer: {
-      paddingBottom: spacing / 2,
-    },
-    categoryListContent: {
-      paddingHorizontal: spacing,
-    },
-    categoryButton: {
-      paddingHorizontal: deviceType === "tv" ? spacing / 4 : spacing / 2,
-      paddingVertical: spacing / 2,
-      borderRadius: deviceType === "mobile" ? 6 : 8,
-      marginHorizontal: deviceType === "tv" ? spacing / 4 : spacing / 2, // TV端使用更小的间距
-    },
-    categoryText: {
-      fontSize: deviceType === "mobile" ? 14 : 16,
-      fontWeight: "500",
-    },
-    contentContainer: {
-      flex: 1,
-    },
-  });
+  const insetTop = insets.top;
+
+  const dynamicStyles = useMemo(
+    () =>
+      StyleSheet.create({
+        container: {
+          flex: 1,
+          paddingTop: deviceType === "mobile" ? insetTop : deviceType === "tablet" ? insetTop + 20 : 40,
+        },
+        headerContainer: {
+          flexDirection: "row",
+          justifyContent: "space-between",
+          alignItems: "center",
+          paddingHorizontal: spacing * 1.5,
+          marginBottom: spacing,
+        },
+        headerTitle: {
+          fontSize: deviceType === "mobile" ? 24 : deviceType === "tablet" ? 28 : 32,
+          fontWeight: "bold",
+          paddingTop: 16,
+          height: 45,
+        },
+        rightHeaderButtons: {
+          flexDirection: "row",
+          alignItems: "center",
+        },
+        iconButton: {
+          borderRadius: 30,
+          marginLeft: spacing / 2,
+        },
+        categoryContainer: {
+          paddingBottom: spacing / 2,
+        },
+        categoryListContent: {
+          paddingHorizontal: spacing,
+        },
+        categoryButton: {
+          paddingHorizontal: deviceType === "tv" ? spacing / 4 : spacing / 2,
+          paddingVertical: spacing / 2,
+          borderRadius: deviceType === "mobile" ? 6 : 8,
+          marginHorizontal: deviceType === "tv" ? spacing / 4 : spacing / 2, // TV端使用更小的间距
+        },
+        categoryText: {
+          fontSize: deviceType === "mobile" ? 14 : 16,
+          fontWeight: "500",
+        },
+        contentContainer: {
+          flex: 1,
+        },
+      }),
+    [deviceType, insetTop, spacing]
+  );
 
   const content = (
     <ThemedView style={[commonStyles.container, dynamicStyles.container]}>
@@ -357,7 +384,7 @@ export default function HomeScreen() {
           </ThemedText>
         </View>
       ) : (
-        <Animated.View style={[dynamicStyles.contentContainer, { opacity: 1 }]}>
+        <Animated.View style={[dynamicStyles.contentContainer, { opacity: fadeAnim }]}>
           <CustomScrollView
             data={contentData}
             renderItem={renderContentItem}
@@ -367,7 +394,7 @@ export default function HomeScreen() {
             onEndReached={loadMoreData}
             loadMoreThreshold={LOAD_MORE_THRESHOLD}
             emptyMessage={selectedCategory?.tags ? "请选择一个子分类" : "该分类下暂无内容"}
-            ListFooterComponent={renderFooter}
+            ListFooterComponent={footerComponent}
           />
         </Animated.View>
       )}
