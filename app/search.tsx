@@ -23,21 +23,6 @@ import { SearchHistoryManager } from "@/services/storage";
 
 const logger = Logger.withTag("SearchScreen");
 
-const DEFAULT_SUGGESTIONS = [
-  "庆余年",
-  "繁花",
-  "狂飙",
-  "甄嬛传",
-  "封神",
-  "长相思",
-  "流浪地球",
-  "隐秘的角落",
-  "莲花楼",
-  "星际穿越",
-  "猎冰",
-  "知否知否",
-];
-
 const TV_KEYBOARD_LAYOUT: string[][] = [
   ["A", "B", "C", "D", "E", "F", "G"],
   ["H", "I", "J", "K", "L", "M", "N"],
@@ -98,28 +83,48 @@ const createTVStyles = (spacing: number) =>
     keyboardHeader: {
       marginBottom: spacing,
     },
-    tipText: {
-      color: "rgba(255,255,255,0.75)",
-      fontSize: 18,
-      marginBottom: spacing / 2,
+    keywordInputRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginTop: spacing * 0.5,
     },
-    keywordDisplay: {
+    keywordInputContainer: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
       minHeight: 56,
       borderRadius: 12,
       borderWidth: 1,
       borderColor: "rgba(255,255,255,0.18)",
-      paddingHorizontal: spacing,
-      justifyContent: "center",
       backgroundColor: "rgba(0,0,0,0.3)",
+      paddingHorizontal: spacing,
     },
-    keywordText: {
+    keywordInputContainerFocused: {
+      borderColor: Colors.dark.primary,
+      backgroundColor: "rgba(13,13,13,0.6)",
+    },
+    keywordInput: {
+      flex: 1,
       color: "white",
-      fontSize: 28,
+      fontSize: 26,
       fontWeight: "600",
       letterSpacing: 2,
+      paddingVertical: 0,
     },
-    keywordPlaceholder: {
-      color: "rgba(255,255,255,0.5)",
+    inlineSearchButton: {
+      marginLeft: spacing / 2,
+      borderRadius: 12,
+      height: 56,
+      minWidth: 96,
+    },
+    inlineSearchButtonText: {
+      fontSize: 18,
+      fontWeight: "600",
+    },
+    tipText: {
+      color: "rgba(255,255,255,0.75)",
+      fontSize: 18,
+      marginBottom: spacing / 2,
     },
     keyboardGrid: {
       marginTop: spacing * 0.75,
@@ -166,7 +171,7 @@ const createTVStyles = (spacing: number) =>
       backgroundColor: "rgba(255,255,255,0.04)",
     },
     middleColumnCollapsed: {
-      flex: 0.9,
+      flex: 0.75,
     },
     section: {
       marginBottom: spacing,
@@ -221,6 +226,9 @@ const createTVStyles = (spacing: number) =>
       borderRadius: 18,
       backgroundColor: "rgba(255,255,255,0.04)",
     },
+    resultsColumnExpanded: {
+      flex: 2.9,
+    },
     resultsHeader: {
       flexDirection: "row",
       justifyContent: "space-between",
@@ -247,7 +255,7 @@ export default function SearchScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
-  const [suggestionPool, setSuggestionPool] = useState<string[]>(DEFAULT_SUGGESTIONS);
+  const [suggestionPool, setSuggestionPool] = useState<string[]>([]);
   const [activeColumn, setActiveColumn] = useState<"keyboard" | "middle" | "results">("keyboard");
   const textInputRef = useRef<TextInput>(null);
   const [isInputFocused, setIsInputFocused] = useState(false);
@@ -322,7 +330,7 @@ export default function SearchScreen() {
         setResults([]);
         setError(null);
         setLoading(false);
-        setSuggestionPool(DEFAULT_SUGGESTIONS);
+        setSuggestionPool([]);
         return;
       }
 
@@ -354,7 +362,7 @@ export default function SearchScreen() {
         if (uniqueSuggestions.length > 0) {
           setSuggestionPool(uniqueSuggestions);
         } else {
-          setSuggestionPool(DEFAULT_SUGGESTIONS);
+          setSuggestionPool([]);
         }
 
         if (options.saveToHistory) {
@@ -365,7 +373,7 @@ export default function SearchScreen() {
         logger.info("Search failed:", err);
         if (latestSearchIdRef.current === requestId) {
           setError("搜索失败，请稍后重试。");
-          setSuggestionPool(DEFAULT_SUGGESTIONS);
+          setSuggestionPool([]);
         }
       } finally {
         if (latestSearchIdRef.current === requestId) {
@@ -556,12 +564,40 @@ export default function SearchScreen() {
         <View style={tvStyles.keyboardColumn}>
           <View style={tvStyles.keyboardHeader}>
             <ThemedText style={tvStyles.tipText}>支持全拼首字母等中英输入</ThemedText>
-            <View style={tvStyles.keywordDisplay}>
-              <ThemedText
-                style={[tvStyles.keywordText, !keyword && tvStyles.keywordPlaceholder]}
+            <View style={tvStyles.keywordInputRow}>
+              <View
+                style={[
+                  tvStyles.keywordInputContainer,
+                  isInputFocused && tvStyles.keywordInputContainerFocused,
+                ]}
               >
-                {keyword || "请输入关键词"}
-              </ThemedText>
+                <TextInput
+                  ref={textInputRef}
+                  style={tvStyles.keywordInput}
+                  value={keyword}
+                  placeholder="输入片名或首字母"
+                  placeholderTextColor="rgba(255,255,255,0.45)"
+                  onChangeText={setKeyword}
+                  onFocus={() => {
+                    setIsInputFocused(true);
+                    setActiveColumn("keyboard");
+                  }}
+                  onBlur={() => setIsInputFocused(false)}
+                  onSubmitEditing={onSearchPress}
+                  returnKeyType="search"
+                  autoCorrect={false}
+                  autoCapitalize="none"
+                  showSoftInputOnFocus={false}
+                  blurOnSubmit={false}
+                />
+              </View>
+              <StyledButton
+                text="搜索"
+                onPress={onSearchPress}
+                style={tvStyles.inlineSearchButton}
+                textStyle={tvStyles.inlineSearchButtonText}
+                onFocus={() => setActiveColumn("keyboard")}
+              />
             </View>
           </View>
 
@@ -656,7 +692,12 @@ export default function SearchScreen() {
           </View>
         </View>
 
-        <View style={tvStyles.resultsColumn}>
+        <View
+          style={[
+            tvStyles.resultsColumn,
+            isResultsFocused && tvStyles.resultsColumnExpanded,
+          ]}
+        >
           <View style={tvStyles.resultsHeader}>
             <ThemedText style={tvStyles.resultsTitle}>搜索结果</ThemedText>
             {keyword ? <ThemedText style={tvStyles.resultsKeyword}>{keyword}</ThemedText> : null}
