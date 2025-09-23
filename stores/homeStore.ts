@@ -101,6 +101,7 @@ interface HomeState {
 
 // 内存缓存，应用生命周期内有效
 const dataCache = new Map<string, CacheItem>();
+const prefetchingCacheKeys = new Set<string>();
 let currentFetchAbortController: AbortController | null = null;
 let currentRequestToken = 0;
 
@@ -114,6 +115,65 @@ const cancelOngoingRequest = () => {
 const createRequestToken = () => {
   currentRequestToken += 1;
   return currentRequestToken;
+};
+
+const schedulePrefetchForTag = (category: Category, tag: string) => {
+  if (!category.type) {
+    return;
+  }
+
+  const categoryWithTag: Category = { ...category, tag };
+  const cacheKey = getCacheKey(categoryWithTag);
+  const existingCache = dataCache.get(cacheKey);
+
+  if ((existingCache && isValidCache(existingCache)) || prefetchingCacheKeys.has(cacheKey)) {
+    return;
+  }
+
+  prefetchingCacheKeys.add(cacheKey);
+
+  void (async () => {
+    try {
+      const result = await api.getDoubanData(category.type!, tag, 20, 0);
+      const newItems = result.list.map((item) => ({
+        ...item,
+        id: item.title,
+        source: "douban",
+      })) as RowItem[];
+
+      const cacheItems = newItems.slice(0, MAX_ITEMS_PER_CACHE);
+
+      dataCache.set(cacheKey, {
+        data: cacheItems,
+        timestamp: Date.now(),
+        type: category.type!,
+        hasMore: result.list.length !== 0,
+      });
+    } catch (_error) {
+      void _error;
+      // 预加载失败时静默处理，等待用户主动加载
+    } finally {
+      prefetchingCacheKeys.delete(cacheKey);
+    }
+  })();
+};
+
+const schedulePrefetchAdditionalTags = (category: Category) => {
+  if (!category.tags || category.tags.length <= 1) {
+    return;
+  }
+
+  category.tags.forEach((tag, index) => {
+    if (tag === category.tag) {
+      return;
+    }
+
+    const delay = Math.min(index * 300, 1500); // 控制预加载节奏，避免瞬时大量请求
+
+    setTimeout(() => {
+      schedulePrefetchForTag(category, tag);
+    }, delay);
+  });
 };
 
 const useHomeStore = create<HomeState>((set, get) => ({
@@ -261,6 +321,8 @@ const useHomeStore = create<HomeState>((set, get) => ({
             pageStart: newItems.length,
             hasMore: result.list.length !== 0,
           });
+
+          schedulePrefetchAdditionalTags(selectedCategory);
         } else {
           // 增量加载时更新缓存
           const existingCache = dataCache.get(cacheKey);
