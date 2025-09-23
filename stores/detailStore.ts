@@ -10,47 +10,264 @@ const logger = Logger.withTag('DetailStore');
 const MAX_PLAY_SOURCES = 8;
 const MAX_CONCURRENT_SOURCE_REQUESTS = 3;
 
+const normalizeIdentifier = (value?: string | null): string => {
+  if (!value) {
+    return "";
+  }
+
+  return value
+    .normalize("NFKC")
+    .trim()
+    .toLowerCase()
+    .replace(/[\u3000\u00A0\s]+/g, "")
+    .replace(/[·•~!@#$%^&*()_+=[\]{}|\\;:'",.<>/?`！￥…（）—【】「」『』、《》？。，、丨-]/g, "");
+};
+
+const stripVariantSuffixes = (value: string): string => {
+  let result = value;
+  let previous: string;
+
+  const variantPatterns = [
+    /(?:第?\d{1,3}(?:线|源))$/u,
+    /(?:线路?\d{1,3})$/u,
+    /(?:line\d{1,3})$/u,
+    /(?:主线|多线|备用)$/u,
+    /(?:无广|无广告)$/u,
+    /(?:超清|高清|蓝光|标清|普清)$/u,
+    /(?:\d{3,4}p)$/u,
+    /(?:4k|2k|uhd|fhd)$/u,
+    /(?:资源|源|source)\d{1,3}$/u,
+  ];
+
+  do {
+    previous = result;
+    for (const pattern of variantPatterns) {
+      result = result.replace(pattern, "");
+    }
+  } while (previous !== result);
+
+  return result;
+};
+
 const normalizeSourceName = (sourceName?: string | null): string => {
   if (!sourceName) {
     return "";
   }
 
-  return sourceName
-    .trim()
-    .replace(/\s+/g, "")
-    .toLowerCase();
+  const normalized = normalizeIdentifier(sourceName);
+  return stripVariantSuffixes(normalized);
 };
 
-const dedupeSearchResultsBySourceName = (
-  items: SearchResultWithResolution[]
-): SearchResultWithResolution[] => {
-  const seenSources = new Set<string>();
-  const seenSourceNames = new Set<string>();
-  const deduped: SearchResultWithResolution[] = [];
+const buildResultDedupeKey = (
+  item: Pick<SearchResult, "source" | "source_name" | "title" | "id">,
+  contextSourceKey?: string
+): string => {
+  const contextKey = stripVariantSuffixes(normalizeIdentifier(contextSourceKey));
+  const sourceKey = stripVariantSuffixes(normalizeIdentifier(item.source));
+  const nameKey = normalizeSourceName(item.source_name);
 
-  for (const item of items) {
-    const normalizedName = normalizeSourceName(item.source_name);
-
-    if (seenSources.has(item.source)) {
-      continue;
-    }
-
-    if (normalizedName && seenSourceNames.has(normalizedName)) {
-      continue;
-    }
-
-    seenSources.add(item.source);
-    if (normalizedName) {
-      seenSourceNames.add(normalizedName);
-    }
-
-    deduped.push(item);
+  if (contextKey) {
+    return contextKey;
   }
 
-  return deduped;
+  if (sourceKey) {
+    return sourceKey;
+  }
+
+  if (nameKey) {
+    return nameKey;
+  }
+
+  const titleKey = normalizeIdentifier(item.title);
+  return titleKey ? `${titleKey}:${item.id}` : `${item.id}`;
 };
 
-export type SearchResultWithResolution = SearchResult & { resolution?: string | null };
+const labelPriority = (sourceName?: string | null): number => {
+  if (!sourceName) {
+    return 0;
+  }
+
+  const normalized = sourceName.trim().toLowerCase();
+  let score = 0;
+
+  if (normalized.includes("无广") || normalized.includes("无广告")) {
+    score += 4;
+  }
+  if (normalized.includes("蓝光")) {
+    score += 3;
+  }
+  if (normalized.includes("超清")) {
+    score += 2;
+  }
+  if (normalized.includes("高清")) {
+    score += 1;
+  }
+  if (normalized.includes("备用")) {
+    score -= 3;
+  }
+  if (normalized.includes("线路") || normalized.includes("line")) {
+    score -= 2;
+  }
+  if (normalized.includes("主线")) {
+    score -= 1;
+  }
+
+  return score;
+};
+
+const resolutionPriority = (resolution?: string | null): number => {
+  if (!resolution) {
+    return 0;
+  }
+
+  const normalized = resolution.toLowerCase();
+
+  if (/(4k|2160)/.test(normalized)) {
+    return 6;
+  }
+  if (/(2k|1440)/.test(normalized)) {
+    return 5;
+  }
+
+  const match = normalized.match(/(\d{3,4})p/);
+  if (match) {
+    const value = Number(match[1]);
+    if (value >= 2160) {
+      return 6;
+    }
+    if (value >= 1440) {
+      return 5;
+    }
+    if (value >= 1080) {
+      return 4;
+    }
+    if (value >= 720) {
+      return 3;
+    }
+    if (value >= 540) {
+      return 2;
+    }
+    if (value >= 480) {
+      return 1;
+    }
+  }
+
+  if (normalized.includes("蓝光")) {
+    return 4;
+  }
+  if (normalized.includes("超清")) {
+    return 3;
+  }
+  if (normalized.includes("高清")) {
+    return 2;
+  }
+  if (normalized.includes("标清")) {
+    return 1;
+  }
+
+  return 0;
+};
+
+const shouldPreferRawResult = (current: SearchResult, candidate: SearchResult): boolean => {
+  const currentEpisodes = current.episodes?.length ?? 0;
+  const candidateEpisodes = candidate.episodes?.length ?? 0;
+
+  if (candidateEpisodes > currentEpisodes) {
+    return true;
+  }
+
+  if (candidateEpisodes < currentEpisodes) {
+    return false;
+  }
+
+  const currentLabelScore = labelPriority(current.source_name);
+  const candidateLabelScore = labelPriority(candidate.source_name);
+
+  if (candidateLabelScore > currentLabelScore) {
+    return true;
+  }
+
+  if (candidateLabelScore < currentLabelScore) {
+    return false;
+  }
+
+  const currentNameLength = current.source_name?.trim().length ?? 0;
+  const candidateNameLength = candidate.source_name?.trim().length ?? 0;
+
+  if (candidateNameLength && (!currentNameLength || candidateNameLength < currentNameLength)) {
+    return true;
+  }
+
+  return false;
+};
+
+export type SearchResultWithResolution = SearchResult & {
+  resolution?: string | null;
+  dedupeKey: string;
+  normalizedSourceName: string;
+};
+
+const shouldPreferEnrichedResult = (
+  current: SearchResultWithResolution,
+  candidate: SearchResultWithResolution
+): boolean => {
+  const currentEpisodes = current.episodes?.length ?? 0;
+  const candidateEpisodes = candidate.episodes?.length ?? 0;
+
+  if (candidateEpisodes > currentEpisodes) {
+    return true;
+  }
+
+  if (candidateEpisodes < currentEpisodes) {
+    return false;
+  }
+
+  const currentResolutionScore = resolutionPriority(current.resolution);
+  const candidateResolutionScore = resolutionPriority(candidate.resolution);
+
+  if (candidateResolutionScore > currentResolutionScore) {
+    return true;
+  }
+
+  if (candidateResolutionScore < currentResolutionScore) {
+    return false;
+  }
+
+  const currentLabelScore = labelPriority(current.source_name);
+  const candidateLabelScore = labelPriority(candidate.source_name);
+
+  if (candidateLabelScore > currentLabelScore) {
+    return true;
+  }
+
+  if (candidateLabelScore < currentLabelScore) {
+    return false;
+  }
+
+  return false;
+};
+
+const mergeResultsByDedupeKey = (
+  items: SearchResultWithResolution[]
+): SearchResultWithResolution[] => {
+  const merged = new Map<string, SearchResultWithResolution>();
+
+  for (const item of items) {
+    const key = item.dedupeKey || buildResultDedupeKey(item);
+    const existing = merged.get(key);
+
+    if (!existing) {
+      merged.set(key, item);
+      continue;
+    }
+
+    if (shouldPreferEnrichedResult(existing, item)) {
+      merged.set(key, item);
+    }
+  }
+
+  return Array.from(merged.values());
+};
 
 interface DetailState {
   q: string | null;
@@ -107,81 +324,128 @@ const useDetailStore = create<DetailState>((set, get) => ({
 
     const { videoSource } = useSettingsStore.getState();
 
-    const processAndSetResults = async (results: SearchResult[], merge = false): Promise<number> => {
+    const processAndSetResults = async (
+      results: SearchResult[],
+      mergeOrOptions: boolean | { merge?: boolean; sourceKey?: string } = {}
+    ): Promise<number> => {
+      const options = typeof mergeOrOptions === "boolean" ? { merge: mergeOrOptions } : mergeOrOptions;
+      const { merge = false, sourceKey } = options;
       const snapshot = get();
-      const existingSourcesSnapshot = new Set(snapshot.searchResults.map((r) => r.source));
-      const existingSourceNamesSnapshot = new Set(
-        snapshot.searchResults.map((r) => normalizeSourceName(r.source_name))
+      const existingResults = snapshot.searchResults;
+      const existingKeys = new Set(
+        existingResults.map((item) => item.dedupeKey || buildResultDedupeKey(item))
       );
-      const remainingCapacity = MAX_PLAY_SOURCES - snapshot.searchResults.length;
+      const remainingCapacity = merge
+        ? Math.max(0, MAX_PLAY_SOURCES - existingResults.length)
+        : MAX_PLAY_SOURCES;
 
-      if (remainingCapacity <= 0) {
-        logger.info(
-          `[LIMIT] Max play sources (${MAX_PLAY_SOURCES}) reached before processing new batch (merge: ${merge})`
-        );
-        set({ allSourcesLoaded: true });
-        return 0;
-      }
-
-      const seenSourcesInBatch = new Set<string>();
-      const seenSourceNamesInBatch = new Set<string>();
-
-      const filteredResults = results.filter((result) => {
-        if (!result.episodes || result.episodes.length === 0) {
-          return false;
+      if (results.length === 0) {
+        if (merge && snapshot.searchResults.length >= MAX_PLAY_SOURCES) {
+          set({ allSourcesLoaded: true });
         }
-
-        if (existingSourcesSnapshot.has(result.source) || seenSourcesInBatch.has(result.source)) {
-          return false;
-        }
-
-        const normalizedName = normalizeSourceName(result.source_name);
-
-        if (
-          normalizedName &&
-          (existingSourceNamesSnapshot.has(normalizedName) || seenSourceNamesInBatch.has(normalizedName))
-        ) {
-          return false;
-        }
-
-        seenSourcesInBatch.add(result.source);
-        if (normalizedName) {
-          seenSourceNamesInBatch.add(normalizedName);
-        }
-
-        return true;
-      });
-
-      if (filteredResults.length === 0) {
         logger.info(`[INFO] No new valid results to process from batch (merge: ${merge})`);
         return 0;
       }
 
-      const limitedResults = filteredResults.slice(0, remainingCapacity);
+      interface CandidateEntry {
+        result: SearchResult;
+        normalizedSourceName: string;
+        firstSeen: number;
+        isReplacement: boolean;
+      }
+
+      const candidateMap = new Map<string, CandidateEntry>();
+
+      results.forEach((result, index) => {
+        if (!result.episodes || result.episodes.length === 0) {
+          return;
+        }
+
+        const dedupeKey = buildResultDedupeKey(result, sourceKey);
+        const normalizedSourceName = normalizeSourceName(result.source_name);
+        const isReplacement = existingKeys.has(dedupeKey);
+        const currentEntry = candidateMap.get(dedupeKey);
+
+        if (!currentEntry) {
+          candidateMap.set(dedupeKey, {
+            result,
+            normalizedSourceName,
+            firstSeen: index,
+            isReplacement,
+          });
+          return;
+        }
+
+        const nextIsReplacement = currentEntry.isReplacement || isReplacement;
+        if (shouldPreferRawResult(currentEntry.result, result)) {
+          candidateMap.set(dedupeKey, {
+            result,
+            normalizedSourceName,
+            firstSeen: currentEntry.firstSeen,
+            isReplacement: nextIsReplacement,
+          });
+        } else if (nextIsReplacement && !currentEntry.isReplacement) {
+          candidateMap.set(dedupeKey, { ...currentEntry, isReplacement: true });
+        }
+      });
+
+      let candidateEntries = Array.from(candidateMap.entries()).map(([dedupeKey, value]) => ({
+        dedupeKey,
+        ...value,
+      }));
+
+      const replacements = candidateEntries.filter((entry) => entry.isReplacement);
+      let newCandidates = candidateEntries.filter((entry) => !entry.isReplacement);
+
+      newCandidates = newCandidates.sort((a, b) => a.firstSeen - b.firstSeen);
+
+      if (merge) {
+        newCandidates = newCandidates.slice(0, remainingCapacity);
+      } else {
+        newCandidates = newCandidates.slice(0, MAX_PLAY_SOURCES);
+      }
+
+      if (newCandidates.length === 0 && replacements.length === 0) {
+        if (merge && snapshot.searchResults.length >= MAX_PLAY_SOURCES) {
+          set({ allSourcesLoaded: true });
+        }
+        logger.info(`[INFO] No new valid results to process from batch (merge: ${merge})`);
+        return 0;
+      }
+
+      const combinedCandidates = [...newCandidates, ...replacements].sort(
+        (a, b) => a.firstSeen - b.firstSeen
+      );
 
       const resolutionStart = performance.now();
       logger.info(
-        `[PERF] Resolution detection START - processing ${limitedResults.length} sources (merge: ${merge})`
+        `[PERF] Resolution detection START - processing ${combinedCandidates.length} sources (merge: ${merge})`
       );
 
       const resultsWithResolution = await Promise.all(
-        limitedResults.map(async (searchResult) => {
-          let resolution;
+        combinedCandidates.map(async ({ result, dedupeKey, normalizedSourceName }) => {
+          let resolution: string | null | undefined;
           const m3u8Start = performance.now();
           try {
-            if (searchResult.episodes && searchResult.episodes.length > 0) {
-              resolution = await getResolutionFromM3U8(searchResult.episodes[0], signal);
+            if (result.episodes && result.episodes.length > 0) {
+              resolution = await getResolutionFromM3U8(result.episodes[0], signal);
             }
           } catch (e) {
             if ((e as Error).name !== "AbortError") {
-              logger.info(`Failed to get resolution for ${searchResult.source_name}`, e);
+              logger.info(`Failed to get resolution for ${result.source_name}`, e);
             }
           }
           const m3u8End = performance.now();
           logger.info(
-            `[PERF] M3U8 resolution for ${searchResult.source_name}: ${(m3u8End - m3u8Start).toFixed(2)}ms (${resolution || "failed"})`
+            `[PERF] M3U8 resolution for ${result.source_name}: ${(m3u8End - m3u8Start).toFixed(2)}ms (${resolution || "failed"})`
           );
-          return { ...searchResult, resolution };
+          return {
+            ...result,
+            source_name: result.source_name.trim(),
+            resolution,
+            dedupeKey,
+            normalizedSourceName,
+          };
         })
       );
 
@@ -192,45 +456,38 @@ const useDetailStore = create<DetailState>((set, get) => ({
         return 0;
       }
 
-      let addedCount = 0;
+      let addedKeys: string[] = [];
+      let updatedKeys: string[] = [];
+
       set((state) => {
-        const previousResults = state.searchResults;
-        const base = merge ? previousResults : [];
-        const baseSources = new Set(base.map((r) => r.source));
-        const baseSourceNames = new Set(base.map((r) => normalizeSourceName(r.source_name)));
+        const previousResults = merge ? state.searchResults : [];
+        const baseResults = merge ? state.searchResults : [];
+        const combined = merge
+          ? [...baseResults, ...resultsWithResolution]
+          : [...resultsWithResolution];
+        const mergedResults = mergeResultsByDedupeKey(combined);
+        const truncated = mergedResults.slice(0, MAX_PLAY_SOURCES);
 
-        const dedupedNew = resultsWithResolution.filter((r) => {
-          if (baseSources.has(r.source)) {
-            return false;
+        const previousMap = new Map(
+          previousResults.map((item) => [item.dedupeKey || buildResultDedupeKey(item), item])
+        );
+        addedKeys = [];
+        updatedKeys = [];
+
+        for (const item of truncated) {
+          const key = item.dedupeKey || buildResultDedupeKey(item);
+          const prev = previousMap.get(key);
+          if (!prev) {
+            addedKeys.push(key);
+          } else if (
+            prev.episodes.length !== item.episodes.length ||
+            prev.resolution !== item.resolution ||
+            prev.source_name !== item.source_name
+          ) {
+            updatedKeys.push(key);
           }
-
-          const normalizedName = normalizeSourceName(r.source_name);
-
-          if (normalizedName && baseSourceNames.has(normalizedName)) {
-            return false;
-          }
-
-          baseSources.add(r.source);
-          if (normalizedName) {
-            baseSourceNames.add(normalizedName);
-          }
-
-          return true;
-        });
-
-        let combined: SearchResultWithResolution[];
-        if (merge) {
-          combined = [...previousResults, ...dedupedNew];
-        } else if (dedupedNew.length > 0) {
-          combined = dedupedNew;
-        } else {
-          combined = previousResults;
         }
 
-        const dedupedCombined = dedupeSearchResultsBySourceName(combined);
-        const truncated = dedupedCombined.slice(0, MAX_PLAY_SOURCES);
-        const prevCount = merge ? previousResults.length : 0;
-        addedCount = Math.max(0, truncated.length - prevCount);
         const reachedMax = truncated.length >= MAX_PLAY_SOURCES;
 
         const nextDetail =
@@ -245,7 +502,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
           searchResults: truncated,
           sources: truncated.map((r) => ({
             source: r.source,
-            source_name: r.source_name,
+            source_name: r.source_name.trim(),
             resolution: r.resolution,
           })),
           detail: nextDetail,
@@ -253,11 +510,21 @@ const useDetailStore = create<DetailState>((set, get) => ({
         };
       });
 
-      if (addedCount > 0) {
-        logger.info(`[INFO] Added ${addedCount} new sources (merge: ${merge}).`);
+      const totalAfterUpdate = get().searchResults.length;
+
+      if (addedKeys.length > 0) {
+        logger.info(
+          `[INFO] Added ${addedKeys.length} new sources (merge: ${merge}). Total cached sources: ${totalAfterUpdate}`
+        );
       }
 
-      return addedCount;
+      if (updatedKeys.length > 0) {
+        logger.info(
+          `[INFO] Updated ${updatedKeys.length} existing source(s) with fresher data (merge: ${merge}).`
+        );
+      }
+
+      return addedKeys.length;
     };
 
     try {
@@ -288,7 +555,10 @@ const useDetailStore = create<DetailState>((set, get) => ({
           logger.info(
             `[SUCCESS] Preferred source "${preferredSource}" found ${preferredResult.length} results for "${q}"`
           );
-          preferredAddedCount = await processAndSetResults(preferredResult, false);
+          preferredAddedCount = await processAndSetResults(preferredResult, {
+            merge: false,
+            sourceKey: preferredSource,
+          });
 
           if (preferredAddedCount > 0) {
             set({ loading: false });
@@ -331,7 +601,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
 
             if (filteredResults.length > 0) {
               logger.info(`[SUCCESS] FALLBACK search found results, proceeding with ${filteredResults[0].source_name}`);
-              const addedFromFallback = await processAndSetResults(filteredResults, false);
+              const addedFromFallback = await processAndSetResults(filteredResults, { merge: false });
               if (addedFromFallback > 0) {
                 set({ loading: false });
               } else {
@@ -371,7 +641,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
             logger.info(`[PERF] API searchVideos (background) END - took ${(searchAllEnd - searchAllStart).toFixed(2)}ms, results: ${allResults.length}`);
 
             if (signal.aborted) return;
-            await processAndSetResults(allResults.filter((item) => item.title === q), true);
+            await processAndSetResults(allResults.filter((item) => item.title === q), { merge: true });
           } catch (backgroundError) {
             logger.warn(`[WARN] Background search failed, but preferred source already succeeded:`, backgroundError);
           }
@@ -446,7 +716,10 @@ const useDetailStore = create<DetailState>((set, get) => ({
                   return;
                 }
 
-                const added = await processAndSetResults(validResults, true);
+                const added = await processAndSetResults(validResults, {
+                  merge: true,
+                  sourceKey: resource.key,
+                });
 
                 if (added > 0) {
                   totalResults += added;
