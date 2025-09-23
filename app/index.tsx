@@ -44,6 +44,8 @@ export default function HomeScreen() {
     refreshPlayRecords,
     clearError,
   } = useHomeStore();
+  const hasContent = contentData.length > 0;
+  const hadContentRef = useRef(hasContent);
   const { isLoggedIn, logout } = useAuthStore();
   const apiConfigStatus = useApiConfig();
 
@@ -134,16 +136,25 @@ export default function HomeScreen() {
   }, [apiConfigStatus.needsConfiguration, error, clearError]);
 
   useEffect(() => {
-    if (!loading && contentData.length > 0) {
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }).start();
-    } else if (loading) {
+    if (loading) {
       fadeAnim.setValue(0);
+    } else if (hasContent) {
+      if (!hadContentRef.current) {
+        fadeAnim.setValue(0);
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }).start();
+      } else {
+        fadeAnim.setValue(1);
+      }
+    } else {
+      fadeAnim.setValue(1);
     }
-  }, [loading, contentData.length, fadeAnim]);
+
+    hadContentRef.current = hasContent;
+  }, [loading, hasContent, fadeAnim]);
 
   const handleCategorySelect = useCallback(
     (category: Category) => {
