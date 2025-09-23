@@ -54,6 +54,8 @@ const VideoCard = forwardRef<View, VideoCardProps>(
     const longPressTriggered = useRef(false);
 
     const scale = useRef(new Animated.Value(1)).current;
+    const fadeInAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
+    const scaleAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
 
     const deviceType = useResponsiveLayout().deviceType;
 
@@ -80,33 +82,61 @@ const VideoCard = forwardRef<View, VideoCardProps>(
       }
     };
 
+    const runScaleAnimation = useCallback(
+      (toValue: number, config?: Partial<Animated.SpringAnimationConfig>) => {
+        scaleAnimationRef.current?.stop();
+        const animation = Animated.spring(scale, {
+          toValue,
+          useNativeDriver: true,
+          ...config,
+        });
+        scaleAnimationRef.current = animation;
+        animation.start(() => {
+          if (scaleAnimationRef.current === animation) {
+            scaleAnimationRef.current = null;
+          }
+        });
+      },
+      [scale]
+    );
+
     const handleFocus = useCallback(() => {
       setIsFocused(true);
-      Animated.spring(scale, {
-        toValue: 1.05,
-        damping: 15,
-        stiffness: 200,
-        useNativeDriver: true,
-      }).start();
+      runScaleAnimation(1.05, { damping: 15, stiffness: 200 });
       onFocus?.();
-    }, [scale, onFocus]);
+    }, [runScaleAnimation, onFocus]);
 
     const handleBlur = useCallback(() => {
       setIsFocused(false);
-      Animated.spring(scale, {
-        toValue: 1.0,
-        useNativeDriver: true,
-      }).start();
-    }, [scale]);
+      runScaleAnimation(1.0);
+    }, [runScaleAnimation]);
 
     useEffect(() => {
-      Animated.timing(fadeAnim, {
+      fadeInAnimationRef.current?.stop();
+      const animation = Animated.timing(fadeAnim, {
         toValue: 1,
         duration: 400,
         delay: Math.random() * 200, // 随机延迟创造交错效果
         useNativeDriver: true,
-      }).start();
+      });
+      fadeInAnimationRef.current = animation;
+      animation.start(() => {
+        if (fadeInAnimationRef.current === animation) {
+          fadeInAnimationRef.current = null;
+        }
+      });
+
+      return () => {
+        animation.stop();
+      };
     }, [fadeAnim]);
+
+    useEffect(() => {
+      return () => {
+        fadeInAnimationRef.current?.stop();
+        scaleAnimationRef.current?.stop();
+      };
+    }, []);
 
     const handleLongPress = () => {
       // Only allow long press for items with progress (play records)

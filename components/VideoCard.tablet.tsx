@@ -55,6 +55,8 @@ const VideoCardTablet = forwardRef<View, VideoCardTabletProps>(
 
     const longPressTriggered = useRef(false);
     const scale = useRef(new Animated.Value(1)).current;
+    const fadeInAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
+    const scaleAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
 
     const handlePress = () => {
       if (longPressTriggered.current) {
@@ -75,34 +77,61 @@ const VideoCardTablet = forwardRef<View, VideoCardTabletProps>(
       }
     };
 
+    const runScaleAnimation = useCallback(
+      (toValue: number) => {
+        scaleAnimationRef.current?.stop();
+        const animation = Animated.spring(scale, {
+          toValue,
+          damping: 15,
+          stiffness: 300,
+          useNativeDriver: true,
+        });
+        scaleAnimationRef.current = animation;
+        animation.start(() => {
+          if (scaleAnimationRef.current === animation) {
+            scaleAnimationRef.current = null;
+          }
+        });
+      },
+      [scale]
+    );
+
     const handlePressIn = useCallback(() => {
       setIsPressed(true);
-      Animated.spring(scale, {
-        toValue: 0.96,
-        damping: 15,
-        stiffness: 300,
-        useNativeDriver: true,
-      }).start();
-    }, [scale]);
+      runScaleAnimation(0.96);
+    }, [runScaleAnimation]);
 
     const handlePressOut = useCallback(() => {
       setIsPressed(false);
-      Animated.spring(scale, {
-        toValue: 1.0,
-        damping: 15,
-        stiffness: 300,
-        useNativeDriver: true,
-      }).start();
-    }, [scale]);
+      runScaleAnimation(1.0);
+    }, [runScaleAnimation]);
 
     useEffect(() => {
-      Animated.timing(fadeAnim, {
+      fadeInAnimationRef.current?.stop();
+      const animation = Animated.timing(fadeAnim, {
         toValue: 1,
         duration: DeviceUtils.getAnimationDuration(400),
         delay: Math.random() * 150,
         useNativeDriver: true,
-      }).start();
+      });
+      fadeInAnimationRef.current = animation;
+      animation.start(() => {
+        if (fadeInAnimationRef.current === animation) {
+          fadeInAnimationRef.current = null;
+        }
+      });
+
+      return () => {
+        animation.stop();
+      };
     }, [fadeAnim]);
+
+    useEffect(() => {
+      return () => {
+        fadeInAnimationRef.current?.stop();
+        scaleAnimationRef.current?.stop();
+      };
+    }, []);
 
     const handleLongPress = () => {
       if (progress === undefined) return;

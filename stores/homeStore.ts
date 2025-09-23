@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { api, SearchResult, PlayRecord } from "@/services/api";
+import { api, SearchResult, PlayRecord, DoubanItem } from "@/services/api";
 import { PlayRecordManager } from "@/services/storage";
 import useAuthStore from "./authStore";
 import { useSettingsStore } from "./settingsStore";
@@ -91,6 +91,43 @@ const ensureCategoryHasDefaultTag = (category: Category): Category => {
   return category;
 };
 
+type ContentCategory = Category & { type: "movie" | "tv"; tag: string };
+
+const isContentCategory = (category: Category): category is ContentCategory => {
+  return (category.type === "movie" || category.type === "tv") && typeof category.tag === "string" && category.tag.length > 0;
+};
+
+const parseRecordKey = (key: string) => {
+  const [source, id] = key.split("+");
+  return {
+    source: source || "",
+    id: id || key,
+  };
+};
+
+const transformPlayRecordsToRowItems = (records: Record<string, PlayRecord>): RowItem[] => {
+  return Object.entries(records)
+    .map(([key, record]) => {
+      const { source, id } = parseRecordKey(key);
+      const totalTime = record.total_time ?? 0;
+      const hasValidDuration = totalTime > 0;
+
+      return {
+        ...record,
+        id,
+        source,
+        poster: record.cover,
+        sourceName: record.source_name,
+        episodeIndex: record.index,
+        totalEpisodes: record.total_episodes,
+        lastPlayed: record.save_time,
+        play_time: record.play_time,
+        progress: hasValidDuration ? record.play_time / totalTime : undefined,
+      };
+    })
+    .sort((a, b) => (b.lastPlayed || 0) - (a.lastPlayed || 0));
+};
+
 interface HomeState {
   categories: Category[];
   selectedCategory: Category;
@@ -113,6 +150,79 @@ const prefetchingCacheKeys = new Set<string>();
 let currentFetchAbortController: AbortController | null = null;
 let currentRequestToken = 0;
 
+const pruneExpiredCacheEntries = () => {
+  for (const [key, value] of dataCache.entries()) {
+    if (!isValidCache(value)) {
+      dataCache.delete(key);
+    }
+  }
+};
+
+const getValidCacheEntry = (cacheKey: string): CacheItem | undefined => {
+  const cached = dataCache.get(cacheKey);
+  if (!cached) {
+    return undefined;
+  }
+
+  if (!isValidCache(cached)) {
+    dataCache.delete(cacheKey);
+    return undefined;
+  }
+
+  return cached;
+};
+
+const createCacheEntry = (type: CacheItem["type"], items: RowItem[], hasMore: boolean): CacheItem => ({
+  data: items.slice(0, MAX_ITEMS_PER_CACHE),
+  timestamp: Date.now(),
+  type,
+  hasMore,
+});
+
+const writeCacheEntry = (cacheKey: string, entry: CacheItem) => {
+  pruneExpiredCacheEntries();
+
+  if (dataCache.has(cacheKey)) {
+    dataCache.delete(cacheKey);
+  }
+
+  while (dataCache.size >= MAX_CACHE_SIZE) {
+    const { value: oldestKey, done } = dataCache.keys().next();
+    if (done || oldestKey === undefined) {
+      break;
+    }
+    dataCache.delete(oldestKey);
+  }
+
+  dataCache.set(cacheKey, entry);
+};
+
+const appendCacheEntry = (cacheKey: string, type: CacheItem["type"], items: RowItem[], hasMore: boolean) => {
+  const existing = getValidCacheEntry(cacheKey);
+  const mergedItems = existing ? [...existing.data, ...items] : items;
+  writeCacheEntry(cacheKey, createCacheEntry(type, mergedItems, hasMore));
+};
+
+const mapDoubanItemsToRows = (items: DoubanItem[]): RowItem[] =>
+  items.map((item) => ({
+    ...item,
+    id: item.title,
+    source: "douban",
+  })) as RowItem[];
+
+const fetchDoubanCategoryContent = async (
+  category: ContentCategory,
+  pageStart: number,
+  signal?: AbortSignal
+): Promise<{ items: RowItem[]; hasMore: boolean }> => {
+  const result = await api.getDoubanData(category.type, category.tag, 20, pageStart, signal);
+  const items = mapDoubanItemsToRows(result.list);
+  return {
+    items,
+    hasMore: result.list.length !== 0,
+  };
+};
+
 const cancelOngoingRequest = () => {
   if (currentFetchAbortController) {
     currentFetchAbortController.abort();
@@ -125,16 +235,64 @@ const createRequestToken = () => {
   return currentRequestToken;
 };
 
+const beginRequest = () => {
+  const token = createRequestToken();
+  cancelOngoingRequest();
+  return token;
+};
+
+const isRequestActive = (requestToken: number, category: Category, getState: () => HomeState): boolean => {
+  return requestToken === currentRequestToken && isSameCategory(getState().selectedCategory, category);
+};
+
+const mapErrorToMessage = (error: unknown): string => {
+  if (!error || typeof (error as { message?: string }).message !== "string") {
+    return "加载失败，请重试";
+  }
+
+  const message = (error as { message: string }).message;
+
+  if (message === "API_URL_NOT_SET") {
+    return "请点击右上角设置按钮，配置您的服务器地址";
+  }
+
+  if (message === "UNAUTHORIZED") {
+    return "认证失败，请重新登录";
+  }
+
+  if (message.includes("Network")) {
+    return "网络连接失败，请检查网络连接";
+  }
+
+  if (message.includes("timeout")) {
+    return "请求超时，请检查网络或服务器状态";
+  }
+
+  if (message.includes("404")) {
+    return "服务器API路径不正确，请检查服务器配置";
+  }
+
+  if (message.includes("500")) {
+    return "服务器内部错误，请联系管理员";
+  }
+
+  if (message.includes("403")) {
+    return "访问被拒绝，请检查权限设置";
+  }
+
+  return "加载失败，请重试";
+};
+
 const schedulePrefetchForTag = (category: Category, tag: string) => {
-  if (!category.type) {
+  const categoryWithTag = { ...category, tag };
+
+  if (!isContentCategory(categoryWithTag)) {
     return;
   }
 
-  const categoryWithTag: Category = { ...category, tag };
   const cacheKey = getCacheKey(categoryWithTag);
-  const existingCache = dataCache.get(cacheKey);
 
-  if ((existingCache && isValidCache(existingCache)) || prefetchingCacheKeys.has(cacheKey)) {
+  if (getValidCacheEntry(cacheKey) || prefetchingCacheKeys.has(cacheKey)) {
     return;
   }
 
@@ -142,21 +300,8 @@ const schedulePrefetchForTag = (category: Category, tag: string) => {
 
   void (async () => {
     try {
-      const result = await api.getDoubanData(category.type!, tag, 20, 0);
-      const newItems = result.list.map((item) => ({
-        ...item,
-        id: item.title,
-        source: "douban",
-      })) as RowItem[];
-
-      const cacheItems = newItems.slice(0, MAX_ITEMS_PER_CACHE);
-
-      dataCache.set(cacheKey, {
-        data: cacheItems,
-        timestamp: Date.now(),
-        type: category.type!,
-        hasMore: result.list.length !== 0,
-      });
+      const { items, hasMore } = await fetchDoubanCategoryContent(categoryWithTag, 0);
+      writeCacheEntry(cacheKey, createCacheEntry(categoryWithTag.type, items, hasMore));
     } catch (_error) {
       void _error;
       // 预加载失败时静默处理，等待用户主动加载
@@ -205,20 +350,18 @@ const useHomeStore = create<HomeState>((set, get) => ({
       set({ selectedCategory: activeCategory });
     }
 
-    const requestToken = createRequestToken();
-    cancelOngoingRequest();
+    const requestToken = beginRequest();
     const cacheKey = getCacheKey(activeCategory);
 
     // 最近播放不缓存，始终实时获取
-    if (activeCategory.type === 'record') {
+    if (activeCategory.type === "record") {
       set({ loading: true, contentData: [], pageStart: 0, hasMore: true, error: null, loadingMore: false });
       await get().loadMoreData(requestToken);
       return;
     }
 
-    // 检查缓存
-    if (dataCache.has(cacheKey) && isValidCache(dataCache.get(cacheKey)!)) {
-      const cachedData = dataCache.get(cacheKey)!;
+    const cachedData = getValidCacheEntry(cacheKey);
+    if (cachedData) {
       set({
         loading: false,
         contentData: cachedData.data,
@@ -242,7 +385,9 @@ const useHomeStore = create<HomeState>((set, get) => ({
       set({ selectedCategory });
     }
 
-    if (loadingMore || !hasMore) return;
+    if (loadingMore || !hasMore) {
+      return;
+    }
 
     if (pageStart > 0) {
       set({ loadingMore: true });
@@ -255,135 +400,74 @@ const useHomeStore = create<HomeState>((set, get) => ({
       if (selectedCategory.type === "record") {
         const { isLoggedIn } = useAuthStore.getState();
         if (!isLoggedIn) {
-          set({ contentData: [], hasMore: false });
-          return;
-        }
-        const records = await PlayRecordManager.getAllLatestByTitle();
-        const rowItems = Object.entries(records)
-          .map(([key, record]) => {
-            const [source, id] = key.split("+");
-            return {
-              ...record,
-              id,
-              source,
-              progress: record.play_time / record.total_time,
-              poster: record.cover,
-              sourceName: record.source_name,
-              episodeIndex: record.index,
-              totalEpisodes: record.total_episodes,
-              lastPlayed: record.save_time,
-              play_time: record.play_time,
-            };
-          })
-          // .filter((record) => record.progress !== undefined && record.progress > 0 && record.progress < 1)
-          .sort((a, b) => (b.lastPlayed || 0) - (a.lastPlayed || 0));
-        if (
-          requestToken !== currentRequestToken ||
-          !isSameCategory(get().selectedCategory, selectedCategory)
-        ) {
+          if (isRequestActive(requestToken, selectedCategory, get)) {
+            set({ contentData: [], hasMore: false, pageStart: 0 });
+          }
           return;
         }
 
-        set({ contentData: rowItems, hasMore: false });
-      } else if (selectedCategory.type && selectedCategory.tag) {
+        const records = await PlayRecordManager.getAllLatestByTitle();
+        const rowItems = transformPlayRecordsToRowItems(records);
+
+        if (!isRequestActive(requestToken, selectedCategory, get)) {
+          return;
+        }
+
+        set({ contentData: rowItems, hasMore: false, pageStart: rowItems.length });
+        return;
+      }
+
+      if (isContentCategory(selectedCategory)) {
         abortController = new AbortController();
         currentFetchAbortController = abortController;
-        const result = await api.getDoubanData(
-          selectedCategory.type,
-          selectedCategory.tag,
-          20,
+
+        const { items, hasMore: newHasMore } = await fetchDoubanCategoryContent(
+          selectedCategory,
           pageStart,
           abortController.signal
         );
 
-        const newItems = result.list.map((item) => ({
-          ...item,
-          id: item.title,
-          source: "douban",
-        })) as RowItem[];
-
         const cacheKey = getCacheKey(selectedCategory);
 
         if (pageStart === 0) {
-          // 清理过期缓存
-          for (const [key, value] of dataCache.entries()) {
-            if (!isValidCache(value)) {
-              dataCache.delete(key);
-            }
-          }
+          writeCacheEntry(cacheKey, createCacheEntry(selectedCategory.type, items, newHasMore));
 
-          // 如果缓存太大，删除最旧的项
-          if (dataCache.size >= MAX_CACHE_SIZE) {
-            const oldestKey = Array.from(dataCache.keys())[0];
-            dataCache.delete(oldestKey);
-          }
-
-          // 限制缓存的数据条目数，但不限制显示的数据
-          const cacheItems = newItems.slice(0, MAX_ITEMS_PER_CACHE);
-
-          // 存储新缓存
-          dataCache.set(cacheKey, {
-            data: cacheItems,
-            timestamp: Date.now(),
-            type: selectedCategory.type,
-            hasMore: true // 始终为 true，因为我们允许继续加载
-          });
-
-          if (
-            requestToken !== currentRequestToken ||
-            !isSameCategory(get().selectedCategory, selectedCategory)
-          ) {
+          if (!isRequestActive(requestToken, selectedCategory, get)) {
             return;
           }
 
           set({
-            contentData: newItems, // 使用完整的新数据
-            pageStart: newItems.length,
-            hasMore: result.list.length !== 0,
+            contentData: items,
+            pageStart: items.length,
+            hasMore: newHasMore,
           });
 
           schedulePrefetchAdditionalTags(selectedCategory);
         } else {
-          // 增量加载时更新缓存
-          const existingCache = dataCache.get(cacheKey);
-          if (existingCache) {
-            // 只有当缓存数据少于最大限制时才更新缓存
-            if (existingCache.data.length < MAX_ITEMS_PER_CACHE) {
-              const updatedData = [...existingCache.data, ...newItems];
-              const limitedCacheData = updatedData.slice(0, MAX_ITEMS_PER_CACHE);
+          appendCacheEntry(cacheKey, selectedCategory.type, items, newHasMore);
 
-              dataCache.set(cacheKey, {
-                ...existingCache,
-                data: limitedCacheData,
-                hasMore: true // 始终为 true，因为我们允许继续加载
-              });
-            }
-          }
-
-          if (
-            requestToken !== currentRequestToken ||
-            !isSameCategory(get().selectedCategory, selectedCategory)
-          ) {
+          if (!isRequestActive(requestToken, selectedCategory, get)) {
             return;
           }
 
-          // 更新状态时使用所有数据
           set((state) => ({
-            contentData: [...state.contentData, ...newItems],
-            pageStart: state.pageStart + newItems.length,
-            hasMore: result.list.length !== 0,
+            contentData: [...state.contentData, ...items],
+            pageStart: state.pageStart + items.length,
+            hasMore: newHasMore,
           }));
         }
-      } else if (selectedCategory.tags) {
-        // It's a container category, do not load content, but clear current content
-        if (
-          requestToken !== currentRequestToken ||
-          !isSameCategory(get().selectedCategory, selectedCategory)
-        ) {
-          return;
+
+        return;
+      }
+
+      if (selectedCategory.tags) {
+        if (isRequestActive(requestToken, selectedCategory, get)) {
+          set({ contentData: [], hasMore: false, pageStart: 0 });
         }
-        set({ contentData: [], hasMore: false });
-      } else {
+        return;
+      }
+
+      if (isRequestActive(requestToken, selectedCategory, get)) {
         set({ hasMore: false });
       }
     } catch (err: any) {
@@ -391,34 +475,13 @@ const useHomeStore = create<HomeState>((set, get) => ({
         return;
       }
 
-      let errorMessage = "加载失败，请重试";
-
-      if (err.message === "API_URL_NOT_SET") {
-        errorMessage = "请点击右上角设置按钮，配置您的服务器地址";
-      } else if (err.message === "UNAUTHORIZED") {
-        errorMessage = "认证失败，请重新登录";
-      } else if (err.message.includes("Network")) {
-        errorMessage = "网络连接失败，请检查网络连接";
-      } else if (err.message.includes("timeout")) {
-        errorMessage = "请求超时，请检查网络或服务器状态";
-      } else if (err.message.includes("404")) {
-        errorMessage = "服务器API路径不正确，请检查服务器配置";
-      } else if (err.message.includes("500")) {
-        errorMessage = "服务器内部错误，请联系管理员";
-      } else if (err.message.includes("403")) {
-        errorMessage = "访问被拒绝，请检查权限设置";
-      }
-
-      set({ error: errorMessage });
+      set({ error: mapErrorToMessage(err) });
     } finally {
       if (abortController && currentFetchAbortController === abortController) {
         currentFetchAbortController = null;
       }
 
-      if (
-        requestToken === currentRequestToken &&
-        isSameCategory(get().selectedCategory, selectedCategory)
-      ) {
+      if (isRequestActive(requestToken, selectedCategory, get)) {
         set({ loading: false, loadingMore: false });
       } else if (requestToken === currentRequestToken) {
         set({ loadingMore: false });
@@ -429,39 +492,28 @@ const useHomeStore = create<HomeState>((set, get) => ({
   selectCategory: (incomingCategory: Category) => {
     const category = ensureCategoryHasDefaultTag(incomingCategory);
     const currentCategory = ensureCategoryHasDefaultTag(get().selectedCategory);
+
+    if (isSameCategory(currentCategory, category)) {
+      return;
+    }
+
+    cancelOngoingRequest();
+
     const cacheKey = getCacheKey(category);
+    const cachedData = getValidCacheEntry(cacheKey);
 
-    if (!isSameCategory(currentCategory, category)) {
-      cancelOngoingRequest();
-      set({
-        selectedCategory: category,
-        contentData: [],
-        pageStart: 0,
-        hasMore: true,
-        error: null,
-        loadingMore: false,
-      });
+    set({
+      selectedCategory: category,
+      contentData: cachedData ? cachedData.data : [],
+      pageStart: cachedData ? cachedData.data.length : 0,
+      hasMore: cachedData ? cachedData.hasMore : true,
+      error: null,
+      loadingMore: false,
+      loading: !cachedData,
+    });
 
-      if (category.type === 'record') {
-        get().fetchInitialData();
-        return;
-      }
-
-      const cachedData = dataCache.get(cacheKey);
-      if (cachedData && isValidCache(cachedData)) {
-        set({
-          contentData: cachedData.data,
-          pageStart: cachedData.data.length,
-          hasMore: cachedData.hasMore,
-          loading: false
-        });
-      } else {
-        // 删除过期缓存
-        if (cachedData) {
-          dataCache.delete(cacheKey);
-        }
-        get().fetchInitialData();
-      }
+    if (category.type === "record" || !cachedData) {
+      get().fetchInitialData();
     }
   },
 
@@ -475,7 +527,10 @@ const useHomeStore = create<HomeState>((set, get) => ({
         if (recordCategoryExists) {
           const newCategories = state.categories.filter((c) => c.type !== "record");
           if (state.selectedCategory.type === "record") {
-            get().selectCategory(newCategories[0] || null);
+            const nextCategory = newCategories[0];
+            if (nextCategory) {
+              get().selectCategory(nextCategory);
+            }
           }
           return { categories: newCategories };
         }
@@ -493,7 +548,10 @@ const useHomeStore = create<HomeState>((set, get) => ({
       if (!hasRecords && recordCategoryExists) {
         const newCategories = state.categories.filter((c) => c.type !== "record");
         if (state.selectedCategory.type === "record") {
-          get().selectCategory(newCategories[0] || null);
+          const nextCategory = newCategories[0];
+          if (nextCategory) {
+            get().selectCategory(nextCategory);
+          }
         }
         return { categories: newCategories };
       }

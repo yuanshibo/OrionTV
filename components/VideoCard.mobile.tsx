@@ -51,6 +51,7 @@ const VideoCardMobile = forwardRef<View, VideoCardMobileProps>(
     const router = useRouter();
     const { cardWidth, cardHeight, spacing } = useResponsiveLayout();
     const [fadeAnim] = useState(new Animated.Value(0));
+    const fadeInAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
 
     const longPressTriggered = useRef(false);
 
@@ -74,13 +75,30 @@ const VideoCardMobile = forwardRef<View, VideoCardMobileProps>(
     };
 
     useEffect(() => {
-      Animated.timing(fadeAnim, {
+      fadeInAnimationRef.current?.stop();
+      const animation = Animated.timing(fadeAnim, {
         toValue: 1,
         duration: DeviceUtils.getAnimationDuration(300),
         delay: Math.random() * 100,
         useNativeDriver: true,
-      }).start();
+      });
+      fadeInAnimationRef.current = animation;
+      animation.start(() => {
+        if (fadeInAnimationRef.current === animation) {
+          fadeInAnimationRef.current = null;
+        }
+      });
+
+      return () => {
+        animation.stop();
+      };
     }, [fadeAnim]);
+
+    useEffect(() => {
+      return () => {
+        fadeInAnimationRef.current?.stop();
+      };
+    }, []);
 
     const handleLongPress = () => {
       if (progress === undefined) return;
