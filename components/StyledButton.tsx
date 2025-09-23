@@ -11,11 +11,15 @@ interface StyledButtonProps extends PressableProps {
   variant?: "default" | "primary" | "ghost";
   isSelected?: boolean;
   style?: StyleProp<ViewStyle>;
+  contentStyle?: StyleProp<ViewStyle>;
   textStyle?: StyleProp<TextStyle>;
 }
 
 export const StyledButton = forwardRef<View, StyledButtonProps>(
-  ({ children, text, variant = "default", isSelected = false, style, textStyle, ...rest }, ref) => {
+  (
+    { children, text, variant = "default", isSelected = false, style, contentStyle, textStyle, ...rest },
+    ref
+  ) => {
     const colorScheme = "dark";
     const colors = Colors[colorScheme];
     const [isFocused, setIsFocused] = React.useState(false);
@@ -117,6 +121,7 @@ export const StyledButton = forwardRef<View, StyledButtonProps>(
           style={({ focused }) => [
             styles.button,
             variantStyles[variant].button,
+            contentStyle,
             isSelected && (variantStyles[variant].selectedButton ?? styles.selectedButton),
             focused && (variantStyles[variant].focusedButton ?? styles.focusedButton),
           ]}

@@ -24,7 +24,12 @@ import { SearchHistoryManager } from "@/services/storage";
 
 const LETTER_KEYS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 const NUMBER_KEYS = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
-const KEYBOARD_KEYS = [...LETTER_KEYS, ...NUMBER_KEYS];
+const KEYBOARD_LAYOUT = [
+  LETTER_KEYS.slice(0, 9),
+  LETTER_KEYS.slice(9, 18),
+  LETTER_KEYS.slice(18, 26),
+  NUMBER_KEYS,
+];
 
 const SPECIAL_KEY_CONFIG = [
   { label: "空格", type: "space" },
@@ -403,42 +408,52 @@ export default function SearchScreen() {
   const dynamicStyles = createResponsiveStyles(deviceType, spacing);
 
   const renderSearchControls = () => (
-    <View>
-      <View style={dynamicStyles.searchContainer}>
-        <TouchableOpacity
-          activeOpacity={1}
-          style={[
-            dynamicStyles.inputContainer,
-            {
-              borderColor: isInputFocused ? Colors.dark.primary : "transparent",
-            },
-          ]}
-          onPress={() => textInputRef.current?.focus()}
-        >
-          <TextInput
-            ref={textInputRef}
-            style={dynamicStyles.input}
-            placeholder="支持全拼拼音首字母搜索"
-            placeholderTextColor="#888"
-            value={keyword}
-            onChangeText={setKeyword}
-            onSubmitEditing={onSearchPress}
-            onFocus={() => setIsInputFocused(true)}
-            onBlur={() => setIsInputFocused(false)}
-            returnKeyType="search"
-            autoCapitalize="none"
-            autoCorrect={false}
-            importantForAutofill="no"
-          />
-        </TouchableOpacity>
-        <StyledButton style={dynamicStyles.searchButton} onPress={onSearchPress}>
-          <Search size={deviceType === "mobile" ? 20 : 24} color="white" />
-        </StyledButton>
-        {deviceType !== "mobile" && (
-          <StyledButton style={dynamicStyles.qrButton} onPress={handleQrPress}>
-            <QrCode size={deviceType === "tv" ? 24 : 20} color="white" />
+    <View style={[dynamicStyles.section, dynamicStyles.firstSection]}>
+      <View style={[dynamicStyles.sectionCard, dynamicStyles.searchCard]}>
+        <View style={dynamicStyles.sectionHeaderRow}>
+          <ThemedText style={dynamicStyles.sectionTitle}>全站搜索</ThemedText>
+        </View>
+        <View style={dynamicStyles.searchContainer}>
+          <TouchableOpacity
+            activeOpacity={1}
+            style={[
+              dynamicStyles.inputContainer,
+              {
+                borderColor: isInputFocused ? Colors.dark.primary : "transparent",
+              },
+            ]}
+            onPress={() => textInputRef.current?.focus()}
+          >
+            <TextInput
+              ref={textInputRef}
+              style={dynamicStyles.input}
+              placeholder="支持全拼拼音首字母搜索"
+              placeholderTextColor="#888"
+              value={keyword}
+              onChangeText={setKeyword}
+              onSubmitEditing={onSearchPress}
+              onFocus={() => setIsInputFocused(true)}
+              onBlur={() => setIsInputFocused(false)}
+              returnKeyType="search"
+              autoCapitalize="none"
+              autoCorrect={false}
+              importantForAutofill="no"
+            />
+          </TouchableOpacity>
+          <StyledButton style={dynamicStyles.searchButton} onPress={onSearchPress}>
+            <Search size={deviceType === "mobile" ? 20 : 24} color="white" />
           </StyledButton>
-        )}
+          {deviceType !== "mobile" && (
+            <StyledButton style={dynamicStyles.qrButton} onPress={handleQrPress}>
+              <QrCode size={deviceType === "tv" ? 24 : 20} color="white" />
+            </StyledButton>
+          )}
+        </View>
+        {isTv ? (
+          <ThemedText style={dynamicStyles.searchHintText}>
+            使用遥控器或扫码在电视上快速输入关键词
+          </ThemedText>
+        ) : null}
       </View>
     </View>
   );
@@ -448,34 +463,59 @@ export default function SearchScreen() {
       return null;
     }
 
-    const displayHistory = isTv ? searchHistory : searchHistory.slice(0, 8);
+    const displayHistory = isTv ? searchHistory.slice(0, 10) : searchHistory.slice(0, 8);
 
     return (
       <View style={dynamicStyles.section}>
-        <View style={dynamicStyles.sectionHeader}>
-          <ThemedText style={dynamicStyles.sectionTitle}>搜索历史</ThemedText>
-          {searchHistory.length > 0 && (
-            <TouchableOpacity onPress={handleClearHistory}>
-              <ThemedText style={dynamicStyles.sectionActionText}>清除</ThemedText>
-            </TouchableOpacity>
+        <View style={dynamicStyles.sectionCard}>
+          <View style={dynamicStyles.sectionHeaderRow}>
+            <ThemedText style={dynamicStyles.sectionTitle}>搜索历史</ThemedText>
+            {searchHistory.length > 0 ? (
+              <TouchableOpacity onPress={handleClearHistory}>
+                <ThemedText style={dynamicStyles.sectionActionText}>清除</ThemedText>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+          {searchHistory.length > 0 ? (
+            <View style={dynamicStyles.listContainer}>
+              {displayHistory.map((item, index) => {
+                const isPrimary = index === 0;
+                return (
+                  <StyledButton
+                    key={item}
+                    variant="ghost"
+                    onPress={() => handleHistorySelect(item)}
+                    style={dynamicStyles.listItem}
+                    contentStyle={dynamicStyles.listItemContent}
+                  >
+                    <View style={dynamicStyles.listItemInner}>
+                      <View
+                        style={[
+                          dynamicStyles.indexBadge,
+                          isPrimary && dynamicStyles.indexBadgeHighlight,
+                        ]}
+                      >
+                        <ThemedText
+                          style={[
+                            dynamicStyles.indexBadgeText,
+                            isPrimary && dynamicStyles.indexBadgeTextHighlight,
+                          ]}
+                        >
+                          {index + 1}
+                        </ThemedText>
+                      </View>
+                      <ThemedText numberOfLines={1} style={dynamicStyles.listItemText}>
+                        {item}
+                      </ThemedText>
+                    </View>
+                  </StyledButton>
+                );
+              })}
+            </View>
+          ) : (
+            <ThemedText style={dynamicStyles.emptyHintText}>暂无搜索历史</ThemedText>
           )}
         </View>
-        {searchHistory.length > 0 ? (
-          <View style={dynamicStyles.chipContainer}>
-            {displayHistory.map((item) => (
-              <StyledButton
-                key={item}
-                text={item}
-                variant="ghost"
-                onPress={() => handleHistorySelect(item)}
-                style={dynamicStyles.chip}
-                textStyle={dynamicStyles.chipText}
-              />
-            ))}
-          </View>
-        ) : (
-          isTv ? <ThemedText style={dynamicStyles.emptyHintText}>暂无搜索历史</ThemedText> : null
-        )}
       </View>
     );
   };
@@ -487,25 +527,30 @@ export default function SearchScreen() {
 
     return (
       <View style={dynamicStyles.section}>
-        <ThemedText style={dynamicStyles.sectionTitle}>猜你可能在找</ThemedText>
-        {suggestions.length > 0 ? (
-          <View style={dynamicStyles.chipContainer}>
-            {suggestions.map((item) => (
-              <StyledButton
-                key={item}
-                text={item}
-                variant="ghost"
-                onPress={() => handleSuggestionSelect(item)}
-                style={dynamicStyles.chip}
-                textStyle={dynamicStyles.chipText}
-              />
-            ))}
+        <View style={dynamicStyles.sectionCard}>
+          <View style={dynamicStyles.sectionHeaderRow}>
+            <ThemedText style={dynamicStyles.sectionTitle}>猜你可能在找</ThemedText>
           </View>
-        ) : (
-          <ThemedText style={dynamicStyles.emptyHintText}>
-            {keyword.trim() ? "暂无相关建议" : "输入关键词查看实时建议"}
-          </ThemedText>
-        )}
+          {suggestions.length > 0 ? (
+            <View style={dynamicStyles.listContainer}>
+              {suggestions.map((item) => (
+                <StyledButton
+                  key={item}
+                  text={item}
+                  variant="ghost"
+                  onPress={() => handleSuggestionSelect(item)}
+                  style={dynamicStyles.listItem}
+                  contentStyle={dynamicStyles.listItemContent}
+                  textStyle={dynamicStyles.listItemText}
+                />
+              ))}
+            </View>
+          ) : (
+            <ThemedText style={dynamicStyles.emptyHintText}>
+              {keyword.trim() ? "暂无相关建议" : "输入关键词查看实时建议"}
+            </ThemedText>
+          )}
+        </View>
       </View>
     );
   };
@@ -517,30 +562,40 @@ export default function SearchScreen() {
 
     return (
       <View style={dynamicStyles.section}>
-        <ThemedText style={dynamicStyles.sectionTitle}>拼音键盘</ThemedText>
-        <View style={dynamicStyles.keyboardContainer}>
-          {KEYBOARD_KEYS.map((key) => (
-            <StyledButton
-              key={key}
-              text={key}
-              variant="ghost"
-              onPress={() => handleKeyboardAppend(key)}
-              style={dynamicStyles.keyboardKey}
-              textStyle={dynamicStyles.keyboardKeyText}
-            />
-          ))}
-        </View>
-        <View style={dynamicStyles.keyboardSpecialRow}>
-          {SPECIAL_KEY_CONFIG.map((item) => (
-            <StyledButton
-              key={item.type}
-              text={item.label}
-              variant="ghost"
-              onPress={() => handleSpecialKeyPress(item.type)}
-              style={dynamicStyles.keyboardSpecialKey}
-              textStyle={dynamicStyles.keyboardSpecialKeyText}
-            />
-          ))}
+        <View style={dynamicStyles.sectionCard}>
+          <View style={dynamicStyles.sectionHeaderRow}>
+            <ThemedText style={dynamicStyles.sectionTitle}>拼音键盘</ThemedText>
+          </View>
+          <View style={dynamicStyles.keyboardSection}>
+            {KEYBOARD_LAYOUT.map((row, rowIndex) => (
+              <View key={`keyboard-row-${rowIndex}`} style={dynamicStyles.keyboardRow}>
+                {row.map((key) => (
+                  <StyledButton
+                    key={key}
+                    text={key}
+                    variant="ghost"
+                    onPress={() => handleKeyboardAppend(key)}
+                    style={dynamicStyles.keyboardKey}
+                    contentStyle={dynamicStyles.keyboardKeyContent}
+                    textStyle={dynamicStyles.keyboardKeyText}
+                  />
+                ))}
+              </View>
+            ))}
+            <View style={[dynamicStyles.keyboardRow, dynamicStyles.keyboardSpecialRow]}>
+              {SPECIAL_KEY_CONFIG.map((item) => (
+                <StyledButton
+                  key={item.type}
+                  text={item.label}
+                  variant="ghost"
+                  onPress={() => handleSpecialKeyPress(item.type)}
+                  style={dynamicStyles.keyboardSpecialKey}
+                  contentStyle={dynamicStyles.keyboardSpecialKeyContent}
+                  textStyle={dynamicStyles.keyboardSpecialKeyText}
+                />
+              ))}
+            </View>
+          </View>
         </View>
       </View>
     );
@@ -571,20 +626,35 @@ export default function SearchScreen() {
       );
     }
 
-    return <CustomScrollView data={results} renderItem={renderItem} />;
+    return <CustomScrollView data={results} renderItem={renderItem} numColumns={isTv ? 5 : undefined} />;
   };
 
-  const renderResultsSection = () => (
-    <View style={dynamicStyles.resultsContainer}>
-      <View style={dynamicStyles.resultsHeader}>
-        <ThemedText style={dynamicStyles.sectionTitle}>搜索结果</ThemedText>
-        {keyword.trim() && results.length > 0 && !loading && !error ? (
-          <ThemedText style={dynamicStyles.resultsCountText}>共 {results.length} 个结果</ThemedText>
-        ) : null}
+  const renderResultsSection = () => {
+    const trimmedKeyword = keyword.trim();
+    const resultsTitle = trimmedKeyword ? `“${trimmedKeyword}”的搜索结果` : "搜索结果";
+    const showCount = Boolean(trimmedKeyword && results.length > 0 && !loading && !error);
+    const showSubtitle = !trimmedKeyword || (!loading && !error && results.length > 0);
+    const subtitleText = !trimmedKeyword
+      ? "支持拼音全拼和首字母搜索，快速定位想看的节目"
+      : "按遥控器确认键打开选中的视频";
+
+    return (
+      <View style={dynamicStyles.resultsCard}>
+        <View style={dynamicStyles.resultsHeader}>
+          <View>
+            <ThemedText style={dynamicStyles.sectionTitle}>{resultsTitle}</ThemedText>
+            {showSubtitle ? (
+              <ThemedText style={dynamicStyles.resultsSubtitle}>{subtitleText}</ThemedText>
+            ) : null}
+          </View>
+          {showCount ? (
+            <ThemedText style={dynamicStyles.resultsCountText}>共 {results.length} 个结果</ThemedText>
+          ) : null}
+        </View>
+        {renderResultsContent()}
       </View>
-      {renderResultsContent()}
-    </View>
-  );
+    );
+  };
 
   const renderSearchContent = () => (
     <>
@@ -641,10 +711,33 @@ const createResponsiveStyles = (deviceType: string, spacing: number) => {
       marginRight: isTv ? spacing * 1.5 : 0,
       marginBottom: isTv ? 0 : spacing,
     },
+    section: {
+      marginTop: isTv ? spacing : spacing,
+    },
+    firstSection: {
+      marginTop: 0,
+    },
+    sectionCard: {
+      backgroundColor: "rgba(255, 255, 255, 0.06)",
+      borderRadius: isTv ? 24 : isMobile ? 12 : 16,
+      padding: isTv ? spacing : spacing * 0.75,
+      borderWidth: 1,
+      borderColor: "rgba(255, 255, 255, 0.08)",
+    },
+    searchCard: {
+      paddingBottom: isTv ? spacing : spacing * 0.75,
+    },
+    sectionHeaderRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: spacing / 2,
+    },
     searchContainer: {
       flexDirection: "row",
       alignItems: "center",
-      marginBottom: spacing,
+      marginTop: spacing / 4,
+      marginBottom: spacing / 2,
     },
     inputContainer: {
       flex: 1,
@@ -677,14 +770,10 @@ const createResponsiveStyles = (deviceType: string, spacing: number) => {
       borderRadius: isTv ? 16 : 10,
       marginLeft: spacing / 2,
     },
-    section: {
-      marginTop: isTv ? spacing * 1.5 : spacing,
-    },
-    sectionHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      marginBottom: spacing / 2,
+    searchHintText: {
+      color: "#9f9f9f",
+      fontSize: isTv ? 18 : 14,
+      marginTop: spacing / 2,
     },
     sectionTitle: {
       color: "white",
@@ -695,45 +784,82 @@ const createResponsiveStyles = (deviceType: string, spacing: number) => {
       color: Colors.dark.link,
       fontSize: isTv ? 18 : 14,
     },
-    chipContainer: {
-      flexDirection: "row",
-      flexWrap: "wrap",
+    listContainer: {
+      marginTop: spacing / 2,
     },
-    chip: {
-      marginRight: spacing / 2,
+    listItem: {
+      width: "100%",
       marginBottom: spacing / 2,
     },
-    chipText: {
+    listItemContent: {
+      justifyContent: "flex-start",
+      alignItems: "center",
+      paddingVertical: isTv ? 14 : 10,
+      width: "100%",
+    },
+    listItemInner: {
+      flexDirection: "row",
+      alignItems: "center",
+      flex: 1,
+    },
+    indexBadge: {
+      minWidth: isTv ? 36 : 28,
+      height: isTv ? 36 : 28,
+      borderRadius: isTv ? 18 : 14,
+      backgroundColor: "rgba(255, 255, 255, 0.14)",
+      alignItems: "center",
+      justifyContent: "center",
+      marginRight: spacing / 2,
+      paddingHorizontal: 6,
+    },
+    indexBadgeHighlight: {
+      backgroundColor: Colors.dark.primary,
+    },
+    indexBadgeText: {
+      color: "white",
+      fontWeight: "600",
+      fontSize: isTv ? 18 : 14,
+    },
+    indexBadgeTextHighlight: {
+      color: Colors.dark.background,
+    },
+    listItemText: {
+      flex: 1,
+      color: "white",
       fontSize: isTv ? 20 : isMobile ? 14 : 16,
     },
     emptyHintText: {
       color: "#888",
       fontSize: isTv ? 18 : 14,
     },
-    keyboardContainer: {
+    keyboardSection: {
+      marginTop: spacing / 2,
+    },
+    keyboardRow: {
       flexDirection: "row",
-      flexWrap: "wrap",
-      marginTop: spacing,
+      justifyContent: "space-between",
+      marginBottom: spacing / 2,
     },
     keyboardKey: {
-      width: isTv ? 72 : 56,
-      height: isTv ? 56 : 44,
-      marginRight: spacing / 2,
-      marginBottom: spacing / 2,
+      flex: 1,
+      marginHorizontal: spacing / 4,
+    },
+    keyboardKeyContent: {
+      paddingVertical: isTv ? 18 : 12,
     },
     keyboardKeyText: {
       fontSize: isTv ? 22 : 16,
     },
     keyboardSpecialRow: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      marginTop: spacing / 2,
+      marginTop: spacing / 4,
+      marginBottom: 0,
     },
     keyboardSpecialKey: {
-      width: isTv ? 120 : 96,
-      height: isTv ? 56 : 44,
-      marginRight: spacing / 2,
-      marginBottom: spacing / 2,
+      flex: 1,
+      marginHorizontal: spacing / 4,
+    },
+    keyboardSpecialKeyContent: {
+      paddingVertical: isTv ? 18 : 12,
     },
     keyboardSpecialKeyText: {
       fontSize: isTv ? 20 : 16,
@@ -743,14 +869,24 @@ const createResponsiveStyles = (deviceType: string, spacing: number) => {
       marginLeft: isTv ? spacing * 1.5 : 0,
       marginTop: isTv ? 0 : spacing,
     },
-    resultsContainer: {
+    resultsCard: {
       flex: 1,
+      backgroundColor: "rgba(255, 255, 255, 0.04)",
+      borderRadius: isTv ? 24 : isMobile ? 12 : 16,
+      padding: isTv ? spacing * 1.25 : spacing,
+      borderWidth: 1,
+      borderColor: "rgba(255, 255, 255, 0.06)",
     },
     resultsHeader: {
       flexDirection: "row",
-      alignItems: "center",
+      alignItems: "flex-start",
       justifyContent: "space-between",
-      marginBottom: spacing / 2,
+      marginBottom: spacing,
+    },
+    resultsSubtitle: {
+      color: "#9f9f9f",
+      fontSize: isTv ? 18 : 14,
+      marginTop: spacing / 4,
     },
     resultsCountText: {
       color: "#ccc",
@@ -763,7 +899,7 @@ const createResponsiveStyles = (deviceType: string, spacing: number) => {
       paddingHorizontal: spacing,
     },
     errorText: {
-      color: "red",
+      color: "#ff7373",
       fontSize: isTv ? 18 : isMobile ? 14 : 16,
       textAlign: "center",
     },
