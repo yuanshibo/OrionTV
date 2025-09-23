@@ -83,6 +83,14 @@ const isSameCategory = (a?: Category | null, b?: Category | null) => {
   return a.title === b.title && a.tag === b.tag && a.type === b.type;
 };
 
+const ensureCategoryHasDefaultTag = (category: Category): Category => {
+  if (category.tags?.length && !category.tag) {
+    return { ...category, tag: category.tags[0] };
+  }
+
+  return category;
+};
+
 interface HomeState {
   categories: Category[];
   selectedCategory: Category;
@@ -190,13 +198,19 @@ const useHomeStore = create<HomeState>((set, get) => ({
     const { apiBaseUrl } = useSettingsStore.getState();
     await useAuthStore.getState().checkLoginStatus(apiBaseUrl);
 
-    const { selectedCategory } = get();
+    const rawSelectedCategory = get().selectedCategory;
+    const activeCategory = ensureCategoryHasDefaultTag(rawSelectedCategory);
+
+    if (!isSameCategory(rawSelectedCategory, activeCategory)) {
+      set({ selectedCategory: activeCategory });
+    }
+
     const requestToken = createRequestToken();
     cancelOngoingRequest();
-    const cacheKey = getCacheKey(selectedCategory);
+    const cacheKey = getCacheKey(activeCategory);
 
     // 最近播放不缓存，始终实时获取
-    if (selectedCategory.type === 'record') {
+    if (activeCategory.type === 'record') {
       set({ loading: true, contentData: [], pageStart: 0, hasMore: true, error: null, loadingMore: false });
       await get().loadMoreData(requestToken);
       return;
@@ -221,7 +235,13 @@ const useHomeStore = create<HomeState>((set, get) => ({
   },
 
   loadMoreData: async (providedToken?: number) => {
-    const { selectedCategory, pageStart, loadingMore, hasMore } = get();
+    const { selectedCategory: rawSelectedCategory, pageStart, loadingMore, hasMore } = get();
+    const selectedCategory = ensureCategoryHasDefaultTag(rawSelectedCategory);
+
+    if (!isSameCategory(rawSelectedCategory, selectedCategory)) {
+      set({ selectedCategory });
+    }
+
     if (loadingMore || !hasMore) return;
 
     if (pageStart > 0) {
@@ -406,8 +426,9 @@ const useHomeStore = create<HomeState>((set, get) => ({
     }
   },
 
-  selectCategory: (category: Category) => {
-    const currentCategory = get().selectedCategory;
+  selectCategory: (incomingCategory: Category) => {
+    const category = ensureCategoryHasDefaultTag(incomingCategory);
+    const currentCategory = ensureCategoryHasDefaultTag(get().selectedCategory);
     const cacheKey = getCacheKey(category);
 
     if (!isSameCategory(currentCategory, category)) {

@@ -86,36 +86,44 @@ export default function HomeScreen() {
   }, [])
 );
 
+  useEffect(() => {
+    if (!selectedCategory) {
+      setSelectedTag(null);
+      return;
+    }
+
+    if (selectedCategory.tag) {
+      setSelectedTag(selectedCategory.tag);
+      return;
+    }
+
+    if (selectedCategory.tags?.length) {
+      setSelectedTag(selectedCategory.tags[0]);
+      return;
+    }
+
+    setSelectedTag(null);
+  }, [selectedCategory, selectedCategory?.tag, selectedCategory?.tags, selectedCategory?.title]);
+
   // 统一的数据获取逻辑
   useEffect(() => {
     if (!selectedCategory) return;
 
-    // 如果是容器分类且没有选择标签，设置默认标签
     if (selectedCategory.tags && !selectedCategory.tag) {
-      const defaultTag = selectedCategory.tags[0];
-      setSelectedTag(defaultTag);
-      selectCategory({ ...selectedCategory, tag: defaultTag });
       return;
     }
 
-    // 只有在API配置完成且分类有效时才获取数据
-    if (apiConfigStatus.isConfigured && !apiConfigStatus.needsConfiguration) {
-      // 对于有标签的分类，需要确保有标签才获取数据
-      if (selectedCategory.tags && selectedCategory.tag) {
-        fetchInitialData();
-      }
-      // 对于无标签的分类，直接获取数据
-      else if (!selectedCategory.tags) {
-        fetchInitialData();
-      }
+    if (!apiConfigStatus.isConfigured || apiConfigStatus.needsConfiguration) {
+      return;
     }
+
+    fetchInitialData();
   }, [
     selectedCategory,
     selectedCategory?.tag,
     apiConfigStatus.isConfigured,
     apiConfigStatus.needsConfiguration,
     fetchInitialData,
-    selectCategory,
   ]);
 
   // 清除错误状态的逻辑
@@ -139,7 +147,8 @@ export default function HomeScreen() {
 
   const handleCategorySelect = useCallback(
     (category: Category) => {
-      setSelectedTag(null);
+      const nextTag = category.tag ?? category.tags?.[0] ?? null;
+      setSelectedTag(nextTag ?? null);
       selectCategory(category);
     },
     [selectCategory]
