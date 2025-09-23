@@ -75,6 +75,14 @@ const isValidCache = (cacheItem: CacheItem) => {
   return Date.now() - cacheItem.timestamp < CACHE_EXPIRE_TIME;
 };
 
+const isSameCategory = (a?: Category | null, b?: Category | null) => {
+  if (!a || !b) {
+    return false;
+  }
+
+  return a.title === b.title && a.tag === b.tag && a.type === b.type;
+};
+
 interface HomeState {
   categories: Category[];
   selectedCategory: Category;
@@ -85,7 +93,7 @@ interface HomeState {
   hasMore: boolean;
   error: string | null;
   fetchInitialData: () => Promise<void>;
-  loadMoreData: () => Promise<void>;
+  loadMoreData: (requestToken?: number) => Promise<void>;
   selectCategory: (category: Category) => void;
   refreshPlayRecords: () => Promise<void>;
   clearError: () => void;
@@ -93,6 +101,20 @@ interface HomeState {
 
 // 内存缓存，应用生命周期内有效
 const dataCache = new Map<string, CacheItem>();
+let currentFetchAbortController: AbortController | null = null;
+let currentRequestToken = 0;
+
+const cancelOngoingRequest = () => {
+  if (currentFetchAbortController) {
+    currentFetchAbortController.abort();
+    currentFetchAbortController = null;
+  }
+};
+
+const createRequestToken = () => {
+  currentRequestToken += 1;
+  return currentRequestToken;
+};
 
 const useHomeStore = create<HomeState>((set, get) => ({
   categories: initialCategories,
@@ -109,12 +131,14 @@ const useHomeStore = create<HomeState>((set, get) => ({
     await useAuthStore.getState().checkLoginStatus(apiBaseUrl);
 
     const { selectedCategory } = get();
+    const requestToken = createRequestToken();
+    cancelOngoingRequest();
     const cacheKey = getCacheKey(selectedCategory);
 
     // 最近播放不缓存，始终实时获取
     if (selectedCategory.type === 'record') {
-      set({ loading: true, contentData: [], pageStart: 0, hasMore: true, error: null });
-      await get().loadMoreData();
+      set({ loading: true, contentData: [], pageStart: 0, hasMore: true, error: null, loadingMore: false });
+      await get().loadMoreData(requestToken);
       return;
     }
 
@@ -126,22 +150,26 @@ const useHomeStore = create<HomeState>((set, get) => ({
         contentData: cachedData.data,
         pageStart: cachedData.data.length,
         hasMore: cachedData.hasMore,
-        error: null
+        error: null,
+        loadingMore: false,
       });
       return;
     }
 
-    set({ loading: true, contentData: [], pageStart: 0, hasMore: true, error: null });
-    await get().loadMoreData();
+    set({ loading: true, contentData: [], pageStart: 0, hasMore: true, error: null, loadingMore: false });
+    await get().loadMoreData(requestToken);
   },
 
-  loadMoreData: async () => {
+  loadMoreData: async (providedToken?: number) => {
     const { selectedCategory, pageStart, loadingMore, hasMore } = get();
     if (loadingMore || !hasMore) return;
 
     if (pageStart > 0) {
       set({ loadingMore: true });
     }
+
+    const requestToken = providedToken ?? createRequestToken();
+    let abortController: AbortController | null = null;
 
     try {
       if (selectedCategory.type === "record") {
@@ -169,14 +197,23 @@ const useHomeStore = create<HomeState>((set, get) => ({
           })
           // .filter((record) => record.progress !== undefined && record.progress > 0 && record.progress < 1)
           .sort((a, b) => (b.lastPlayed || 0) - (a.lastPlayed || 0));
+        if (
+          requestToken !== currentRequestToken ||
+          !isSameCategory(get().selectedCategory, selectedCategory)
+        ) {
+          return;
+        }
 
         set({ contentData: rowItems, hasMore: false });
       } else if (selectedCategory.type && selectedCategory.tag) {
+        abortController = new AbortController();
+        currentFetchAbortController = abortController;
         const result = await api.getDoubanData(
           selectedCategory.type,
           selectedCategory.tag,
           20,
-          pageStart
+          pageStart,
+          abortController.signal
         );
 
         const newItems = result.list.map((item) => ({
@@ -212,6 +249,13 @@ const useHomeStore = create<HomeState>((set, get) => ({
             hasMore: true // 始终为 true，因为我们允许继续加载
           });
 
+          if (
+            requestToken !== currentRequestToken ||
+            !isSameCategory(get().selectedCategory, selectedCategory)
+          ) {
+            return;
+          }
+
           set({
             contentData: newItems, // 使用完整的新数据
             pageStart: newItems.length,
@@ -234,6 +278,13 @@ const useHomeStore = create<HomeState>((set, get) => ({
             }
           }
 
+          if (
+            requestToken !== currentRequestToken ||
+            !isSameCategory(get().selectedCategory, selectedCategory)
+          ) {
+            return;
+          }
+
           // 更新状态时使用所有数据
           set((state) => ({
             contentData: [...state.contentData, ...newItems],
@@ -243,11 +294,21 @@ const useHomeStore = create<HomeState>((set, get) => ({
         }
       } else if (selectedCategory.tags) {
         // It's a container category, do not load content, but clear current content
+        if (
+          requestToken !== currentRequestToken ||
+          !isSameCategory(get().selectedCategory, selectedCategory)
+        ) {
+          return;
+        }
         set({ contentData: [], hasMore: false });
       } else {
         set({ hasMore: false });
       }
     } catch (err: any) {
+      if (err?.name === "AbortError" || err?.message === "Aborted") {
+        return;
+      }
+
       let errorMessage = "加载失败，请重试";
 
       if (err.message === "API_URL_NOT_SET") {
@@ -268,7 +329,18 @@ const useHomeStore = create<HomeState>((set, get) => ({
 
       set({ error: errorMessage });
     } finally {
-      set({ loading: false, loadingMore: false });
+      if (abortController && currentFetchAbortController === abortController) {
+        currentFetchAbortController = null;
+      }
+
+      if (
+        requestToken === currentRequestToken &&
+        isSameCategory(get().selectedCategory, selectedCategory)
+      ) {
+        set({ loading: false, loadingMore: false });
+      } else if (requestToken === currentRequestToken) {
+        set({ loadingMore: false });
+      }
     }
   },
 
@@ -276,13 +348,15 @@ const useHomeStore = create<HomeState>((set, get) => ({
     const currentCategory = get().selectedCategory;
     const cacheKey = getCacheKey(category);
 
-    if (currentCategory.title !== category.title || currentCategory.tag !== category.tag) {
+    if (!isSameCategory(currentCategory, category)) {
+      cancelOngoingRequest();
       set({
         selectedCategory: category,
         contentData: [],
         pageStart: 0,
         hasMore: true,
-        error: null
+        error: null,
+        loadingMore: false,
       });
 
       if (category.type === 'record') {
