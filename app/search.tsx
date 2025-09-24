@@ -138,6 +138,29 @@ const buildPinyinRepresentation = (text: string): PinyinRepresentation => {
   return { lower, plain, initials, full };
 };
 
+const getEpisodeCount = (item: SearchResult) => item.episodes?.length ?? 0;
+
+const shouldPreferSeriesEntry = (current: SearchResult, candidate: SearchResult) => {
+  const currentEpisodes = getEpisodeCount(current);
+  const candidateEpisodes = getEpisodeCount(candidate);
+
+  if (candidateEpisodes !== currentEpisodes) {
+    return candidateEpisodes > currentEpisodes;
+  }
+
+  if (!current.poster && candidate.poster) {
+    return true;
+  }
+  if (!current.desc && candidate.desc) {
+    return true;
+  }
+  if (!current.source_name && candidate.source_name) {
+    return true;
+  }
+
+  return false;
+};
+
 export default function SearchScreen() {
   const [keyword, setKeyword] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -220,6 +243,37 @@ export default function SearchScreen() {
     return list;
   }, []);
 
+  const buildSeriesResults = useCallback((items: SearchResult[]) => {
+    const grouped = new Map<string, { result: SearchResult; firstSeen: number }>();
+
+    items.forEach((item, index) => {
+      const title = item.title?.trim();
+      if (!title) {
+        return;
+      }
+
+      if (getEpisodeCount(item) === 0) {
+        return;
+      }
+
+      const normalizedKey = `${sanitizePlainText(title)}|${item.year ?? ""}`;
+      const existing = grouped.get(normalizedKey);
+
+      if (!existing) {
+        grouped.set(normalizedKey, { result: item, firstSeen: index });
+        return;
+      }
+
+      if (shouldPreferSeriesEntry(existing.result, item)) {
+        grouped.set(normalizedKey, { result: item, firstSeen: existing.firstSeen });
+      }
+    });
+
+    return Array.from(grouped.values())
+      .sort((a, b) => a.firstSeen - b.firstSeen)
+      .map((entry) => entry.result);
+  }, []);
+
   const loadHistory = useCallback(async () => {
     try {
       const stored = await api.getSearchHistory();
@@ -262,12 +316,15 @@ export default function SearchScreen() {
       try {
         const response = await api.searchVideos(actualTerm, controller.signal);
         const filtered = filterResultsByKeyword(response.results, actualTerm);
-        setResults(filtered);
+        const seriesResults = buildSeriesResults(filtered);
+        const finalResults = seriesResults.length > 0 ? seriesResults : filtered;
 
-        const suggestionList = buildSuggestionList(filtered, actualTerm);
+        setResults(finalResults);
+
+        const suggestionList = buildSuggestionList(finalResults, actualTerm);
         setSuggestions(suggestionList);
 
-        if (filtered.length === 0) {
+        if (finalResults.length === 0) {
           setError("没有找到相关内容");
         }
 
@@ -286,7 +343,7 @@ export default function SearchScreen() {
         }
       }
     },
-    [filterResultsByKeyword, buildSuggestionList, updateHistory]
+    [filterResultsByKeyword, buildSeriesResults, buildSuggestionList, updateHistory]
   );
 
   useEffect(() => {
