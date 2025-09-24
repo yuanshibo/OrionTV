@@ -522,7 +522,6 @@ export default function SearchScreen() {
             >
               {trimmedKeyword || "搜索电影、剧集..."}
             </ThemedText>
-            <ThemedText style={dynamicStyles.tvInputHint}>支持全拼和首字母，方向键即可输入</ThemedText>
           </Pressable>
 
           <View style={dynamicStyles.tvInputActions}>
@@ -878,12 +877,7 @@ const createResponsiveStyles = (deviceType: string, spacing: number) => {
     },
     tvInputPlaceholder: {
       color: "#6c6f80",
-      fontSize: 24,
-    },
-    tvInputHint: {
-      color: "#8d90a0",
-      fontSize: 14,
-      marginTop: spacing / 2,
+      fontSize: 20,
     },
     tvInputActions: {
       flexDirection: "row",
