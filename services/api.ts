@@ -212,9 +212,9 @@ export class API {
     return response.json();
   }
 
-  async searchVideos(query: string): Promise<{ results: SearchResult[] }> {
+  async searchVideos(query: string, signal?: AbortSignal): Promise<{ results: SearchResult[] }> {
     const url = `/api/search?q=${encodeURIComponent(query)}`;
-    const response = await this._fetch(url);
+    const response = await this._fetch(url, { signal });
     return response.json();
   }
 

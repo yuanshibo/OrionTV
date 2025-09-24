@@ -260,7 +260,7 @@ export default function SearchScreen() {
       setError(null);
 
       try {
-        const response = await api.searchVideos(actualTerm);
+        const response = await api.searchVideos(actualTerm, controller.signal);
         const filtered = filterResultsByKeyword(response.results, actualTerm);
         setResults(filtered);
 
