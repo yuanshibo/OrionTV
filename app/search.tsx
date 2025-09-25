@@ -177,6 +177,26 @@ export default function SearchScreen() {
     return computed;
   }, []);
 
+  const matchesQuery = useCallback(
+    (text: string | undefined | null, normalizedQuery: string, uppercaseQuery: string) => {
+      if (!text) {
+        return false;
+      }
+      if (!normalizedQuery) {
+        return false;
+      }
+
+      const representation = getRepresentation(text);
+      if (representation.lower.includes(normalizedQuery)) return true;
+      if (representation.plain.includes(normalizedQuery)) return true;
+      if (representation.initials && representation.initials.includes(uppercaseQuery)) return true;
+      if (representation.full && representation.full.includes(normalizedQuery)) return true;
+
+      return false;
+    },
+    [getRepresentation]
+  );
+
   const filterResultsByKeyword = useCallback(
     (items: SearchResult[], term: string) => {
       const normalizedQuery = sanitizeQuery(term);
@@ -186,11 +206,9 @@ export default function SearchScreen() {
       const uppercaseQuery = normalizedQuery.toUpperCase();
 
       return items.filter((item) => {
-        const representation = getRepresentation(item.title);
-        if (representation.lower.includes(normalizedQuery)) return true;
-        if (representation.plain.includes(normalizedQuery)) return true;
-        if (representation.initials && representation.initials.includes(uppercaseQuery)) return true;
-        if (representation.full && representation.full.includes(normalizedQuery)) return true;
+        if (matchesQuery(item.title, normalizedQuery, uppercaseQuery)) {
+          return true;
+        }
 
         const additional = [item.source_name, item.class, item.desc, item.year];
         return additional.some((value) => {
@@ -199,7 +217,7 @@ export default function SearchScreen() {
         });
       });
     },
-    [getRepresentation]
+    [matchesQuery]
   );
 
   const buildSuggestionList = useCallback((items: SearchResult[], term: string) => {
@@ -452,22 +470,68 @@ export default function SearchScreen() {
     [history]
   );
 
+  const historyItemSet = useMemo(() => {
+    const set = new Set<string>();
+    historyItems.forEach((item) => {
+      const trimmed = item.trim();
+      if (trimmed) {
+        set.add(trimmed);
+      }
+    });
+    return set;
+  }, [historyItems]);
+
   const filteredSuggestions = useMemo(() => {
+    const normalizedQuery = sanitizeQuery(trimmedKeyword);
+    const uppercaseQuery = normalizedQuery.toUpperCase();
+    const hasQuery = normalizedQuery.length > 0;
     const seen = new Set<string>();
     const list: string[] = [];
-    for (const suggestion of suggestions) {
-      const trimmed = suggestion?.trim();
-      if (!trimmed || trimmed === trimmedKeyword || seen.has(trimmed)) {
-        continue;
+
+    const addSuggestion = (value: string, options: { allowHistoryDuplicate?: boolean } = {}) => {
+      const trimmed = value?.trim();
+      if (!trimmed) {
+        return;
       }
-      if (historyItems.includes(trimmed)) {
-        continue;
+      if (trimmed === trimmedKeyword) {
+        return;
+      }
+      if (seen.has(trimmed)) {
+        return;
+      }
+      if (!options.allowHistoryDuplicate && historyItemSet.has(trimmed)) {
+        return;
       }
       seen.add(trimmed);
       list.push(trimmed);
+    };
+
+    if (hasQuery) {
+      for (const item of historyItems) {
+        if (matchesQuery(item, normalizedQuery, uppercaseQuery)) {
+          addSuggestion(item, { allowHistoryDuplicate: true });
+          if (list.length >= MAX_SUGGESTIONS) {
+            return list.slice(0, MAX_SUGGESTIONS);
+          }
+        }
+      }
     }
-    return list;
-  }, [suggestions, trimmedKeyword, historyItems]);
+
+    for (const suggestion of suggestions) {
+      if (!suggestion) {
+        continue;
+      }
+      if (hasQuery && !matchesQuery(suggestion, normalizedQuery, uppercaseQuery)) {
+        continue;
+      }
+      addSuggestion(suggestion);
+      if (list.length >= MAX_SUGGESTIONS) {
+        break;
+      }
+    }
+
+    return list.slice(0, MAX_SUGGESTIONS);
+  }, [suggestions, trimmedKeyword, historyItems, historyItemSet, matchesQuery]);
 
   const resultsColumns = useMemo(
     () => DeviceUtils.getSafeColumnCount(deviceType === "tv" ? 5 : responsiveConfig.columns),
