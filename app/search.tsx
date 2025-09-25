@@ -356,13 +356,13 @@ export default function SearchScreen() {
 
     Animated.timing(centerFlex, {
       toValue: centerTarget,
-      duration: DeviceUtils.getAnimationDuration(320),
+      duration: DeviceUtils.getAnimationDuration(400),
       useNativeDriver: false,
     }).start();
 
     Animated.timing(resultsFlex, {
       toValue: resultTarget,
-      duration: DeviceUtils.getAnimationDuration(320),
+      duration: DeviceUtils.getAnimationDuration(400),
       useNativeDriver: false,
     }).start();
   }, [focusSection, deviceType, centerFlex, resultsFlex]);
@@ -1030,9 +1030,9 @@ const createResponsiveStyles = (deviceType: string, spacing: number) => {
       borderRadius: 12,
       borderWidth: 2,
       borderColor: "transparent",
-      paddingVertical: spacing * 0.8,
+      paddingVertical: spacing * 0.4,
       paddingHorizontal: spacing,
-      marginBottom: spacing / 1.1,
+      marginBottom: spacing / 10,
     },
     tvMiddleItemFocused: {
       borderColor: Colors.dark.primary,
