@@ -534,8 +534,14 @@ export default function SearchScreen() {
   }, [suggestions, trimmedKeyword, historyItems, historyItemSet, matchesQuery]);
 
   const resultsColumns = useMemo(
-    () => DeviceUtils.getSafeColumnCount(deviceType === "tv" ? 5 : responsiveConfig.columns),
-    [deviceType, responsiveConfig.columns]
+    () => {
+      // 假设在 TV 模式下，如果焦点在 'results'，显示 3 列，否则显示 5 列 (或其他默认值)
+      if (deviceType === 'tv') {
+        return focusSection === 'results' ? 3: 2; // 示例：从 5 列切换到 3 列
+      }
+      return DeviceUtils.getSafeColumnCount(responsiveConfig.columns);
+    },
+    [deviceType, responsiveConfig.columns, focusSection] // 依赖项中添加 focusSection
   );
 
   const renderKeyboardRow = useCallback(
