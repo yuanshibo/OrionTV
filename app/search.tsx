@@ -149,8 +149,8 @@ export default function SearchScreen() {
   const [isInputFocused, setIsInputFocused] = useState(false);
 
   const textInputRef = useRef<TextInput>(null);
-  const centerFlex = useRef(new Animated.Value(DeviceUtils.getDeviceType() === "tv" ? 1.2 : 1)).current;
-  const resultsFlex = useRef(new Animated.Value(DeviceUtils.getDeviceType() === "tv" ? 1.6 : 1)).current;
+  const centerFlex = useRef(new Animated.Value(DeviceUtils.getDeviceType() === "tv" ? 0.9 : 1)).current;
+  const resultsFlex = useRef(new Animated.Value(DeviceUtils.getDeviceType() === "tv" ? 1.8 : 1)).current;
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const skipNextAutoSearch = useRef(false);
   const searchAbortController = useRef<AbortController | null>(null);
@@ -333,8 +333,8 @@ export default function SearchScreen() {
       return;
     }
 
-    const centerTarget = focusSection === "results" ? 0.8 : 1.2;
-    const resultTarget = focusSection === "results" ? 2 : 1.6;
+    const centerTarget = focusSection === "results" ? 0.0001 : 0.9;
+    const resultTarget = focusSection === "results" ? 2.7999 : 1.8;
 
     Animated.timing(centerFlex, {
       toValue: centerTarget,
@@ -534,7 +534,7 @@ export default function SearchScreen() {
             <StyledButton style={dynamicStyles.tvActionButton} onPress={handleQrPress}>
               <View style={dynamicStyles.tvActionButtonContent}>
                 <QrCode size={28} color="#ffffff" />
-                <ThemedText style={dynamicStyles.tvActionButtonText}>远程输入</ThemedText>
+                <ThemedText style={dynamicStyles.tvActionButtonText}>远程</ThemedText>
               </View>
             </StyledButton>
           </View>
@@ -560,12 +560,10 @@ export default function SearchScreen() {
             </Pressable>
           ) : null}
 
-          <View style={dynamicStyles.tvSectionContainer}>
-            <ThemedText style={dynamicStyles.tvSectionTitle}>搜索历史</ThemedText>
-            {historyItems.length === 0 ? (
-              <ThemedText style={dynamicStyles.tvSectionEmpty}>暂无历史记录</ThemedText>
-            ) : (
-              historyItems.map((item, index) => (
+          {historyItems.length > 0 && !trimmedKeyword && (
+            <View style={dynamicStyles.tvSectionContainer}>
+              <ThemedText style={dynamicStyles.tvSectionTitle}>搜索历史</ThemedText>
+              {historyItems.map((item, index) => (
                 <Pressable
                   key={`history-${item}-${index}`}
                   style={({ focused }) => [
@@ -579,32 +577,34 @@ export default function SearchScreen() {
                     {item}
                   </ThemedText>
                 </Pressable>
-              ))
-            )}
-          </View>
+              ))}
+            </View>
+          )}
 
-          <View style={dynamicStyles.tvSectionContainer}>
-            <ThemedText style={dynamicStyles.tvSectionTitle}>实时推荐</ThemedText>
-            {filteredSuggestions.length === 0 ? (
-              <ThemedText style={dynamicStyles.tvSectionEmpty}>继续输入以获取更多推荐</ThemedText>
-            ) : (
-              filteredSuggestions.map((item, index) => (
-                <Pressable
-                  key={`suggestion-${item}-${index}`}
-                  style={({ focused }) => [
-                    dynamicStyles.tvMiddleItem,
-                    focused && dynamicStyles.tvMiddleItemFocused,
-                  ]}
-                  onFocus={() => setFocusSection("middle")}
-                  onPress={() => handleMiddleItemPress(item)}
-                >
-                  <ThemedText style={dynamicStyles.tvMiddleItemText} numberOfLines={1}>
-                    {item}
-                  </ThemedText>
-                </Pressable>
-              ))
-            )}
-          </View>
+          {(historyItems.length === 0 || trimmedKeyword) && (
+            <View style={dynamicStyles.tvSectionContainer}>
+              <ThemedText style={dynamicStyles.tvSectionTitle}>实时推荐</ThemedText>
+              {filteredSuggestions.length === 0 ? (
+                <ThemedText style={dynamicStyles.tvSectionEmpty}>继续输入以获取更多推荐</ThemedText>
+              ) : (
+                filteredSuggestions.map((item, index) => (
+                  <Pressable
+                    key={`suggestion-${item}-${index}`}
+                    style={({ focused }) => [
+                      dynamicStyles.tvMiddleItem,
+                      focused && dynamicStyles.tvMiddleItemFocused,
+                    ]}
+                    onFocus={() => setFocusSection("middle")}
+                    onPress={() => handleMiddleItemPress(item)}
+                  >
+                    <ThemedText style={dynamicStyles.tvMiddleItemText} numberOfLines={1}>
+                      {item}
+                    </ThemedText>
+                  </Pressable>
+                ))
+              )}
+            </View>
+          )}
         </Animated.View>
 
         <Animated.View style={[dynamicStyles.tvRightColumn, { flex: resultsFlex }]}>
@@ -825,7 +825,7 @@ const createResponsiveStyles = (deviceType: string, spacing: number) => {
       paddingHorizontal: spacing,
       paddingVertical: spacing / 2,
       marginRight: spacing / 2,
-      marginBottom: spacing / 2,
+      marginBottom: spacing / 4,
     },
     suggestionChipText: {
       color: "#ffffff",
@@ -838,19 +838,19 @@ const createResponsiveStyles = (deviceType: string, spacing: number) => {
       paddingBottom: spacing,
     },
     tvLeftColumn: {
-      flex: 0.9,
+      flex: 1.2,
       marginRight: spacing,
       maxWidth: 360,
     },
     tvCenterColumn: {
-      flex: 1.2,
+      flex: 0.9,
       backgroundColor: "#1b1d24",
       borderRadius: 18,
       padding: spacing,
       marginRight: spacing,
     },
     tvRightColumn: {
-      flex: 1.6,
+      flex: 1.8,
       backgroundColor: "#1b1d24",
       borderRadius: 18,
       padding: spacing,
@@ -910,7 +910,7 @@ const createResponsiveStyles = (deviceType: string, spacing: number) => {
       borderRadius: 12,
       borderWidth: 2,
       borderColor: "transparent",
-      minHeight: 64,
+      minHeight: 40,
       justifyContent: "center",
       alignItems: "center",
     },
@@ -944,7 +944,7 @@ const createResponsiveStyles = (deviceType: string, spacing: number) => {
       fontWeight: "600",
     },
     tvSectionContainer: {
-      marginBottom: spacing * 1.4,
+      marginBottom: spacing * 0.5,
     },
     tvSectionTitle: {
       color: "#d0d3e0",
