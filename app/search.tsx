@@ -8,6 +8,9 @@ import {
   TouchableOpacity,
   Pressable,
   Animated,
+  LayoutAnimation,
+  Platform,
+  UIManager,
 } from "react-native";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
@@ -165,6 +168,46 @@ export default function SearchScreen() {
   const { deviceType, spacing } = responsiveConfig;
 
   const dynamicStyles = useMemo(() => createResponsiveStyles(deviceType, spacing), [deviceType, spacing]);
+
+  const desiredResultsColumns = useMemo(() => {
+    if (deviceType === "tv") {
+      return focusSection === "results" ? 3 : 2;
+    }
+    return DeviceUtils.getSafeColumnCount(responsiveConfig.columns);
+  }, [deviceType, focusSection, responsiveConfig.columns]);
+
+  const [resultsColumns, setResultsColumns] = useState(desiredResultsColumns);
+  const hasAppliedInitialColumns = useRef(false);
+
+  useEffect(() => {
+    if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+      UIManager.setLayoutAnimationEnabledExperimental(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!hasAppliedInitialColumns.current) {
+      hasAppliedInitialColumns.current = true;
+      if (resultsColumns !== desiredResultsColumns) {
+        setResultsColumns(desiredResultsColumns);
+      }
+      return;
+    }
+
+    if (resultsColumns === desiredResultsColumns) {
+      return;
+    }
+
+    LayoutAnimation.configureNext(
+      LayoutAnimation.create(
+        DeviceUtils.getAnimationDuration(280),
+        LayoutAnimation.Types.easeInEaseOut,
+        LayoutAnimation.Properties.scaleXY
+      )
+    );
+
+    setResultsColumns(desiredResultsColumns);
+  }, [desiredResultsColumns, resultsColumns]);
 
   const getRepresentation = useCallback((title: string) => {
     const cacheKey = title ?? "";
@@ -532,17 +575,6 @@ export default function SearchScreen() {
 
     return list.slice(0, MAX_SUGGESTIONS);
   }, [suggestions, trimmedKeyword, historyItems, historyItemSet, matchesQuery]);
-
-  const resultsColumns = useMemo(
-    () => {
-      // 假设在 TV 模式下，如果焦点在 'results'，显示 3 列，否则显示 5 列 (或其他默认值)
-      if (deviceType === 'tv') {
-        return focusSection === 'results' ? 3: 2; // 示例：从 5 列切换到 3 列
-      }
-      return DeviceUtils.getSafeColumnCount(responsiveConfig.columns);
-    },
-    [deviceType, responsiveConfig.columns, focusSection] // 依赖项中添加 focusSection
-  );
 
   const renderKeyboardRow = useCallback(
     (row: KeyboardKey[], rowIndex: number) => (
