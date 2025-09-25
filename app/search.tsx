@@ -466,7 +466,7 @@ export default function SearchScreen() {
   const trimmedKeyword = keyword.trim();
 
   const historyItems = useMemo(
-    () => history.filter((item) => item && item.trim().length > 0),
+    () => history.filter((item) => item && item.trim().length > 0).slice(0, 10),
     [history]
   );
 
@@ -535,9 +535,8 @@ export default function SearchScreen() {
 
   const resultsColumns = useMemo(
     () => {
-      // 假设在 TV 模式下，如果焦点在 'results'，显示 3 列，否则显示 5 列 (或其他默认值)
       if (deviceType === 'tv') {
-        return focusSection === 'results' ? 3: 2; // 示例：从 5 列切换到 3 列
+        return focusSection === 'results' ? 3: 2;
       }
       return DeviceUtils.getSafeColumnCount(responsiveConfig.columns);
     },
@@ -625,7 +624,7 @@ export default function SearchScreen() {
               onPress={() => handleManualSearch(trimmedKeyword)}
             >
               <ThemedText style={dynamicStyles.tvActionItemText} numberOfLines={1}>
-                {`直接搜索“${trimmedKeyword}”`}
+                {`${trimmedKeyword}`}
               </ThemedText>
             </Pressable>
           ) : null}
@@ -754,7 +753,7 @@ export default function SearchScreen() {
             <View style={dynamicStyles.suggestionGroup}>
               <ThemedText style={dynamicStyles.suggestionTitle}>搜索历史</ThemedText>
               <View style={dynamicStyles.suggestionList}>
-                {historyItems.slice(0, 6).map((item, index) => (
+                {historyItems.map((item, index) => (
                   <TouchableOpacity
                     key={`history-chip-${item}-${index}`}
                     style={dynamicStyles.suggestionChip}
