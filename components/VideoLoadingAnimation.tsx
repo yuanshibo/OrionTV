@@ -227,6 +227,7 @@ const VideoLoadingAnimation: React.FC<VideoLoadingAnimationProps> = ({ showProgr
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    width: "100%",
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
@@ -234,6 +235,9 @@ const styles = StyleSheet.create({
   loadingContainer: {
     alignItems: "center",
     zIndex: 10,
+    width: "100%",
+    maxWidth: 360,
+    paddingHorizontal: 16,
   },
   videoIcon: {
     width: 100,
@@ -274,7 +278,8 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   progressBar: {
-    width: 300,
+    width: "100%",
+    maxWidth: 300,
     height: 6,
     backgroundColor: "rgba(255, 255, 255, 0.1)",
     borderRadius: 3,
