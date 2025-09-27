@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, Image, ScrollView, ActivityIndicator } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ThemedView } from "@/components/ThemedView";
@@ -11,6 +11,14 @@ import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { getCommonResponsiveStyles } from "@/utils/ResponsiveStyles";
 import ResponsiveNavigation from "@/components/navigation/ResponsiveNavigation";
 import ResponsiveHeader from "@/components/navigation/ResponsiveHeader";
+import { PlayRecordManager } from "@/services/storage";
+
+type ResumeInfo = {
+  hasRecord: boolean;
+  episodeIndex: number;
+  position?: number;
+};
+
 
 export default function DetailScreen() {
   const { q, source, id } = useLocalSearchParams<{ q: string; source?: string; id?: string }>();
@@ -34,6 +42,12 @@ export default function DetailScreen() {
     toggleFavorite,
   } = useDetailStore();
 
+  const [resumeInfo, setResumeInfo] = useState<ResumeInfo>(() => ({
+    hasRecord: false,
+    episodeIndex: 0,
+    position: undefined,
+  }));
+
   useEffect(() => {
     if (q) {
       init(q, source, id);
@@ -43,19 +57,103 @@ export default function DetailScreen() {
     };
   }, [abort, init, q, source, id]);
 
-  const handlePlay = (episodeIndex: number) => {
+  useEffect(() => {
+    let isMounted = true;
+
+    const resetResumeInfo = () => {
+      setResumeInfo((prev) => {
+        if (!prev.hasRecord && prev.episodeIndex === 0 && prev.position === undefined) {
+          return prev;
+        }
+        return { hasRecord: false, episodeIndex: 0, position: undefined };
+      });
+    };
+
+    const loadPlayRecord = async () => {
+      if (!detail) {
+        if (isMounted) {
+          resetResumeInfo();
+        }
+        return;
+      }
+
+      try {
+        const record = await PlayRecordManager.get(detail.source, detail.id.toString());
+        if (!isMounted) {
+          return;
+        }
+
+        const totalEpisodes = detail.episodes?.length ?? 0;
+        if (record && totalEpisodes > 0) {
+          const rawIndex = typeof record.index === "number" ? record.index - 1 : 0;
+          const clampedIndex = Math.min(Math.max(rawIndex, 0), totalEpisodes - 1);
+          const resumePosition =
+            record.play_time && record.play_time > 0
+              ? Math.max(0, Math.floor(record.play_time * 1000))
+              : undefined;
+
+          setResumeInfo((prev) => {
+            if (
+              prev.hasRecord &&
+              prev.episodeIndex === clampedIndex &&
+              prev.position === resumePosition
+            ) {
+              return prev;
+            }
+
+            return {
+              hasRecord: true,
+              episodeIndex: clampedIndex,
+              position: resumePosition,
+            };
+          });
+        } else {
+          resetResumeInfo();
+        }
+      } catch (error) {
+        if (isMounted) {
+          resetResumeInfo();
+        }
+      }
+    };
+
+    loadPlayRecord();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [detail]);
+
+  const handlePlay = (episodeIndex: number, position?: number) => {
     if (!detail) return;
     abort(); // Cancel any ongoing fetches
+    const params: Record<string, string> = {
+      // Pass necessary identifiers, the rest will be in the store
+      q: detail.title,
+      source: detail.source,
+      id: detail.id.toString(),
+      episodeIndex: episodeIndex.toString(),
+    };
+
+    if (typeof position === "number" && position > 0) {
+      params.position = Math.floor(position).toString();
+    }
+
     router.push({
       pathname: "/play",
-      params: {
-        // Pass necessary identifiers, the rest will be in the store
-        q: detail.title,
-        source: detail.source,
-        id: detail.id.toString(),
-        episodeIndex: episodeIndex.toString(),
-      },
+      params,
     });
+  };
+
+  const handlePrimaryPlay = () => {
+    if (!detail || !detail.episodes || detail.episodes.length === 0) {
+      return;
+    }
+
+    const targetEpisodeIndex = resumeInfo.hasRecord ? resumeInfo.episodeIndex : 0;
+    const resumePosition = resumeInfo.hasRecord ? resumeInfo.position : undefined;
+
+    handlePlay(targetEpisodeIndex, resumePosition);
   };
 
   if (loading) {
@@ -104,6 +202,10 @@ export default function DetailScreen() {
 
   // 动态样式
   const dynamicStyles = createResponsiveStyles(deviceType, spacing);
+  const totalEpisodes = detail.episodes?.length ?? 0;
+  const isPlayDisabled = totalEpisodes === 0;
+  const playButtonLabel = resumeInfo.hasRecord ? `继续播放 · 第${resumeInfo.episodeIndex + 1}集` : "立即播放 · 第1集";
+
 
   const renderDetailContent = () => {
     if (deviceType === 'mobile') {
@@ -129,6 +231,13 @@ export default function DetailScreen() {
                   />
                 </StyledButton>
               </View>
+              <StyledButton
+                onPress={handlePrimaryPlay}
+                style={dynamicStyles.playButton}
+                text={playButtonLabel}
+                textStyle={dynamicStyles.playButtonText}
+                disabled={isPlayDisabled}
+              />
               <View style={dynamicStyles.metaContainer}>
                 <ThemedText style={dynamicStyles.metaText}>{detail.year}</ThemedText>
                 <ThemedText style={dynamicStyles.metaText}>{detail.type_name}</ThemedText>
@@ -215,6 +324,14 @@ export default function DetailScreen() {
                   />
                 </StyledButton>
               </View>
+              <StyledButton
+                onPress={handlePrimaryPlay}
+                style={dynamicStyles.playButton}
+                text={playButtonLabel}
+                textStyle={dynamicStyles.playButtonText}
+                disabled={isPlayDisabled}
+                hasTVPreferredFocus={deviceType === "tv"}
+              />
               <View style={dynamicStyles.metaContainer}>
                 <ThemedText style={dynamicStyles.metaText}>{detail.year}</ThemedText>
                 <ThemedText style={dynamicStyles.metaText}>{detail.type_name}</ThemedText>
@@ -248,7 +365,7 @@ export default function DetailScreen() {
                     <StyledButton
                       key={index}
                       onPress={() => setDetail(item)}
-                      hasTVPreferredFocus={index === 0}
+                      hasTVPreferredFocus={deviceType !== "tv" && index === 0}
                       isSelected={isSelected}
                       style={dynamicStyles.sourceButton}
                     >
@@ -372,6 +489,15 @@ const createResponsiveStyles = (deviceType: string, spacing: number) => {
       padding: 10,
       marginLeft: 10,
       backgroundColor: "transparent",
+    },
+    playButton: {
+      marginTop: spacing / 2,
+      alignSelf: isMobile ? "stretch" : "flex-start",
+      minWidth: isTV ? 160 : isTablet ? 200 : 160,
+    },
+    playButtonText: {
+      fontSize: isMobile ? 16 : isTablet ? 18 : 20,
+      fontWeight: "600",
     },
     metaContainer: {
       flexDirection: "row",
