@@ -247,7 +247,12 @@ export const useVideoHandlers = ({
     if (!player) {
       return;
     }
-    player.playbackRate = playbackRate;
+
+    try {
+      player.playbackRate = playbackRate;
+    } catch (error) {
+      console.warn('[VIDEO] Failed to apply playback rate update', error);
+    }
   }, [player, playbackRate]);
 
   const videoViewProps = useMemo<Pick<VideoViewProps, 'nativeControls' | 'contentFit'>>(

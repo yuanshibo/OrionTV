@@ -445,6 +445,66 @@ const useDetailStore = create<DetailState>((set, get) => ({
     const cachedSources = cachedEntry ? cachedEntry.sources.map((item) => ({ ...item })) : [];
     const cachedAllSourcesLoaded = cachedEntry?.allSourcesLoaded ?? false;
 
+    let backgroundPromise: Promise<void> | null = null;
+    let hasFinalized = false;
+
+    const finalizeInitialization = async (reason: string) => {
+      if (signal.aborted) {
+        logger.info(`[INFO] Skipping finalize for "${q}" due to abort (${reason})`);
+        return;
+      }
+
+      const favoriteCheckStart = performance.now();
+      const finalStateSnapshot = get();
+
+      if (finalStateSnapshot.searchResults.length === 0 && !finalStateSnapshot.error) {
+        logger.error(`[ERROR] All search attempts completed but no results found for "${q}"`);
+        set({ error: `未找到 "${q}" 的播放源，请检查标题拼写或稍后重试` });
+      } else if (finalStateSnapshot.searchResults.length > 0) {
+        logger.info(
+          `[SUCCESS] DetailStore.init completed successfully with ${finalStateSnapshot.searchResults.length} sources`
+        );
+      }
+
+      if (finalStateSnapshot.detail) {
+        const { source, id } = finalStateSnapshot.detail;
+        logger.info(`[INFO] Checking favorite status for source: ${source}, id: ${id}`);
+        try {
+          const isFavorited = await FavoriteManager.isFavorited(source, id.toString());
+          set({ isFavorited });
+          logger.info(`[INFO] Favorite status: ${isFavorited}`);
+        } catch (favoriteError) {
+          logger.warn(`[WARN] Failed to check favorite status:`, favoriteError);
+        }
+      } else {
+        logger.warn(`[WARN] No detail found after all search attempts for "${q}"`);
+      }
+
+      const favoriteCheckEnd = performance.now();
+      logger.info(`[PERF] Favorite check took ${(favoriteCheckEnd - favoriteCheckStart).toFixed(2)}ms`);
+
+      set({ loading: false, allSourcesLoaded: true });
+
+      const persistedState = get();
+      setDetailCacheEntry(
+        cacheKey,
+        persistedState.detail,
+        persistedState.searchResults,
+        persistedState.sources,
+        persistedState.allSourcesLoaded
+      );
+
+      logger.info(`[INFO] DetailStore.init cleanup completed (${reason})`);
+    };
+
+    const runFinalizeOnce = (reason: string) => {
+      if (hasFinalized) {
+        return null;
+      }
+      hasFinalized = true;
+      return finalizeInitialization(reason);
+    };
+
     // 如果有有效缓存,直接使用缓存数据,不需要加载状态
     const hasValidCache = cachedEntry && cachedDetail && cachedSearchResults.length > 0;
     logger.info(`[CACHE] Cache status for "${q}": ${hasValidCache ? 'VALID' : 'MISS'}`);
@@ -808,20 +868,34 @@ const useDetailStore = create<DetailState>((set, get) => ({
 
         // 后台搜索（如果preferred source成功的话）
         if (!shouldFallback) {
-          const searchAllStart = performance.now();
-          logger.info(`[PERF] API searchVideos (background) START`);
+          backgroundPromise = (async () => {
+            const searchAllStart = performance.now();
+            logger.info(`[PERF] API searchVideos (background) START`);
 
-          try {
-            const { results: allResults } = await api.searchVideos(q);
+            try {
+              const { results: allResults } = await api.searchVideos(q);
 
-            const searchAllEnd = performance.now();
-            logger.info(`[PERF] API searchVideos (background) END - took ${(searchAllEnd - searchAllStart).toFixed(2)}ms, results: ${allResults.length}`);
+              const searchAllEnd = performance.now();
+              logger.info(
+                `[PERF] API searchVideos (background) END - took ${(searchAllEnd - searchAllStart).toFixed(2)}ms, results: ${allResults.length}`
+              );
 
-            if (signal.aborted) return;
-            await processAndSetResults(allResults.filter((item) => item.title === q), { merge: true });
-          } catch (backgroundError) {
-            logger.warn(`[WARN] Background search failed, but preferred source already succeeded:`, backgroundError);
-          }
+              if (signal.aborted) {
+                logger.info(`[INFO] Background search aborted before processing results`);
+                return;
+              }
+
+              await processAndSetResults(allResults.filter((item) => item.title === q), { merge: true });
+            } catch (backgroundError) {
+              if (backgroundError instanceof Error && backgroundError.name === "AbortError") {
+                logger.info(`[INFO] Background search aborted`);
+                return;
+              }
+              logger.warn(`[WARN] Background search failed, but preferred source already succeeded:`, backgroundError);
+            }
+          })();
+
+          logger.info(`[INFO] Preferred source ready; background enrichment scheduled asynchronously`);
         }
       } else {
         // Standard navigation: fetch resources, then fetch details one by one
@@ -1021,20 +1095,35 @@ const useDetailStore = create<DetailState>((set, get) => ({
         logger.info(`[INFO] DetailStore.init aborted by user`);
       }
     } finally {
-      if (!signal.aborted) {
-        set({ loading: false, allSourcesLoaded: true });
-        const finalState = get();
-        setDetailCacheEntry(
-          cacheKey,
-          finalState.detail,
-          finalState.searchResults,
-          finalState.sources,
-          finalState.allSourcesLoaded
+      const logCompletion = (label: string) => {
+        const perfEnd = performance.now();
+        logger.info(
+          `[PERF] DetailStore.init COMPLETE (${label}) - total time: ${(perfEnd - perfStart).toFixed(2)}ms`
         );
-        logger.info("[INFO] DetailStore.init cleanup completed");
+      };
+
+      const finalizeAndLog = (label: string) => {
+        const result = runFinalizeOnce(label);
+        if (result) {
+          result.finally(() => logCompletion(label));
+        } else {
+          logCompletion(label);
+        }
+      };
+
+      if (backgroundPromise) {
+        backgroundPromise
+          .catch((error) => {
+            if (error instanceof Error && error.name === "AbortError") {
+              logger.info(`[INFO] Background search promise aborted before completion`);
+            } else if (error) {
+              logger.warn(`[WARN] Background search promise rejected:`, error);
+            }
+          })
+          .finally(() => finalizeAndLog("async"));
+      } else {
+        finalizeAndLog("sync");
       }
-      const perfEnd = performance.now();
-      logger.info(`[PERF] DetailStore.init COMPLETE - total time: ${(perfEnd - perfStart).toFixed(2)}ms`);
     }
   },
 
