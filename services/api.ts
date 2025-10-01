@@ -1,4 +1,40 @@
-// MoonTV API 服务
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import Logger from "@/utils/Logger";
+
+export const NETWORK_STATUS_ZERO_MESSAGE = "Network request failed (status 0)";
+export const NETWORK_STATUS_ZERO_ERROR_NAME = "NetworkStatusZeroError";
+
+export const isNetworkStatusZeroError = (error: unknown): boolean => {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  if (error.name === NETWORK_STATUS_ZERO_ERROR_NAME) {
+    return true;
+  }
+
+  if (error.message === NETWORK_STATUS_ZERO_MESSAGE) {
+    return true;
+  }
+
+  return /status provided \(0\)/i.test(error.message);
+};
+
+const logger = Logger.withTag("API");
+
+const isStatusZeroRangeError = (error: unknown): error is RangeError =>
+  error instanceof RangeError && /status provided \(0\)/i.test(error.message);
+
+const createNetworkStatusZeroError = (cause?: unknown): Error => {
+  const networkError = new Error(NETWORK_STATUS_ZERO_MESSAGE);
+  networkError.name = NETWORK_STATUS_ZERO_ERROR_NAME;
+  if (cause) {
+    (networkError as any).cause = cause;
+  }
+  return networkError;
+};
+
+// region: --- Interface Definitions ---
 export interface DoubanItem {
   title: string;
   poster: string;
@@ -12,27 +48,22 @@ export interface DoubanResponse {
 }
 
 export interface VideoDetail {
-  code: number;
-  episodes: string[];
-  detailUrl: string;
-  videoInfo: {
-    title: string;
-    cover?: string;
-    desc?: string;
-    type?: string;
-    year?: string;
-    area?: string;
-    director?: string;
-    actor?: string;
-    remarks?: string;
-    source_name: string;
-    source: string;
-    id: string;
-  };
+  id: string;
+  title: string;
+  poster: string;
+  source: string;
+  source_name: string;
+  desc?: string;
+  type?: string;
+  year?: string;
+  area?: string;
+  director?: string;
+  actor?: string;
+  remarks?: string;
 }
 
 export interface SearchResult {
-  id: string;
+  id: number;
   title: string;
   poster: string;
   episodes: string[];
@@ -44,172 +75,221 @@ export interface SearchResult {
   type_name?: string;
 }
 
-// Data structure for play records
+export interface Favorite {
+  cover: string;
+  title: string;
+  source_name: string;
+  total_episodes: number;
+  search_title: string;
+  year: string;
+  save_time?: number;
+}
+
 export interface PlayRecord {
   title: string;
   source_name: string;
   cover: string;
-  index: number; // Episode number
-  total_episodes: number; // Total number of episodes
-  play_time: number; // Play progress in seconds
-  total_time: number; // Total duration in seconds
-  save_time: number; // Timestamp of when the record was saved
-  user_id: number; // User ID, always 0 in this version
+  index: number;
+  total_episodes: number;
+  play_time: number;
+  total_time: number;
+  save_time: number;
+  year: string;
 }
 
-export class MoonTVAPI {
-  private baseURL: string;
+export interface ApiSite {
+  key: string;
+  api: string;
+  name: string;
+  detail?: string;
+}
 
-  constructor(baseURL: string) {
-    if (!baseURL) {
-      console.warn(
-        "MoonTVAPI base URL not set. Please configure it for your network."
-      );
+export interface ServerConfig {
+  SiteName: string;
+  StorageType: "localstorage" | "redis" | string;
+}
+
+export class API {
+  public baseURL: string = "";
+
+  constructor(baseURL?: string) {
+    if (baseURL) {
+      this.baseURL = baseURL;
     }
-    this.baseURL = baseURL;
   }
 
-  /**
-   * 生成图片代理 URL
-   */
-  getImageProxyUrl(imageUrl: string): string {
-    return `${this.baseURL}/api/image-proxy?url=${encodeURIComponent(
-      imageUrl
-    )}`;
+  public setBaseUrl(url: string) {
+    this.baseURL = url;
   }
 
-  /**
-   * 获取豆瓣数据
-   */
-  async getDoubanData(
-    type: "movie" | "tv",
-    tag: string,
-    pageSize: number = 16,
-    pageStart: number = 0
-  ): Promise<DoubanResponse> {
-    const url = `${
-      this.baseURL
-    }/api/douban?type=${type}&tag=${encodeURIComponent(
-      tag
-    )}&pageSize=${pageSize}&pageStart=${pageStart}`;
+  private async _fetch(url: string, options: RequestInit = {}): Promise<Response> {
+    if (!this.baseURL) {
+      throw new Error("API_URL_NOT_SET");
+    }
 
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-    return response.json();
+    let response: Response;
+
+    try {
+      response = await fetch(`${this.baseURL}${url}`, options);
+    } catch (error) {
+      if (isStatusZeroRangeError(error)) {
+        logger.warn(
+          `[WARN] fetch failed with status 0 for ${url} (baseURL: ${this.baseURL}), treating as network error`
+        );
+        throw createNetworkStatusZeroError(error);
+      }
+      throw error;
+    }
+
+    if (response.status === 0) {
+      logger.warn(
+        `[WARN] fetch resolved with status 0 for ${url} (baseURL: ${this.baseURL}), treating as network error`
+      );
+      throw createNetworkStatusZeroError();
+    }
+
+    if (response.status === 401) {
+      throw new Error("UNAUTHORIZED");
+    }
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    return response;
   }
 
-  /**
-   * 搜索视频
-   */
-  async searchVideos(query: string): Promise<{ results: SearchResult[] }> {
-    const url = `${this.baseURL}/api/search?q=${encodeURIComponent(query)}`;
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-    return response.json();
-  }
-
-  /**
-   * 获取视频详情
-   */
-  async getVideoDetail(source: string, id: string): Promise<VideoDetail> {
-    const url = `${this.baseURL}/api/detail?source=${source}&id=${id}`;
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-    return response.json();
-  }
-
-  /**
-   * 登录
-   */
-  async login(password: string): Promise<{ ok: boolean; error?: string }> {
-    const url = `${this.baseURL}/api/login`;
-    const response = await fetch(url, {
+  async login(username?: string | undefined, password?: string): Promise<{ ok: boolean }> {
+    const response = await this._fetch("/api/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password }),
+      body: JSON.stringify({ username, password }),
+    });
+
+    // 存储cookie到AsyncStorage
+    const cookies = response.headers.get("Set-Cookie");
+    if (cookies) {
+      await AsyncStorage.setItem("authCookies", cookies);
+    }
+
+    return response.json();
+  }
+
+  async logout(): Promise<{ ok: boolean }> {
+    const response = await this._fetch("/api/logout", {
+      method: "POST",
+    });
+    await AsyncStorage.setItem("authCookies", '');
+    return response.json();
+  }
+
+  async getServerConfig(): Promise<ServerConfig> {
+    const response = await this._fetch("/api/server-config");
+    return response.json();
+  }
+
+  async getFavorites(key?: string): Promise<Record<string, Favorite> | Favorite | null> {
+    const url = key ? `/api/favorites?key=${encodeURIComponent(key)}` : "/api/favorites";
+    const response = await this._fetch(url);
+    return response.json();
+  }
+
+  async addFavorite(key: string, favorite: Omit<Favorite, "save_time">): Promise<{ success: boolean }> {
+    const response = await this._fetch("/api/favorites", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key, favorite }),
     });
     return response.json();
   }
 
-  /**
-   * 获取所有播放记录
-   */
-  async getPlayRecords(): Promise<Record<string, PlayRecord>> {
-    const url = `${this.baseURL}/api/playrecords`;
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+  async deleteFavorite(key?: string): Promise<{ success: boolean }> {
+    const url = key ? `/api/favorites?key=${encodeURIComponent(key)}` : "/api/favorites";
+    const response = await this._fetch(url, { method: "DELETE" });
     return response.json();
   }
 
-  /**
-   * 保存播放记录
-   */
-  async savePlayRecord(
-    key: string,
-    record: PlayRecord
-  ): Promise<{ success: boolean }> {
-    const url = `${this.baseURL}/api/playrecords`;
-    const response = await fetch(url, {
+  async getPlayRecords(): Promise<Record<string, PlayRecord>> {
+    const response = await this._fetch("/api/playrecords");
+    return response.json();
+  }
+
+  async savePlayRecord(key: string, record: Omit<PlayRecord, "save_time">): Promise<{ success: boolean }> {
+    const response = await this._fetch("/api/playrecords", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ key, record }),
     });
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    return response.json();
+  }
+
+  async deletePlayRecord(key?: string): Promise<{ success: boolean }> {
+    const url = key ? `/api/playrecords?key=${encodeURIComponent(key)}` : "/api/playrecords";
+    const response = await this._fetch(url, { method: "DELETE" });
+    return response.json();
+  }
+
+  async getSearchHistory(): Promise<string[]> {
+    const response = await this._fetch("/api/searchhistory");
+    return response.json();
+  }
+
+  async addSearchHistory(keyword: string): Promise<string[]> {
+    const response = await this._fetch("/api/searchhistory", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ keyword }),
+    });
+    return response.json();
+  }
+
+  async deleteSearchHistory(keyword?: string): Promise<{ success: boolean }> {
+    const url = keyword ? `/api/searchhistory?keyword=${keyword}` : "/api/searchhistory";
+    const response = await this._fetch(url, { method: "DELETE" });
+    return response.json();
+  }
+
+  getImageProxyUrl(imageUrl: string): string {
+    return `${this.baseURL}/api/image-proxy?url=${encodeURIComponent(imageUrl)}`;
+  }
+
+  async getDoubanData(
+    type: "movie" | "tv",
+    tag: string,
+    pageSize: number = 16,
+    pageStart: number = 0,
+    signal?: AbortSignal
+  ): Promise<DoubanResponse> {
+    const url = `/api/douban?type=${type}&tag=${encodeURIComponent(tag)}&pageSize=${pageSize}&pageStart=${pageStart}`;
+    const response = await this._fetch(url, { signal });
+    return response.json();
+  }
+
+  async searchVideos(query: string): Promise<{ results: SearchResult[] }> {
+    const url = `/api/search?q=${encodeURIComponent(query)}`;
+    const response = await this._fetch(url);
+    return response.json();
+  }
+
+  async searchVideo(query: string, resourceId: string, signal?: AbortSignal): Promise<{ results: SearchResult[] }> {
+    const url = `/api/search/one?q=${encodeURIComponent(query)}&resourceId=${encodeURIComponent(resourceId)}`;
+    const response = await this._fetch(url, { signal });
+    const { results } = await response.json();
+    return { results: results.filter((item: any) => item.title === query )};
+  }
+
+  async getResources(signal?: AbortSignal): Promise<ApiSite[]> {
+    const url = `/api/search/resources`;
+    const response = await this._fetch(url, { signal });
+    return response.json();
+  }
+
+  async getVideoDetail(source: string, id: string): Promise<VideoDetail> {
+    const url = `/api/detail?source=${source}&id=${id}`;
+    const response = await this._fetch(url);
     return response.json();
   }
 }
 
 // 默认实例
-export const moonTVApi = new MoonTVAPI();
-
-// 生成模拟数据的辅助函数
-export const generateMockDoubanData = (count: number = 20): DoubanItem[] => {
-  const movieTitles = [
-    "肖申克的救赎",
-    "霸王别姬",
-    "阿甘正传",
-    "泰坦尼克号",
-    "这个杀手不太冷",
-    "千与千寻",
-    "美丽人生",
-    "辛德勒的名单",
-    "星际穿越",
-    "盗梦空间",
-    "忠犬八公的故事",
-    "教父",
-    "龙猫",
-    "当幸福来敲门",
-    "三傻大闹宝莱坞",
-    "机器人总动员",
-    "放牛班的春天",
-    "无间道",
-    "楚门的世界",
-    "大话西游之大圣娶亲",
-  ];
-
-  return Array.from(
-    { length: Math.min(count, movieTitles.length) },
-    (_, index) => ({
-      title: movieTitles[index] || `影片 ${index + 1}`,
-      poster: `https://picsum.photos/160/240?random=${index}`,
-      rate: (Math.random() * 3 + 7).toFixed(1),
-    })
-  );
-};
-
-export const generateMockSearchResults = (
-  query: string,
-  count: number = 20
-): SearchResult[] => {
-  return Array.from({ length: count }, (_, index) => ({
-    id: `${index + 1}`,
-    title: `搜索结果：${query} ${index + 1}`,
-    poster: `https://picsum.photos/160/240?random=${index + 100}`,
-    episodes: [`第1集`, `第2集`, `第3集`],
-    source: "mock",
-    source_name: "模拟源",
-    year: (2020 + Math.floor(Math.random() * 4)).toString(),
-    desc: `这是关于 ${query} 的搜索结果 ${index + 1}`,
-    type_name: Math.random() > 0.5 ? "电影" : "电视剧",
-  }));
-};
+export let api = new API();
