@@ -1,5 +1,5 @@
 import React, { useEffect, useCallback, useMemo, useRef } from "react";
-import { View, StyleSheet, ActivityIndicator, FlatList, Pressable, Animated, StatusBar, Platform, BackHandler, ToastAndroid } from "react-native";
+import { View, StyleSheet, ActivityIndicator, FlatList, Animated, StatusBar, Platform, BackHandler, ToastAndroid } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
@@ -8,7 +8,7 @@ import VideoCard from "@/components/VideoCard";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Search, Settings, LogOut, Heart } from "lucide-react-native";
 import { StyledButton } from "@/components/StyledButton";
-import useHomeStore, { RowItem, Category, DoubanFilterGroup } from "@/stores/homeStore";
+import useHomeStore, { RowItem, Category, DoubanFilterKey } from "@/stores/homeStore";
 import useAuthStore from "@/stores/authStore";
 import CustomScrollView from "@/components/CustomScrollView";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
@@ -177,23 +177,17 @@ export default function HomeScreen() {
     [selectCategory, selectedCategory]
   );
 
-  const handleFilterCycle = useCallback(
-    (group: DoubanFilterGroup) => {
+  const handleFilterSelect = useCallback(
+    (groupKey: DoubanFilterKey, value: string) => {
       if (!selectedCategory || !selectedCategory.filterConfig) {
         return;
       }
 
-      const options = group.options;
-      if (!options.length) {
+      if (selectedCategory.activeFilters?.[groupKey] === value) {
         return;
       }
 
-      const currentValue = selectedCategory.activeFilters?.[group.key] ?? group.defaultValue;
-      const currentIndex = options.findIndex((option) => option.value === currentValue);
-      const nextIndex = currentIndex === -1 || currentIndex === options.length - 1 ? 0 : currentIndex + 1;
-      const nextOption = options[nextIndex] ?? options[0];
-
-      updateFilterOption(selectedCategory.title, group.key, nextOption.value);
+      updateFilterOption(selectedCategory.title, groupKey, value);
     },
     [selectedCategory, updateFilterOption]
   );
@@ -255,6 +249,30 @@ export default function HomeScreen() {
           paddingVertical: spacing / 2,
           borderRadius: deviceType === "mobile" ? 6 : 8,
           marginHorizontal: deviceType === "tv" ? spacing / 4 : spacing / 2,
+        },
+        filterContainer: {
+          paddingHorizontal: spacing,
+          marginBottom: spacing / 2,
+        },
+        filterGroup: {
+          marginBottom: spacing / 2,
+        },
+        filterGroupLabel: {
+          fontSize: deviceType === "mobile" ? 13 : 14,
+          color: Colors.dark.icon,
+          marginBottom: spacing / 3,
+          fontWeight: "500",
+        },
+        filterOptionsRow: {
+          flexDirection: "row",
+          flexWrap: "wrap",
+          marginHorizontal: -spacing / 4,
+        },
+        filterOptionButton: {
+          marginHorizontal: spacing / 4,
+          marginBottom: spacing / 4,
+          paddingHorizontal: spacing,
+          paddingVertical: spacing / 2.5,
         },
         categoryText: {
           fontSize: deviceType === "mobile" ? 14 : 16,
@@ -372,30 +390,33 @@ export default function HomeScreen() {
 
       {/* 筛选条件按钮 */}
       {selectedCategory && selectedCategory.filterConfig && (
-        <View style={dynamicStyles.categoryContainer}>
-          <FlatList
-            data={selectedCategory.filterConfig.groups}
-            renderItem={({ item, index }) => {
-              const activeValue = selectedCategory.activeFilters?.[item.key] ?? item.defaultValue;
-              const activeOption = item.options.find((option) => option.value === activeValue) ?? item.options[0];
-              const label = `${item.label}：${activeOption?.label ?? activeValue}`;
+        <View style={dynamicStyles.filterContainer}>
+          {selectedCategory.filterConfig.groups.map((group, groupIndex) => {
+            const activeValue = selectedCategory.activeFilters?.[group.key] ?? group.defaultValue;
 
-              return (
-                <StyledButton
-                  hasTVPreferredFocus={index === 0}
-                  text={label}
-                  onPress={() => handleFilterCycle(item)}
-                  style={dynamicStyles.categoryButton}
-                  textStyle={dynamicStyles.categoryText}
-                  variant="ghost"
-                />
-              );
-            }}
-            keyExtractor={(item) => item.key}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={dynamicStyles.categoryListContent}
-          />
+            return (
+              <View key={group.key} style={dynamicStyles.filterGroup}>
+                <ThemedText style={dynamicStyles.filterGroupLabel}>{group.label}</ThemedText>
+                <View style={dynamicStyles.filterOptionsRow}>
+                  {group.options.map((option, optionIndex) => {
+                    const isSelected = activeValue === option.value;
+                    return (
+                      <StyledButton
+                        key={option.value}
+                        text={option.label}
+                        onPress={() => handleFilterSelect(group.key, option.value)}
+                        isSelected={isSelected}
+                        style={dynamicStyles.filterOptionButton}
+                        textStyle={dynamicStyles.categoryText}
+                        variant="ghost"
+                        hasTVPreferredFocus={groupIndex === 0 && optionIndex === 0}
+                      />
+                    );
+                  })}
+                </View>
+              </View>
+            );
+          })}
         </View>
       )}
 
