@@ -29,7 +29,6 @@ export default function HomeScreen() {
   const responsiveConfig = useResponsiveLayout();
   const commonStyles = getCommonResponsiveStyles(responsiveConfig);
   const { deviceType, spacing } = responsiveConfig;
-
   const {
     categories,
     selectedCategory,
@@ -44,8 +43,10 @@ export default function HomeScreen() {
     clearError,
     hydrateFromStorage,
   } = useHomeStore();
+  const hasRecordCategory = useMemo(() => categories.some((category) => category.type === "record"), [categories]);
   const hasContent = contentData.length > 0;
   const hadContentRef = useRef(hasContent);
+  const selectedCategoryType = selectedCategory?.type;
   const { isLoggedIn, logout } = useAuthStore();
   const apiConfigStatus = useApiConfig();
 
@@ -55,10 +56,18 @@ export default function HomeScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      if (selectedCategory?.title === "最近播放") {
+      if (selectedCategoryType === "record") {
         refreshPlayRecords();
       }
-    }, [refreshPlayRecords, selectedCategory?.title])
+    }, [refreshPlayRecords, selectedCategoryType])
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!hasRecordCategory) {
+        refreshPlayRecords();
+      }
+    }, [hasRecordCategory, refreshPlayRecords])
   );
 
     // 双击返回退出逻辑（只限当前页面）
