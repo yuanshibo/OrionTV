@@ -1,5 +1,14 @@
 import React, { forwardRef } from "react";
-import { Animated, Pressable, StyleSheet, StyleProp, ViewStyle, PressableProps, TextStyle, View, Platform } from "react-native";
+import {
+  Animated,
+  Pressable,
+  StyleSheet,
+  StyleProp,
+  ViewStyle,
+  PressableProps,
+  TextStyle,
+  Platform,
+} from "react-native";
 import { ThemedText } from "./ThemedText";
 import { Colors } from "@/constants/Colors";
 import { useButtonAnimation } from "@/hooks/useAnimation";
@@ -14,6 +23,37 @@ interface StyledButtonProps extends PressableProps {
   textStyle?: StyleProp<TextStyle>;
 }
 
+const extractMarginStyles = (style?: StyleProp<ViewStyle>) => {
+  const flatStyle = (StyleSheet.flatten(style) as ViewStyle | undefined) || {};
+
+  const {
+    margin,
+    marginHorizontal,
+    marginVertical,
+    marginTop,
+    marginBottom,
+    marginLeft,
+    marginRight,
+    marginStart,
+    marginEnd,
+    ...buttonStyle
+  } = flatStyle;
+
+  const containerStyle: ViewStyle = {};
+
+  if (typeof margin !== "undefined") containerStyle.margin = margin;
+  if (typeof marginHorizontal !== "undefined") containerStyle.marginHorizontal = marginHorizontal;
+  if (typeof marginVertical !== "undefined") containerStyle.marginVertical = marginVertical;
+  if (typeof marginTop !== "undefined") containerStyle.marginTop = marginTop;
+  if (typeof marginBottom !== "undefined") containerStyle.marginBottom = marginBottom;
+  if (typeof marginLeft !== "undefined") containerStyle.marginLeft = marginLeft;
+  if (typeof marginRight !== "undefined") containerStyle.marginRight = marginRight;
+  if (typeof marginStart !== "undefined") containerStyle.marginStart = marginStart;
+  if (typeof marginEnd !== "undefined") containerStyle.marginEnd = marginEnd;
+
+  return { containerStyle, buttonStyle };
+};
+
 export const StyledButton = forwardRef<View, StyledButtonProps>(
   ({ children, text, variant = "default", isSelected = false, style, textStyle, ...rest }, ref) => {
     const colorScheme = "dark";
@@ -21,6 +61,7 @@ export const StyledButton = forwardRef<View, StyledButtonProps>(
     const [isFocused, setIsFocused] = React.useState(false);
     const animationStyle = useButtonAnimation(isFocused);
     const deviceType = useResponsiveLayout().deviceType;
+    const { containerStyle, buttonStyle } = extractMarginStyles(style);
 
     const variantStyles = {
       default: StyleSheet.create({
@@ -113,15 +154,16 @@ export const StyledButton = forwardRef<View, StyledButtonProps>(
     });
 
     return (
-      <Animated.View style={[animationStyle, style]}>
+      <Animated.View style={[animationStyle, containerStyle]}>
         <Pressable
-          android_ripple={Platform.isTV || deviceType !== 'tv'? { color: 'transparent' } : { color: Colors.dark.link }}
+          android_ripple={Platform.isTV || deviceType !== "tv" ? { color: "transparent" } : { color: Colors.dark.link }}
           ref={ref}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
           style={({ focused }) => [
             styles.button,
             variantStyles[variant].button,
+            buttonStyle,
             isSelected && (variantStyles[variant].selectedButton ?? styles.selectedButton),
             focused && (variantStyles[variant].focusedButton ?? styles.focusedButton),
           ]}
