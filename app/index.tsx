@@ -270,11 +270,11 @@ export default function HomeScreen() {
           alignItems: "center",
         },
         filterGroupLabel: {
-          fontSize: deviceType === "mobile" ? 13 : 14,
+          fontSize: deviceType === "tv" ? 20 : deviceType === "tablet" ? 16 : 13,
           color: Colors.dark.icon,
           marginRight: spacing / 2,
-          fontWeight: "500",
-          minWidth: 52,
+          fontWeight: "600",
+          minWidth: deviceType === "tv" ? 72 : 52,
         },
         filterOptionsList: {
           flex: 1,
@@ -286,8 +286,14 @@ export default function HomeScreen() {
         },
         filterOptionButton: {
           marginRight: spacing / 2,
-          paddingHorizontal: spacing,
-          paddingVertical: spacing / 2.5,
+          paddingHorizontal: deviceType === "tv" ? spacing : spacing * 0.75,
+          paddingVertical: deviceType === "tv" ? spacing / 1.5 : spacing / 2.5,
+          minHeight: deviceType === "tv" ? 52 : undefined,
+          minWidth: deviceType === "tv" ? 88 : undefined,
+        },
+        filterOptionText: {
+          fontSize: deviceType === "tv" ? 22 : deviceType === "tablet" ? 18 : 16,
+          fontWeight: "600",
         },
         categoryText: {
           fontSize: deviceType === "mobile" ? 14 : 16,
@@ -427,7 +433,7 @@ export default function HomeScreen() {
                         onPress={() => handleFilterSelect(group.key, option.value)}
                         isSelected={isSelected}
                         style={dynamicStyles.filterOptionButton}
-                        textStyle={dynamicStyles.categoryText}
+                        textStyle={dynamicStyles.filterOptionText}
                         variant="ghost"
                         hasTVPreferredFocus={groupIndex === 0 && optionIndex === 0}
                       />
