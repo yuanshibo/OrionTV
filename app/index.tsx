@@ -1,5 +1,15 @@
 import React, { useEffect, useCallback, useMemo, useRef } from "react";
-import { View, StyleSheet, ActivityIndicator, FlatList, Animated, StatusBar, Platform, BackHandler, ToastAndroid } from "react-native";
+import {
+  View,
+  StyleSheet,
+  ActivityIndicator,
+  FlatList,
+  Animated,
+  StatusBar,
+  Platform,
+  BackHandler,
+  ToastAndroid,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
@@ -256,21 +266,26 @@ export default function HomeScreen() {
         },
         filterGroup: {
           marginBottom: spacing / 2,
+          flexDirection: "row",
+          alignItems: "center",
         },
         filterGroupLabel: {
           fontSize: deviceType === "mobile" ? 13 : 14,
           color: Colors.dark.icon,
-          marginBottom: spacing / 3,
+          marginRight: spacing / 2,
           fontWeight: "500",
+          minWidth: 52,
+        },
+        filterOptionsList: {
+          flex: 1,
         },
         filterOptionsRow: {
           flexDirection: "row",
-          flexWrap: "wrap",
-          marginHorizontal: -spacing / 4,
+          alignItems: "center",
+          paddingRight: spacing / 2,
         },
         filterOptionButton: {
-          marginHorizontal: spacing / 4,
-          marginBottom: spacing / 4,
+          marginRight: spacing / 2,
           paddingHorizontal: spacing,
           paddingVertical: spacing / 2.5,
         },
@@ -397,12 +412,17 @@ export default function HomeScreen() {
             return (
               <View key={group.key} style={dynamicStyles.filterGroup}>
                 <ThemedText style={dynamicStyles.filterGroupLabel}>{group.label}</ThemedText>
-                <View style={dynamicStyles.filterOptionsRow}>
-                  {group.options.map((option, optionIndex) => {
+                <FlatList
+                  horizontal
+                  data={group.options}
+                  style={dynamicStyles.filterOptionsList}
+                  contentContainerStyle={dynamicStyles.filterOptionsRow}
+                  showsHorizontalScrollIndicator={false}
+                  keyExtractor={(option) => option.value}
+                  renderItem={({ item: option, index: optionIndex }) => {
                     const isSelected = activeValue === option.value;
                     return (
                       <StyledButton
-                        key={option.value}
                         text={option.label}
                         onPress={() => handleFilterSelect(group.key, option.value)}
                         isSelected={isSelected}
@@ -412,8 +432,8 @@ export default function HomeScreen() {
                         hasTVPreferredFocus={groupIndex === 0 && optionIndex === 0}
                       />
                     );
-                  })}
-                </View>
+                  }}
+                />
               </View>
             );
           })}
