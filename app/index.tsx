@@ -8,7 +8,7 @@ import VideoCard from "@/components/VideoCard";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Search, Settings, LogOut, Heart } from "lucide-react-native";
 import { StyledButton } from "@/components/StyledButton";
-import useHomeStore, { RowItem, Category } from "@/stores/homeStore";
+import useHomeStore, { RowItem, Category, DoubanFilterGroup } from "@/stores/homeStore";
 import useAuthStore from "@/stores/authStore";
 import CustomScrollView from "@/components/CustomScrollView";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
@@ -39,6 +39,7 @@ export default function HomeScreen() {
     fetchInitialData,
     loadMoreData,
     selectCategory,
+    updateFilterOption,
     refreshPlayRecords,
     clearError,
     hydrateFromStorage,
@@ -174,6 +175,27 @@ export default function HomeScreen() {
       }
     },
     [selectCategory, selectedCategory]
+  );
+
+  const handleFilterCycle = useCallback(
+    (group: DoubanFilterGroup) => {
+      if (!selectedCategory || !selectedCategory.filterConfig) {
+        return;
+      }
+
+      const options = group.options;
+      if (!options.length) {
+        return;
+      }
+
+      const currentValue = selectedCategory.activeFilters?.[group.key] ?? group.defaultValue;
+      const currentIndex = options.findIndex((option) => option.value === currentValue);
+      const nextIndex = currentIndex === -1 || currentIndex === options.length - 1 ? 0 : currentIndex + 1;
+      const nextOption = options[nextIndex] ?? options[0];
+
+      updateFilterOption(selectedCategory.title, group.key, nextOption.value);
+    },
+    [selectedCategory, updateFilterOption]
   );
 
   const insetTop = insets.top;
@@ -347,6 +369,35 @@ export default function HomeScreen() {
           contentContainerStyle={dynamicStyles.categoryListContent}
         />
       </View>
+
+      {/* 筛选条件按钮 */}
+      {selectedCategory && selectedCategory.filterConfig && (
+        <View style={dynamicStyles.categoryContainer}>
+          <FlatList
+            data={selectedCategory.filterConfig.groups}
+            renderItem={({ item, index }) => {
+              const activeValue = selectedCategory.activeFilters?.[item.key] ?? item.defaultValue;
+              const activeOption = item.options.find((option) => option.value === activeValue) ?? item.options[0];
+              const label = `${item.label}：${activeOption?.label ?? activeValue}`;
+
+              return (
+                <StyledButton
+                  hasTVPreferredFocus={index === 0}
+                  text={label}
+                  onPress={() => handleFilterCycle(item)}
+                  style={dynamicStyles.categoryButton}
+                  textStyle={dynamicStyles.categoryText}
+                  variant="ghost"
+                />
+              );
+            }}
+            keyExtractor={(item) => item.key}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={dynamicStyles.categoryListContent}
+          />
+        </View>
+      )}
 
       {/* 子分类标签 */}
       {selectedCategory && selectedCategory.tags && (
