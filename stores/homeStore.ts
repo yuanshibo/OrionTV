@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
-import { api, SearchResult, PlayRecord, DoubanItem } from "@/services/api";
+import { api, SearchResult, PlayRecord, DoubanItem, DoubanRecommendationItem } from "@/services/api";
 import { PlayRecordManager } from "@/services/storage";
 import useAuthStore from "./authStore";
 import { useSettingsStore } from "./settingsStore";
@@ -30,7 +30,7 @@ export interface Category {
 const initialCategories: Category[] = [
   { title: "最近播放", type: "record" },
   { title: "热门剧集", type: "tv", tag: "热门" },
-  { title: "电视剧", type: "tv", tags: ["国产剧", "美剧", "英剧", "韩剧", "日剧", "港剧", "日本动画", "动画"] },
+  { title: "电视剧", type: "tv", tags: ["国产剧", "美剧", "英剧", "韩剧", "日剧", "港剧", "日本动画", "所有剧集"] },
   {
     title: "电影",
     type: "movie",
@@ -44,12 +44,13 @@ const initialCategories: Category[] = [
       "欧美",
       "韩国",
       "日本",
-      "动作",
-      "喜剧",
-      "爱情",
-      "科幻",
-      "悬疑",
-      "恐怖",
+//       "动作",
+//       "喜剧",
+//       "爱情",
+//       "科幻",
+//       "悬疑",
+//       "恐怖",
+      "所有电影"
     ],
   },
   { title: "综艺", type: "tv", tag: "综艺" },
@@ -321,11 +322,57 @@ const mapDoubanItemsToRows = (items: DoubanItem[]): RowItem[] =>
     source: "douban",
   })) as RowItem[];
 
+// 映射豆瓣推荐数据到RowItem
+const mapDoubanRecommendationsToRows = (items: DoubanRecommendationItem[]): RowItem[] =>
+  items.map((item) => ({
+    id: item.id || item.title,
+    source: "douban",
+    title: item.title,
+    poster: item.poster,
+    year: item.year,
+    rate: item.rate,
+    sourceName: "豆瓣",
+  })) as RowItem[];
+
+// 检查是否是"所有"标签
+const isAllContentTag = (tag: string): boolean => {
+  return tag === "所有剧集" || tag === "所有电影";
+};
+
 const fetchDoubanCategoryContent = async (
   category: ContentCategory,
   pageStart: number,
   signal?: AbortSignal
 ): Promise<{ items: RowItem[]; hasMore: boolean }> => {
+  // 检查是否是"所有"标签
+  if (isAllContentTag(category.tag)) {
+    const kind = category.tag === "所有剧集" ? "tv" : "movie";
+    const limit = 25;
+
+    const result = await api.getDoubanRecommendations(
+      kind,
+      {
+        category: "all",
+        format: kind === "tv" ? "电视剧" : "",
+        region: "all",
+        year: "all",
+        platform: "all",
+        sort: "T",
+        label: "all",
+        start: pageStart,
+        limit,
+      },
+      signal
+    );
+
+    const items = mapDoubanRecommendationsToRows(result.list);
+    return {
+      items,
+      hasMore: result.list.length === limit, // 如果返回的数据等于请求的limit，说明可能还有更多
+    };
+  }
+
+  // 原有的豆瓣标签逻辑
   const result = await api.getDoubanData(category.type, category.tag, 20, pageStart, signal);
   const items = mapDoubanItemsToRows(result.list);
   return {
