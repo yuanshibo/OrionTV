@@ -87,6 +87,7 @@ export default function RootLayout() {
           <Stack>
             <Stack.Screen name="index" options={{ headerShown: false }} />
             <Stack.Screen name="detail" options={{ headerShown: false }} />
+            <Stack.Screen name="category" options={{ headerShown: false }} />
             {Platform.OS !== "web" && <Stack.Screen name="play" options={{ headerShown: false }} />}
             <Stack.Screen name="search" options={{ headerShown: false }} />
             <Stack.Screen name="live" options={{ headerShown: false }} />

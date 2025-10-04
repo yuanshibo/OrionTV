@@ -161,9 +161,13 @@ export default function HomeScreen() {
 
   const handleCategorySelect = useCallback(
     (category: Category) => {
+      if (category.title === "所有剧集" || category.title === "所有电影") {
+        router.push({ pathname: "/category", params: { title: category.title } });
+        return;
+      }
       selectCategory(category);
     },
-    [selectCategory]
+    [router, selectCategory]
   );
 
   const handleTagSelect = useCallback(

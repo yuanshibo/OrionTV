@@ -47,6 +47,36 @@ export interface DoubanResponse {
   list: DoubanItem[];
 }
 
+export interface DoubanRecommendationItem {
+  id?: string;
+  title: string;
+  poster: string;
+  rate?: string;
+  url?: string;
+  year?: string;
+  region?: string;
+  platform?: string;
+  type?: string;
+}
+
+export interface DoubanRecommendationResponse {
+  code: number;
+  message?: string;
+  list: DoubanRecommendationItem[];
+}
+
+export interface DoubanRecommendationFilters {
+  category?: string;
+  format?: string;
+  region?: string;
+  year?: string;
+  platform?: string;
+  sort?: string;
+  label?: string;
+  start?: number;
+  limit?: number;
+}
+
 export interface VideoDetail {
   id: string;
   title: string;
@@ -262,6 +292,29 @@ export class API {
   ): Promise<DoubanResponse> {
     const url = `/api/douban?type=${type}&tag=${encodeURIComponent(tag)}&pageSize=${pageSize}&pageStart=${pageStart}`;
     const response = await this._fetch(url, { signal });
+    return response.json();
+  }
+
+  async getDoubanRecommendations(
+    kind: "movie" | "tv",
+    filters: DoubanRecommendationFilters,
+    signal?: AbortSignal
+  ): Promise<DoubanRecommendationResponse> {
+    const params = new URLSearchParams();
+    params.set("kind", kind);
+    params.set("limit", String(filters.limit ?? 25));
+    params.set("start", String(filters.start ?? 0));
+    params.set("category", filters.category ?? "all");
+    params.set("format", filters.format ?? filters.format);
+    params.set("region", filters.region ?? "all");
+    params.set("year", filters.year ?? "all");
+    params.set("platform", filters.platform);
+    params.set("sort", filters.sort ?? "T");
+    params.set("label", filters.label ?? "all");
+
+    logger.info(`[info] test--- ${params.toString()}`);
+
+    const response = await this._fetch('/api/douban/recommends?' + params.toString(), { signal });
     return response.json();
   }
 

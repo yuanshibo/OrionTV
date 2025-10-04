@@ -1,6 +1,13 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
-import { api, SearchResult, PlayRecord, DoubanItem } from "@/services/api";
+import {
+  api,
+  SearchResult,
+  PlayRecord,
+  DoubanItem,
+  DoubanRecommendationItem,
+  DoubanRecommendationFilters,
+} from "@/services/api";
 import { PlayRecordManager } from "@/services/storage";
 import useAuthStore from "./authStore";
 import { useSettingsStore } from "./settingsStore";
@@ -20,17 +27,291 @@ export type RowItem = (SearchResult | PlayRecord) & {
   rate?: string;
 };
 
+export type DoubanFilterKey = Exclude<keyof DoubanRecommendationFilters, "start" | "limit">;
+
+export interface DoubanFilterOption {
+  label: string;
+  value: string;
+}
+
+export interface DoubanFilterGroup {
+  key: DoubanFilterKey;
+  label: string;
+  options: DoubanFilterOption[];
+  defaultValue: string;
+}
+
+export interface DoubanFilterConfig {
+  kind: "movie" | "tv";
+  groups: DoubanFilterGroup[];
+  staticFilters?: Partial<DoubanRecommendationFilters>;
+}
+
+export type ActiveDoubanFilters = Partial<Omit<DoubanRecommendationFilters, "start" | "limit" | "category">> & {
+  category?: string;
+};
+
 export interface Category {
   title: string;
   type?: "movie" | "tv" | "record";
   tag?: string;
   tags?: string[];
+  filterConfig?: DoubanFilterConfig;
+  activeFilters?: ActiveDoubanFilters;
 }
 
-const initialCategories: Category[] = [
+const DOUBAN_RECOMMENDATION_PAGE_SIZE = 25;
+
+const DOUBAN_TV_FILTER_GROUPS: DoubanFilterGroup[] = [
+  {
+    key: "category",
+    label: "类型",
+    defaultValue: "all",
+    options: [
+      { label: "全部", value: "all" },
+      { label: '喜剧', value: 'comedy' },
+      { label: '爱情', value: 'romance' },
+      { label: '悬疑', value: 'suspense' },
+      { label: '武侠', value: 'wuxia' },
+      { label: '古装', value: 'costume' },
+      { label: '家庭', value: 'family' },
+      { label: '犯罪', value: 'crime' },
+      { label: '科幻', value: 'sci-fi' },
+      { label: '恐怖', value: 'horror' },
+      { label: '历史', value: 'history' },
+      { label: '战争', value: 'war' },
+      { label: '动作', value: 'action' },
+      { label: '冒险', value: 'adventure' },
+      { label: '传记', value: 'biography' },
+      { label: '剧情', value: 'drama' },
+      { label: '奇幻', value: 'fantasy' },
+      { label: '惊悚', value: 'thriller' },
+      { label: '灾难', value: 'disaster' },
+      { label: '歌舞', value: 'musical' },
+      { label: '音乐', value: 'music' },
+    ],
+  },
+  {
+    key: "region",
+    label: "地区",
+    defaultValue: "all",
+    options: [
+      { label: "全部", value: "all" },
+      { label: '华语', value: 'chinese' },
+      { label: '欧美', value: 'western' },
+      { label: '国外', value: 'foreign' },
+      { label: '韩国', value: 'korean' },
+      { label: '日本', value: 'japanese' },
+      { label: '中国大陆', value: 'mainland_china' },
+      { label: '中国香港', value: 'hong_kong' },
+      { label: '美国', value: 'usa' },
+      { label: '英国', value: 'uk' },
+      { label: '泰国', value: 'thailand' },
+      { label: '中国台湾', value: 'taiwan' },
+      { label: '意大利', value: 'italy' },
+      { label: '法国', value: 'france' },
+      { label: '德国', value: 'germany' },
+      { label: '西班牙', value: 'spain' },
+      { label: '俄罗斯', value: 'russia' },
+      { label: '瑞典', value: 'sweden' },
+      { label: '巴西', value: 'brazil' },
+      { label: '丹麦', value: 'denmark' },
+      { label: '印度', value: 'india' },
+      { label: '加拿大', value: 'canada' },
+      { label: '爱尔兰', value: 'ireland' },
+      { label: '澳大利亚', value: 'australia' },
+    ],
+  },
+  {
+    key: "year",
+    label: "年代",
+    defaultValue: "all",
+    options: [
+      { label: "全部", value: "all" },
+      { label: '2020年代', value: '2020s' },
+      { label: '2025', value: '2025' },
+      { label: '2024', value: '2024' },
+      { label: '2023', value: '2023' },
+      { label: '2022', value: '2022' },
+      { label: '2021', value: '2021' },
+      { label: '2020', value: '2020' },
+      { label: '2019', value: '2019' },
+      { label: '2010年代', value: '2010s' },
+      { label: '2000年代', value: '2000s' },
+      { label: '90年代', value: '1990s' },
+      { label: '80年代', value: '1980s' },
+      { label: '70年代', value: '1970s' },
+      { label: '60年代', value: '1960s' },
+      { label: '更早', value: 'earlier' },
+    ],
+  },
+  {
+    key: "platform",
+    label: "平台",
+    defaultValue: "all",
+    options: [
+      { label: "全部", value: "all" },
+      { label: '腾讯视频', value: 'tencent' },
+      { label: '爱奇艺', value: 'iqiyi' },
+      { label: '优酷', value: 'youku' },
+      { label: '湖南卫视', value: 'hunan_tv' },
+      { label: 'Netflix', value: 'netflix' },
+      { label: 'HBO', value: 'hbo' },
+      { label: 'BBC', value: 'bbc' },
+      { label: 'NHK', value: 'nhk' },
+      { label: 'CBS', value: 'cbs' },
+      { label: 'NBC', value: 'nbc' },
+      { label: 'tvN', value: 'tvn' },
+    ],
+  },
+  {
+    key: "sort",
+    label: "排序",
+    defaultValue: "T",
+    options: [
+      { label: '综合排序', value: 'T' },
+      { label: '近期热度', value: 'U' },
+      { label: '首播时间', value: 'R',},
+      { label: '高分优先', value: 'S' },
+    ],
+  },
+];
+
+const DOUBAN_MOVIE_FILTER_GROUPS: DoubanFilterGroup[] = [
+  {
+    key: "category",
+    label: "类型",
+    defaultValue: "all",
+    options: [
+      { label: "全部", value: "all" },
+      { label: '喜剧', value: 'comedy' },
+      { label: '爱情', value: 'romance' },
+      { label: '动作', value: 'action' },
+      { label: '科幻', value: 'sci-fi' },
+      { label: '悬疑', value: 'suspense' },
+      { label: '犯罪', value: 'crime' },
+      { label: '惊悚', value: 'thriller' },
+      { label: '冒险', value: 'adventure' },
+      { label: '音乐', value: 'music' },
+      { label: '历史', value: 'history' },
+      { label: '奇幻', value: 'fantasy' },
+      { label: '恐怖', value: 'horror' },
+      { label: '战争', value: 'war' },
+      { label: '传记', value: 'biography' },
+      { label: '歌舞', value: 'musical' },
+      { label: '武侠', value: 'wuxia' },
+      { label: '情色', value: 'erotic' },
+      { label: '灾难', value: 'disaster' },
+      { label: '西部', value: 'western' },
+      { label: '纪录片', value: 'documentary' },
+      { label: '短片', value: 'short' },
+    ],
+  },
+  {
+    key: "region",
+    label: "地区",
+    defaultValue: "all",
+    options: [
+      { label: "全部", value: "all" },
+      { label: '华语', value: 'chinese' },
+      { label: '欧美', value: 'western' },
+      { label: '韩国', value: 'korean' },
+      { label: '日本', value: 'japanese' },
+      { label: '中国大陆', value: 'mainland_china' },
+      { label: '美国', value: 'usa' },
+      { label: '中国香港', value: 'hong_kong' },
+      { label: '中国台湾', value: 'taiwan' },
+      { label: '英国', value: 'uk' },
+      { label: '法国', value: 'france' },
+      { label: '德国', value: 'germany' },
+      { label: '意大利', value: 'italy' },
+      { label: '西班牙', value: 'spain' },
+      { label: '印度', value: 'india' },
+      { label: '泰国', value: 'thailand' },
+      { label: '俄罗斯', value: 'russia' },
+      { label: '加拿大', value: 'canada' },
+      { label: '澳大利亚', value: 'australia' },
+      { label: '爱尔兰', value: 'ireland' },
+      { label: '瑞典', value: 'sweden' },
+      { label: '巴西', value: 'brazil' },
+      { label: '丹麦', value: 'denmark' },
+    ],
+  },
+  {
+    key: "year",
+    label: "年代",
+    defaultValue: "all",
+    options: [
+      { label: "全部", value: "all" },
+      { label: "2025", value: "2025" },
+      { label: "2024", value: "2024" },
+      { label: "2023", value: "2023" },
+      { label: "2022", value: "2022" },
+      { label: "2021", value: "2021" },
+      { label: "2020", value: "2020" },
+      { label: "2019", value: "2019" },
+      { label: "2018", value: "2018" },
+      { label: "2017", value: "2017" },
+      { label: "2016", value: "2016" },
+      { label: "2015", value: "2015" },
+      { label: "更早", value: "更早" },
+    ],
+  },
+  {
+    key: "sort",
+    label: "排序",
+    defaultValue: "T",
+    options: [
+      { label: '综合排序', value: 'T' },
+      { label: '近期热度', value: 'U' },
+      { label: '首映时间', value: 'R',},
+      { label: '高分优先', value: 'S' },
+    ],
+  },
+];
+
+const buildDefaultFilters = (config: DoubanFilterConfig): ActiveDoubanFilters => {
+  const defaults: ActiveDoubanFilters = {};
+
+  config.groups.forEach((group) => {
+    defaults[group.key] = group.defaultValue;
+  });
+
+  return { ...defaults, ...(config.staticFilters ?? {}) };
+};
+
+const createFilterTag = (type: "movie" | "tv", filters: ActiveDoubanFilters): string => {
+  const serialized = Object.entries(filters)
+    .filter(([, value]) => value !== undefined && value !== null && `${value}`.length > 0)
+    .map(([key, value]) => `${key}=${value}`)
+    .sort()
+    .join("&");
+
+  return `${type}-filters-${serialized}`;
+};
+
+const initializeFilterableCategory = (category: Category): Category => {
+  if (!category.filterConfig || !category.type) {
+    return category;
+  }
+
+  const activeFilters = category.activeFilters ? { ...category.activeFilters } : buildDefaultFilters(category.filterConfig);
+  const tag = createFilterTag(category.type, activeFilters);
+
+  return {
+    ...category,
+    activeFilters,
+    tag,
+  };
+};
+
+const initializeCategories = (categories: Category[]): Category[] =>
+  categories.map((category) => initializeFilterableCategory(category));
+
+const initialCategories: Category[] = initializeCategories([
   { title: "最近播放", type: "record" },
   { title: "热门剧集", type: "tv", tag: "热门" },
-  { title: "电视剧", type: "tv", tags: ["国产剧", "美剧", "英剧", "韩剧", "日剧", "港剧", "日本动画", "动画"] },
+  { title: "电视剧", type: "tv", tags: ["国产剧", "美剧", "英剧", "韩剧", "日剧", "港剧", "日本动画"] },
   {
     title: "电影",
     type: "movie",
@@ -54,7 +335,25 @@ const initialCategories: Category[] = [
   },
   { title: "综艺", type: "tv", tag: "综艺" },
   { title: "豆瓣 Top250", type: "movie", tag: "top250" },
-];
+  {
+    title: "所有剧集",
+    type: "tv",
+    filterConfig: {
+      kind: "tv",
+      groups: DOUBAN_TV_FILTER_GROUPS,
+      staticFilters: { format: "电视剧", label: "all" },
+    },
+  },
+  {
+    title: "所有电影",
+    type: "movie",
+    filterConfig: {
+      kind: "movie",
+      groups: DOUBAN_MOVIE_FILTER_GROUPS,
+      staticFilters: { label: "all", format: "", platform: "all" },
+    },
+  },
+]);
 
 // 添加缓存项接口
 interface CacheItem {
@@ -101,6 +400,10 @@ const isSameCategory = (a?: Category | null, b?: Category | null) => {
 };
 
 const ensureCategoryHasDefaultTag = (category: Category): Category => {
+  if (category.filterConfig) {
+    return initializeFilterableCategory(category);
+  }
+
   if (category.tags?.length && !category.tag) {
     return { ...category, tag: category.tags[0] };
   }
@@ -160,6 +463,7 @@ interface HomeState {
   fetchInitialData: () => Promise<void>;
   loadMoreData: (requestToken?: number) => Promise<void>;
   selectCategory: (category: Category) => void;
+  updateFilterOption: (categoryTitle: string, key: DoubanFilterKey, value: string) => void;
   refreshPlayRecords: () => Promise<void>;
   clearError: () => void;
 }
@@ -321,11 +625,45 @@ const mapDoubanItemsToRows = (items: DoubanItem[]): RowItem[] =>
     source: "douban",
   })) as RowItem[];
 
+// 映射豆瓣推荐数据到RowItem
+const mapDoubanRecommendationsToRows = (items: DoubanRecommendationItem[]): RowItem[] =>
+  items.map((item) => ({
+    id: item.id || item.title,
+    source: "douban",
+    title: item.title,
+    poster: item.poster,
+    year: item.year,
+    rate: item.rate,
+    sourceName: "豆瓣",
+  })) as RowItem[];
+
 const fetchDoubanCategoryContent = async (
   category: ContentCategory,
   pageStart: number,
   signal?: AbortSignal
 ): Promise<{ items: RowItem[]; hasMore: boolean }> => {
+  // 原有的豆瓣标签逻辑
+  if (category.filterConfig) {
+    const limit = DOUBAN_RECOMMENDATION_PAGE_SIZE;
+    const activeFilters = category.activeFilters ?? buildDefaultFilters(category.filterConfig);
+
+    const result = await api.getDoubanRecommendations(
+      category.filterConfig.kind,
+      {
+        ...activeFilters,
+        start: pageStart,
+        limit,
+      },
+      signal
+    );
+
+    const items = mapDoubanRecommendationsToRows(result.list);
+    return {
+      items,
+      hasMore: result.list.length === limit,
+    };
+  }
+
   const result = await api.getDoubanData(category.type, category.tag, 20, pageStart, signal);
   const items = mapDoubanItemsToRows(result.list);
   return {
@@ -423,6 +761,10 @@ const schedulePrefetchForTag = (category: Category, tag: string) => {
 };
 
 const schedulePrefetchAdditionalTags = (category: Category) => {
+  if (category.filterConfig) {
+    return;
+  }
+
   if (!category.tags || category.tags.length <= 1) {
     return;
   }
@@ -667,6 +1009,56 @@ const useHomeStore = create<HomeState>((set, get) => ({
       } else if (requestToken === currentRequestToken) {
         set({ loadingMore: false });
       }
+    }
+  },
+
+  updateFilterOption: (categoryTitle, key, value) => {
+    const state = get();
+    const targetCategory = state.categories.find((category) => category.title === categoryTitle);
+
+    if (!targetCategory || !targetCategory.filterConfig) {
+      return;
+    }
+
+    const group = targetCategory.filterConfig.groups.find((filterGroup) => filterGroup.key === key);
+    if (!group) {
+      return;
+    }
+
+    const optionExists = group.options.some((option) => option.value === value);
+    if (!optionExists) {
+      return;
+    }
+
+    const newValue = value;
+    const currentFilters = targetCategory.activeFilters
+      ? { ...targetCategory.activeFilters }
+      : buildDefaultFilters(targetCategory.filterConfig);
+
+    if (currentFilters[key] === newValue) {
+      return;
+    }
+
+    const updatedCategory = initializeFilterableCategory({
+      ...targetCategory,
+      activeFilters: {
+        ...currentFilters,
+        [key]: newValue,
+      },
+    });
+
+    const updatedCategories = state.categories.map((category) =>
+      category.title === categoryTitle ? updatedCategory : category
+    );
+
+    cancelOngoingRequest();
+
+    set({
+      categories: updatedCategories,
+    });
+
+    if (state.selectedCategory.title === categoryTitle) {
+      get().selectCategory(updatedCategory);
     }
   },
 
