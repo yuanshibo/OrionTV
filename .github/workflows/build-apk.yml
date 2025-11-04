@@ -5,6 +5,11 @@ on:
     branches:
       - '**'
 
+# 新增：控制并发，自动取消同一分支上正在进行的旧运行
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
@@ -38,7 +43,8 @@ jobs:
   build:
     name: Build APK
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master'
+    # 优化：使用 github.ref_name 使判断更简洁
+    if: github.ref_name == 'master'
     needs: test
     outputs:
       version: ${{ steps.package-version.outputs.version }}
@@ -92,7 +98,7 @@ jobs:
   release:
     name: Create Release
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master'
+    if: github.ref_name == 'master'
     needs: [build]
     steps:
       - name: Download APK
