@@ -1,113 +1,293 @@
-import React, { useState, useEffect } from "react";
-import { View, StyleSheet, ActivityIndicator, FlatList } from "react-native";
+import React, { useEffect, useCallback, useMemo, useRef, useState } from "react";
+import { StyleSheet, ActivityIndicator, FlatList, Animated, StatusBar, Platform, BackHandler, ToastAndroid } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ThemedView } from "@/components/ThemedView";
-import { ThemedText } from "@/components/ThemedText";
-import ScrollableRow from "@/components/ScrollableRow.tv";
-import { MoonTVAPI, DoubanResponse } from "@/services/api";
-import { RowItem } from "@/components/ScrollableRow.tv";
-
-interface ContentRow {
-  title: string;
-  data: RowItem[];
-}
-
-const categories = [
-  { title: "热门电影", type: "movie", tag: "热门" },
-  { title: "热门剧集", type: "tv", tag: "热门" },
-  { title: "豆瓣 Top250", type: "movie", tag: "top250" },
-  { title: "综艺", type: "tv", tag: "综艺" },
-  { title: "美剧", type: "tv", tag: "美剧" },
-  { title: "韩剧", type: "tv", tag: "韩剧" },
-  { title: "日剧", type: "tv", tag: "日剧" },
-  { title: "日漫", type: "tv", tag: "日本动画" },
-] as const;
-
-// --- IMPORTANT ---
-// Replace with your computer's LAN IP address to test on a real device or emulator.
-// Find it by running `ifconfig` (macOS/Linux) or `ipconfig` (Windows).
-const API_BASE_URL = "http://192.168.31.123:3001";
-const api = new MoonTVAPI(API_BASE_URL);
+import { api } from "@/services/api";
+import VideoCard from "@/components/VideoCard";
+import { useFocusEffect } from "expo-router";
+import useHomeStore, { RowItem, Category, DoubanFilterKey } from "@/stores/homeStore";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { getCommonResponsiveStyles } from "@/utils/ResponsiveStyles";
+import ResponsiveNavigation from "@/components/navigation/ResponsiveNavigation";
+import { useApiConfig } from "@/hooks/useApiConfig";
+import { HomeHeader } from "@/components/navigation/HomeHeader";
+import { CategoryNavigation } from "@/components/navigation/CategoryNavigation";
+import { ContentDisplay } from "@/components/home/ContentDisplay";
+import FilterPanel from "@/components/home/FilterPanel";
 
 export default function HomeScreen() {
-  const [rows, setRows] = useState<ContentRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const insets = useSafeAreaInsets();
+  const listRef = useRef<FlatList<RowItem>>(null);
+  const lastCheckedPlayRecords = useRef<number>(0);
+
+  // 响应式布局配置
+  const responsiveConfig = useResponsiveLayout();
+  const commonStyles = getCommonResponsiveStyles(responsiveConfig);
+  const { deviceType, spacing } = responsiveConfig;
+  const {
+    categories,
+    selectedCategory,
+    contentData,
+    loading,
+    loadingMore,
+    error,
+    fetchInitialData,
+    loadMoreData,
+    selectCategory,
+    updateFilterOption,
+    refreshPlayRecords,
+    clearError,
+    hydrateFromStorage,
+  } = useHomeStore();
+  const hasRecordCategory = useMemo(() => categories.some((category) => category.type === "record"), [categories]);
+  const hasContent = contentData.length > 0;
+  const hadContentRef = useRef(hasContent);
+  const selectedCategoryType = selectedCategory?.type;
+  const apiConfigStatus = useApiConfig();
+  const [isFilterPanelVisible, setFilterPanelVisible] = useState(false);
 
   useEffect(() => {
-    const fetchAllData = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const promises = categories.map((category) =>
-          api.getDoubanData(category.type, category.tag, 20)
-        );
-        const results = await Promise.all<DoubanResponse>(promises);
+    void hydrateFromStorage();
+  }, [hydrateFromStorage]);
 
-        const newRows: ContentRow[] = results.map((result, index) => {
-          const category = categories[index];
-          return {
-            title: category.title,
-            data: result.list.map((item) => ({
-              ...item,
-              id: item.title, // Use title as a temporary unique id
-              source: "douban", // Static source for douban items
-            })),
-          };
-        });
-
-        setRows(newRows);
-      } catch (err) {
-        console.error("Failed to fetch data for home screen:", err);
-        setError("无法加载内容，请稍后重试。");
-      } finally {
-        setLoading(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (selectedCategoryType === "record") {
+        refreshPlayRecords();
+      } else if (!hasRecordCategory) {
+        const now = Date.now();
+        if (now - lastCheckedPlayRecords.current > 5000) {
+          refreshPlayRecords();
+          lastCheckedPlayRecords.current = now;
+        }
       }
-    };
+    }, [refreshPlayRecords, selectedCategoryType, hasRecordCategory])
+  );
 
-    fetchAllData();
-  }, []);
+  const backPressTimeRef = useRef<number | null>(null);
 
-  if (loading) {
-    return (
-      <ThemedView style={styles.centerContainer}>
-        <ActivityIndicator size="large" />
-      </ThemedView>
-    );
-  }
+  useFocusEffect(
+    useCallback(() => {
+      const handleBackPress = () => {
+        if (isFilterPanelVisible) {
+          setFilterPanelVisible(false);
+          return true;
+        }
+        const now = Date.now();
 
-  if (error) {
-    return (
-      <ThemedView style={styles.centerContainer}>
-        <ThemedText type="subtitle">{error}</ThemedText>
-      </ThemedView>
-    );
-  }
+        if (!backPressTimeRef.current || now - backPressTimeRef.current > 2000) {
+          listRef.current?.scrollToOffset({ offset: 0, animated: true });
 
-  return (
-    <ThemedView style={styles.container}>
-      <FlatList
-        data={rows}
-        renderItem={({ item }) => (
-          <ScrollableRow title={item.title} data={item.data} api={api} />
-        )}
-        keyExtractor={(item) => item.title}
-        contentContainerStyle={styles.listContent}
+          backPressTimeRef.current = now;
+          ToastAndroid.show("再按一次返回键退出", ToastAndroid.SHORT);
+          return true;
+        }
+
+        BackHandler.exitApp();
+        return true;
+      };
+
+      if (Platform.OS === "android") {
+        const backHandler = BackHandler.addEventListener("hardwareBackPress", handleBackPress);
+        return () => {
+          backHandler.remove();
+          backPressTimeRef.current = null;
+        };
+      }
+    }, [isFilterPanelVisible])
+  );
+
+  // 数据获取逻辑
+  useEffect(() => {
+    if (!selectedCategory || (selectedCategory.tags && !selectedCategory.tag) || !apiConfigStatus.isConfigured || apiConfigStatus.needsConfiguration) {
+      return;
+    }
+    fetchInitialData();
+  }, [selectedCategory, selectedCategory?.tag, apiConfigStatus.isConfigured, apiConfigStatus.needsConfiguration, fetchInitialData]);
+
+  // 错误状态清理
+  useEffect(() => {
+    if (apiConfigStatus.needsConfiguration && error) {
+      clearError();
+    }
+  }, [apiConfigStatus.needsConfiguration, error, clearError]);
+
+  // 内容淡入动画
+  useEffect(() => {
+    if (loading && !hasContent) {
+      fadeAnim.setValue(0);
+    } else if (!loading && hasContent) {
+      if (!hadContentRef.current) {
+        fadeAnim.setValue(0);
+        Animated.timing(fadeAnim, { toValue: 1, duration: 300, useNativeDriver: true }).start();
+      } else {
+        fadeAnim.setValue(1);
+      }
+    } else if (!loading && !hasContent) {
+      fadeAnim.setValue(1);
+    }
+    hadContentRef.current = hasContent;
+  }, [loading, hasContent, fadeAnim]);
+
+  const handleCategorySelect = useCallback(
+    (category: Category) => {
+      if (category.title === "所有") {
+        selectCategory(category);
+        setFilterPanelVisible(true);
+        return;
+      }
+      selectCategory(category);
+    },
+    [selectCategory]
+  );
+
+  const handleCategoryLongPress = useCallback(
+    (category: Category) => {
+      if (deviceType === 'tv' && category.title === "所有") {
+        setFilterPanelVisible(true);
+      }
+    },
+    [deviceType]
+  );
+
+  const handleTagSelect = useCallback(
+    (tag: string) => {
+      if (selectedCategory) {
+        const categoryWithTag = { ...selectedCategory, tag };
+        selectCategory(categoryWithTag);
+      }
+    },
+    [selectCategory, selectedCategory]
+  );
+
+  const handleFilterChange = useCallback(
+    (change: { tag: string } | { filterKey: DoubanFilterKey; filterValue: string }) => {
+      if (!selectedCategory) return;
+
+      if ('tag' in change) {
+        if (selectedCategory.tag === change.tag) return;
+        const categoryWithTag = { ...selectedCategory, tag: change.tag };
+        selectCategory(categoryWithTag);
+      } else {
+        if (selectedCategory.activeFilters?.[change.filterKey] === change.filterValue) {
+          return;
+        }
+        updateFilterOption(selectedCategory.title, change.filterKey, change.filterValue);
+      }
+    },
+    [selectedCategory, selectCategory, updateFilterOption]
+  );
+
+  // 动态样式
+  const dynamicContainerStyle = useMemo(() => ({ paddingTop: deviceType === "mobile" ? insets.top : deviceType === "tablet" ? insets.top + 20 : 40 }), [deviceType, insets.top]);
+
+  const headerStyles = useMemo(() => StyleSheet.create({
+    headerContainer: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: spacing * 1.5, marginBottom: spacing },
+    headerTitle: { fontSize: deviceType === "mobile" ? 24 : deviceType === "tablet" ? 28 : 32, fontWeight: "bold", paddingTop: 16, height: 45 },
+    rightHeaderButtons: { flexDirection: "row", alignItems: "center" },
+    iconButton: { borderRadius: 30, marginLeft: spacing / 2 },
+  }), [deviceType, spacing]);
+
+  const categoryStyles = useMemo(() => StyleSheet.create({ 
+    categoryContainer: { paddingBottom: spacing / 2 },
+    categoryListContent: { paddingHorizontal: spacing },
+    categoryButton: { paddingHorizontal: deviceType === "tv" ? spacing / 4 : spacing / 2, paddingVertical: spacing / 2, borderRadius: deviceType === "mobile" ? 6 : 8, marginHorizontal: deviceType === "tv" ? spacing / 4 : spacing / 2 },
+    categoryText: { fontSize: deviceType === "mobile" ? 14 : 16, fontWeight: "500" },
+  }), [deviceType, spacing]);
+
+  const renderContentItem = useCallback(
+    ({ item, index }: { item: RowItem; index: number }) => {
+      const isFilterableCategory = selectedCategory?.title === "所有";
+      const isRecordCategory = selectedCategory?.type === "record";
+
+      let longPressAction;
+      if (deviceType === "tv") {
+        if (isFilterableCategory) {
+          longPressAction = () => setFilterPanelVisible(true);
+        } else if (isRecordCategory) {
+          // Let VideoCard handle it internally for deletion.
+          longPressAction = undefined;
+        } else {
+          // For any other category, long-press should do nothing.
+          longPressAction = () => {};
+        }
+      }
+
+      return (
+        <VideoCard
+          id={item.id}
+          source={item.source}
+          title={item.title}
+          poster={item.poster}
+          year={item.year}
+          rate={item.rate}
+          progress={item.progress}
+          playTime={item.play_time}
+          episodeIndex={item.episodeIndex}
+          sourceName={item.sourceName}
+          totalEpisodes={item.totalEpisodes}
+          api={api}
+          onRecordDeleted={fetchInitialData}
+          onLongPress={longPressAction}
+        />
+      );
+    },
+    [fetchInitialData, deviceType, selectedCategory]
+  );
+
+  const footerComponent = useMemo(() => {
+    if (!loadingMore) return null;
+    return <ActivityIndicator style={{ marginVertical: 20 }} size="large" />;
+  }, [loadingMore]);
+
+  const content = (
+    <ThemedView style={[commonStyles.container, dynamicContainerStyle]}>
+      {deviceType === "mobile" && <StatusBar barStyle="light-content" />}
+
+      {deviceType !== "mobile" && <HomeHeader styles={headerStyles} />}
+
+      <CategoryNavigation
+        categories={categories}
+        selectedCategory={selectedCategory}
+        onCategorySelect={handleCategorySelect}
+        onCategoryLongPress={handleCategoryLongPress}
+        onTagSelect={handleTagSelect}
+        categoryStyles={categoryStyles}
+        deviceType={deviceType}
+        spacing={spacing}
       />
+
+      <ContentDisplay
+        apiConfigStatus={apiConfigStatus}
+        selectedCategory={selectedCategory}
+        loading={loading}
+        error={error}
+        fadeAnim={fadeAnim}
+        commonStyles={commonStyles}
+        spacing={spacing}
+        contentData={contentData}
+        listRef={listRef}
+        renderContentItem={renderContentItem}
+        loadMoreData={loadMoreData}
+        loadingMore={loadingMore}
+        footerComponent={footerComponent}
+      />
+      {selectedCategory && (
+        <FilterPanel
+          isVisible={isFilterPanelVisible}
+          onClose={() => setFilterPanelVisible(false)}
+          category={selectedCategory}
+          onFilterChange={handleFilterChange}
+          deviceType={deviceType}
+        />
+      )}
     </ThemedView>
   );
-}
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  centerContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  listContent: {
-    paddingTop: 40,
-    paddingBottom: 40,
-  },
-});
+  if (deviceType === "tv") {
+    return content;
+  }
+
+  return <ResponsiveNavigation>{content}</ResponsiveNavigation>;
+}

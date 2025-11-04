@@ -1,0 +1,91 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build_and_test:
+    name: Build, Test and Release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.package-version.outputs.version }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Enable Corepack and Install dependencies
+        run: |
+          corepack enable
+          yarn install --frozen-lockfile
+
+      - name: Lint and Format Check
+        run: yarn lint
+
+      - name: Type Check
+        run: yarn typecheck
+
+      - name: Run Tests
+        run: yarn test-ci
+
+      - name: Get version from package.json
+        id: package-version
+        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: "zulu"
+          java-version: "17"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          api-level: 36
+          build-tools: 36.0.0
+
+      - name: Prebuild TV App
+        run: yarn prebuild
+
+      - name: Build TV APK
+        run: yarn build
+
+      - name: Rename APK file
+        run: |
+          mkdir -p artifacts
+          cp android/app/build/outputs/apk/release/app-release.apk artifacts/orionTV.${{ steps.package-version.outputs.version }}.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v3
+        with:
+          name: apk-release
+          path: artifacts/orionTV.${{ steps.package-version.outputs.version }}.apk
+
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [build_and_test]
+    steps:
+      - name: Download APK
+        uses: actions/download-artifact@v3
+        with:
+          name: apk-release
+
+      - name: Create Release and Upload APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.build_and_test.outputs.version }}
+          name: Release v${{ needs.build_and_test.outputs.version }}
+          body: Automated release for version v${{ needs.build_and_test.outputs.version }}.
+          draft: false
+          prerelease: false
+          files: orionTV.${{ needs.build_and_test.outputs.version }}.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

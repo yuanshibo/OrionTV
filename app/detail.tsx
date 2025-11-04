@@ -1,33 +1,617 @@
-import React from "react";
-import { View, Text, StyleSheet } from "react-native";
-import { useLocalSearchParams } from "expo-router";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
+import { View, Text, StyleSheet, Image, ScrollView, ActivityIndicator, BackHandler, useColorScheme } from "react-native";
+import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
+import { StyledButton } from "@/components/StyledButton";
+import VideoLoadingAnimation from "@/components/VideoLoadingAnimation";
+import useDetailStore from "@/stores/detailStore";
+import { FontAwesome } from "@expo/vector-icons";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { getCommonResponsiveStyles } from "@/utils/ResponsiveStyles";
+import ResponsiveNavigation from "@/components/navigation/ResponsiveNavigation";
+import ResponsiveHeader from "@/components/navigation/ResponsiveHeader";
+import { PlayRecordManager } from "@/services/storage";
+import { Colors } from "@/constants/Colors";
+
+type ResumeInfo = {
+  hasRecord: boolean;
+  episodeIndex: number;
+  position?: number;
+};
+
 
 export default function DetailScreen() {
-  const { source, id } = useLocalSearchParams();
+  const { q, source, id } = useLocalSearchParams<{ q: string; source?: string; id?: string }>();
+  const router = useRouter();
+  const colorScheme = useColorScheme() ?? 'dark';
+  const colors = Colors[colorScheme];
+
+  const responsiveConfig = useResponsiveLayout();
+  const commonStyles = getCommonResponsiveStyles(responsiveConfig);
+  const { deviceType, spacing } = responsiveConfig;
+  const isTvExperience = deviceType === "tv";
+
+  const dynamicStyles = useMemo(() => createResponsiveStyles(deviceType, spacing, colors), [deviceType, spacing, colors]);
+
+  const {
+    detail,
+    searchResults,
+    loading,
+    error,
+    allSourcesLoaded,
+    init,
+    setDetail,
+    abort,
+    isFavorited,
+    toggleFavorite,
+  } = useDetailStore();
+
+  const [resumeInfo, setResumeInfo] = useState<ResumeInfo>(() => ({ 
+    hasRecord: false,
+    episodeIndex: 0,
+    position: undefined,
+  }));
+
+  useEffect(() => {
+    if (q) {
+      init(q, source, id);
+    }
+    return () => {
+      abort();
+    };
+  }, [init, q, source, id, abort]);
+
+  const applyResumeInfo = useCallback((next: ResumeInfo) => {
+    setResumeInfo((prev) => {
+      if (
+        prev.hasRecord === next.hasRecord &&
+        prev.episodeIndex === next.episodeIndex &&
+        prev.position === next.position
+      ) {
+        return prev;
+      }
+
+      return next;
+    });
+  }, []);
+
+  const loadResumeInfo = useCallback(async (): Promise<ResumeInfo> => {
+    if (!detail) {
+      return { hasRecord: false, episodeIndex: 0, position: undefined };
+    }
+
+    try {
+      const record = await PlayRecordManager.get(detail.source, detail.id.toString());
+      const totalEpisodes = detail.episodes?.length ?? 0;
+
+      if (record && totalEpisodes > 0) {
+        const rawIndex = typeof record.index === "number" ? record.index - 1 : 0;
+        const clampedIndex = Math.min(Math.max(rawIndex, 0), totalEpisodes - 1);
+        const resumePosition =
+          record.play_time && record.play_time > 0
+            ? Math.max(0, Math.floor(record.play_time * 1000))
+            : undefined;
+
+        return {
+          hasRecord: true,
+          episodeIndex: clampedIndex,
+          position: resumePosition,
+        };
+      }
+    } catch {
+      // Ignore errors and fall back to default resume info
+    }
+
+    return { hasRecord: false, episodeIndex: 0, position: undefined };
+  }, [detail]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    loadResumeInfo().then((info) => {
+      if (isActive) {
+        applyResumeInfo(info);
+      }
+    });
+
+    return () => {
+      isActive = false;
+    };
+  }, [loadResumeInfo, applyResumeInfo]);
+
+  useFocusEffect(
+    useCallback(() => {
+      let isActive = true;
+
+      loadResumeInfo().then((info) => {
+        if (isActive) {
+          applyResumeInfo(info);
+        }
+      });
+
+      return () => {
+        isActive = false;
+      };
+    }, [loadResumeInfo, applyResumeInfo])
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!isTvExperience) {
+        return;
+      }
+      const handler = BackHandler.addEventListener("hardwareBackPress", () => {
+        const canGoBack = router.canGoBack();
+
+        if (canGoBack) {
+          router.back();
+          return true;
+        }
+        return false;
+      });
+
+      return () => {
+        handler.remove();
+      };
+    }, [isTvExperience, router])
+  );
+
+  const handlePlay = (episodeIndex: number, position?: number) => {
+    if (!detail) return;
+    abort();
+    const params: Record<string, string> = {
+      q: detail.title,
+      source: detail.source,
+      id: detail.id.toString(),
+      episodeIndex: episodeIndex.toString(),
+    };
+
+    if (typeof position === "number" && position > 0) {
+      params.position = Math.floor(position).toString();
+    }
+
+    router.push({
+      pathname: "/play",
+      params,
+    });
+  };
+
+  const handlePrimaryPlay = () => {
+    if (!detail || !detail.episodes || detail.episodes.length === 0) {
+      return;
+    }
+
+    const targetEpisodeIndex = resumeInfo.hasRecord ? resumeInfo.episodeIndex : 0;
+    const resumePosition = resumeInfo.hasRecord ? resumeInfo.position : undefined;
+
+    handlePlay(targetEpisodeIndex, resumePosition);
+  };
+
+  if (loading) {
+    return <VideoLoadingAnimation showProgressBar={false} />;
+  }
+
+  if (error && !detail) {
+    const content = (
+      <ThemedView style={[commonStyles.safeContainer, commonStyles.center]}>
+        <ThemedText type="subtitle" style={commonStyles.textMedium}>
+          {error}
+        </ThemedText>
+      </ThemedView>
+    );
+
+    if (isTvExperience) {
+      return content;
+    }
+
+    return (
+      <ResponsiveNavigation>
+        <ResponsiveHeader title="详情" showBackButton showBottomBorder={false} />
+        {content}
+      </ResponsiveNavigation>
+    );
+  }
+
+  if (!detail) {
+    const content = (
+      <ThemedView style={[commonStyles.safeContainer, commonStyles.center]}>
+        <ThemedText type="subtitle">未找到详情信息</ThemedText>
+      </ThemedView>
+    );
+
+    if (isTvExperience) {
+      return content;
+    }
+
+    return (
+      <ResponsiveNavigation>
+        <ResponsiveHeader title="详情" showBackButton showBottomBorder={false} />
+        {content}
+      </ResponsiveNavigation>
+    );
+  }
+
+  const totalEpisodes = detail.episodes?.length ?? 0;
+  const isPlayDisabled = totalEpisodes === 0;
+  const playButtonLabel = (resumeInfo.hasRecord ? `继续播放 · 第${resumeInfo.episodeIndex + 1}集` : "立即播放 · 第1集") + `/全${totalEpisodes}集`;
+
+
+  const renderDetailContent = () => {
+    if (deviceType === 'mobile') {
+      return (
+        <ScrollView
+          style={dynamicStyles.scrollContainer}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={dynamicStyles.mobileTopContainer}>
+            <Image source={{ uri: detail.poster }} style={dynamicStyles.mobilePoster} />
+            <View style={dynamicStyles.mobileInfoContainer}>
+              <View style={dynamicStyles.titleContainer}>
+                <ThemedText style={dynamicStyles.title} numberOfLines={2}>
+                  {detail.title}
+                </ThemedText>
+                <StyledButton onPress={toggleFavorite} variant="ghost" style={dynamicStyles.favoriteButton}>
+                  <FontAwesome
+                    name={isFavorited ? "heart" : "heart-o"}
+                    size={20}
+                    color={isFavorited ? colors.tint : colors.icon}
+                  />
+                </StyledButton>
+              </View>
+              <StyledButton
+                onPress={handlePrimaryPlay}
+                style={dynamicStyles.playButton}
+                text={playButtonLabel}
+                textStyle={dynamicStyles.playButtonText}
+                disabled={isPlayDisabled}
+              />
+              <View style={dynamicStyles.metaContainer}>
+                <ThemedText style={dynamicStyles.metaText}>{detail.year}</ThemedText>
+                <ThemedText style={dynamicStyles.metaText}>{detail.type_name}</ThemedText>
+              </View>
+            </View>
+          </View>
+
+          <View style={dynamicStyles.descriptionContainer}>
+            <ThemedText style={dynamicStyles.description}>{detail.desc}</ThemedText>
+          </View>
+
+          <View style={dynamicStyles.sourcesContainer}>
+            <View style={dynamicStyles.sourcesTitleContainer}>
+              <ThemedText style={dynamicStyles.sourcesTitle}>播放源 ({searchResults.length})</ThemedText>
+              {!allSourcesLoaded && <ActivityIndicator style={{ marginLeft: 10 }} />}
+            </View>
+            <View style={dynamicStyles.sourceList}>
+              {searchResults.map((item, index) => {
+                const isSelected = detail?.source === item.source;
+                return (
+                  <StyledButton
+                    key={index}
+                    onPress={() => setDetail(item)}
+                    isSelected={isSelected}
+                    style={dynamicStyles.sourceButton}
+                  >
+                    <ThemedText style={dynamicStyles.sourceButtonText}>{item.source_name}</ThemedText>
+                    {item.episodes.length > 1 && (
+                      <View style={[dynamicStyles.badge, isSelected && dynamicStyles.selectedBadge]}>
+                        <Text style={dynamicStyles.badgeText}>
+                          {item.episodes.length > 99 ? "99+" : `${item.episodes.length}`} 集
+                        </Text>
+                      </View>
+                    )}
+                    {item.resolution && (
+                      <View style={[dynamicStyles.badge, { backgroundColor: colors.border }, isSelected && dynamicStyles.selectedBadge]}>
+                        <Text style={dynamicStyles.badgeText}>{item.resolution}</Text>
+                      </View>
+                    )}
+                  </StyledButton>
+                );
+              })}
+            </View>
+          </View>
+
+          <View style={dynamicStyles.episodesContainer}>
+            <ThemedText style={dynamicStyles.episodesTitle}>播放列表</ThemedText>
+            <View style={dynamicStyles.episodeList}>
+              {detail.episodes.map((episode, index) => (
+                <StyledButton
+                  key={index}
+                  style={dynamicStyles.episodeButton}
+                  onPress={() => handlePlay(index)}
+                  text={`第 ${index + 1} 集`}
+                  textStyle={dynamicStyles.episodeButtonText}
+                />
+              ))}
+            </View>
+          </View>
+        </ScrollView>
+      );
+    } else {
+      return (
+        <ScrollView
+          style={dynamicStyles.scrollContainer}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={dynamicStyles.topContainer}>
+            <Image source={{ uri: detail.poster }} style={dynamicStyles.poster} />
+            <View style={dynamicStyles.infoContainer}>
+              <View style={dynamicStyles.titleContainer}>
+                <ThemedText style={dynamicStyles.title} numberOfLines={1} ellipsizeMode="tail">
+                  {detail.title}
+                </ThemedText>
+                <StyledButton onPress={toggleFavorite} variant="ghost" style={dynamicStyles.favoriteButton}>
+                  <FontAwesome
+                    name={isFavorited ? "heart" : "heart-o"}
+                    size={24}
+                    color={isFavorited ? colors.tint : colors.icon}
+                  />
+                </StyledButton>
+              </View>
+               <StyledButton
+                 onPress={handlePrimaryPlay}
+                 style={dynamicStyles.playButton}
+                 text={playButtonLabel}
+                 textStyle={dynamicStyles.playButtonText}
+                 disabled={isPlayDisabled}
+                 hasTVPreferredFocus={isTvExperience}
+               />
+              <View style={dynamicStyles.metaContainer}>
+                <ThemedText style={dynamicStyles.metaText}>{detail.year}</ThemedText>
+                <ThemedText style={dynamicStyles.metaText}>{detail.type_name}</ThemedText>
+              </View>
+
+              <ScrollView
+                style={dynamicStyles.descriptionScrollView}
+                showsVerticalScrollIndicator={false}
+              >
+                <ThemedText style={dynamicStyles.description}>{detail.desc}</ThemedText>
+              </ScrollView>
+            </View>
+          </View>
+
+          <View style={dynamicStyles.bottomContainer}>
+            <View style={dynamicStyles.sourcesContainer}>
+              <View style={dynamicStyles.sourcesTitleContainer}>
+                <ThemedText style={dynamicStyles.sourcesTitle}>选择播放源 共 {searchResults.length} 个</ThemedText>
+                {!allSourcesLoaded && <ActivityIndicator style={{ marginLeft: 10 }} />}
+              </View>
+              <ScrollView
+                horizontal
+                style={dynamicStyles.sourceList}
+                showsHorizontalScrollIndicator={false}
+              >
+                {searchResults.map((item, index) => {
+                  const isSelected = detail?.source === item.source;
+                  const episodesDisplay = item.episodes.length > 99 ? "99+集" : `${item.episodes.length}集`;
+                  const metaLine = item.resolution ? `${episodesDisplay} · ${item.resolution}` : episodesDisplay;
+                  return (
+                    <StyledButton
+                      key={index}
+                       onPress={() => setDetail(item)}
+                       hasTVPreferredFocus={!isTvExperience && index === 0}
+                      isSelected={isSelected}
+                      style={dynamicStyles.sourceButton}
+                    >
+                      <View style={dynamicStyles.sourceButtonContent}>
+                        <ThemedText style={dynamicStyles.sourceNameText} numberOfLines={1}>
+                            {item.source_name}
+                        </ThemedText>
+                        <ThemedText style={dynamicStyles.sourceMetaText} numberOfLines={1}>
+                            {metaLine}
+                        </ThemedText>
+                       </View>
+                    </StyledButton>
+                  );
+                })}
+              </ScrollView>
+            </View>
+            <View style={dynamicStyles.episodesContainer}>
+              <ThemedText style={dynamicStyles.episodesTitle}>播放列表</ThemedText>
+              <View style={dynamicStyles.episodeList}>
+                {detail.episodes.map((episode, index) => (
+                  <StyledButton
+                    key={index}
+                    style={dynamicStyles.episodeButton}
+                    onPress={() => handlePlay(index)}
+                    text={`第 ${index + 1} 集`}
+                    textStyle={dynamicStyles.episodeButtonText}
+                  />
+                ))}
+              </View>
+            </View>
+          </View>
+        </ScrollView>
+      );
+    }
+  };
+
+  const content = (
+    <ThemedView style={[commonStyles.container, { paddingTop: isTvExperience ? 40 : 0 }]}>
+      {renderDetailContent()}
+    </ThemedView>
+  );
+
+  if (isTvExperience) {
+    return content;
+  }
 
   return (
-    <ThemedView style={styles.container}>
-      <ThemedText type="title">Detail Page</ThemedText>
-      <View style={styles.separator} />
-      <ThemedText>Source: {source}</ThemedText>
-      <ThemedText>ID: {id}</ThemedText>
-    </ThemedView>
+    <ResponsiveNavigation>
+      <ResponsiveHeader title={detail?.title || "详情"} showBackButton showBottomBorder={false} />
+      {content}
+    </ResponsiveNavigation>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 20,
-  },
-  separator: {
-    marginVertical: 30,
-    height: 1,
-    width: "80%",
-    backgroundColor: "#666",
-  },
-});
+const createResponsiveStyles = (deviceType: string, spacing: number, colors: typeof Colors.dark) => {
+  const isTV = deviceType === 'tv';
+  const isTablet = deviceType === 'tablet';
+  const isMobile = deviceType === 'mobile';
+
+  return StyleSheet.create({
+    scrollContainer: {
+      flex: 1,
+    },
+    mobileTopContainer: {
+      paddingHorizontal: spacing,
+      paddingTop: spacing,
+      paddingBottom: spacing / 2,
+    },
+    mobilePoster: {
+      width: '100%',
+      height: 280,
+      borderRadius: 8,
+      alignSelf: 'center',
+      marginBottom: spacing,
+    },
+    mobileInfoContainer: {
+      flex: 1,
+    },
+    descriptionContainer: {
+      paddingHorizontal: spacing,
+      paddingBottom: spacing,
+    },
+    topContainer: {
+      flexDirection: "row",
+      padding: spacing,
+    },
+    poster: {
+      width: isTV ? 200 : 160,
+      height: isTV ? 300 : 240,
+      borderRadius: 8,
+    },
+    infoContainer: {
+      flex: 1,
+      marginLeft: spacing,
+      justifyContent: "flex-start",
+    },
+    descriptionScrollView: {
+      height: 150,
+    },
+    titleContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: spacing / 2,
+    },
+    title: {
+      paddingTop: 16,
+      fontSize: isMobile ? 20 : isTablet ? 24 : 28,
+      fontWeight: "bold",
+      flexShrink: 1,
+      color: colors.text,
+      height: 45,
+    },
+    favoriteButton: {
+      padding: 10,
+      marginLeft: 10,
+      backgroundColor: "transparent",
+    },
+    playButton: {
+      marginTop: spacing / 6,
+      alignSelf: isMobile ? "stretch" : "flex-start",
+      minWidth: isTV ? 130 : isTablet ? 140 : 140,
+    },
+    playButtonText: {
+      fontSize: isMobile ? 14 : isTablet ? 15 : 15,
+      fontWeight: "600",
+    },
+    metaContainer: {
+      flexDirection: "row",
+      marginBottom: spacing / 2,
+    },
+    metaText: {
+      color: colors.icon,
+      marginRight: spacing / 2,
+      fontSize: isMobile ? 12 : 14,
+    },
+    description: {
+      fontSize: isMobile ? 13 : 14,
+      color: colors.text,
+      lineHeight: isMobile ? 18 : 22,
+    },
+    bottomContainer: {
+      paddingHorizontal: spacing,
+    },
+    sourcesContainer: {
+      marginTop: spacing,
+    },
+    sourcesTitleContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: spacing / 2,
+    },
+    sourcesTitle: {
+      fontSize: isMobile ? 16 : isTablet ? 18 : 20,
+      fontWeight: "bold",
+      color: colors.text,
+    },
+    sourceList: {
+      flexDirection: "row",
+      flexWrap: isMobile ? "wrap" : "nowrap",
+    },
+    sourceButton: {
+      margin: isMobile ? 4 : 8,
+      minHeight: isMobile ? 36 : 44,
+    },
+    sourceButtonContent: {
+      flexDirection: "column",
+      alignItems: "stretch",
+    },
+    sourceButtonText: {
+      color: colors.text,
+      fontSize: isMobile ? 14 : 16,
+    },
+    badge: {
+      backgroundColor: colors.border,
+      borderRadius: 10,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      marginLeft: 8,
+    },
+    badgeText: {
+      color: colors.text,
+      fontSize: isMobile ? 10 : 12,
+      fontWeight: "bold",
+      paddingBottom: 2.5,
+    },
+    selectedBadge: {
+      backgroundColor: colors.background,
+    },
+    sourceNameText: {
+      color: colors.text,
+      fontSize: isMobile ? 14 : 14,
+      fontWeight: "600"
+    },
+    sourceMetaText: {
+      color: colors.icon,
+      fontSize: isMobile ? 10 : 10,
+      marginTop: 2,
+      textAlign: 'center',
+    },
+    episodesContainer: {
+      marginTop: spacing,
+      paddingBottom: spacing * 2,
+    },
+    episodesTitle: {
+      fontSize: isMobile ? 16 : isTablet ? 18 : 20,
+      fontWeight: "bold",
+      marginBottom: spacing / 2,
+      color: colors.text,
+    },
+    episodeList: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+    },
+    episodeButton: {
+      margin: isMobile ? 3 : 5,
+      minHeight: isMobile ? 32 : 36,
+      width: isMobile ? '23%': isTablet ? '11.5%' : '8.88%',
+    },
+    episodeButtonText: {
+      color: colors.text,
+      fontSize: isMobile ? 12 : 11,
+      textAlign: 'center',
+    },
+  });
+};
