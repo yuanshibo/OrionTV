@@ -640,7 +640,7 @@ const fetchDoubanCategoryContent = async (
     const items = mapDoubanRecommendationsToRows(result.list);
     return {
       items,
-      hasMore: result.list.length === limit,
+      hasMore: result.list.length > 0,
     };
   }
 
@@ -1010,13 +1010,20 @@ const useHomeStore = create<HomeState>((set, get) => ({
       const newKind = value as "movie" | "tv";
       const newKindGroups = DOUBAN_FILTERS_METADATA[newKind];
       
+      const newStaticFilters: Partial<DoubanRecommendationFilters> = { label: "all" };
+      if (newKind === 'tv') {
+        newStaticFilters.format = '电视剧';
+      }
+
       const newFilterConfig: DoubanFilterConfig = {
         ...targetCategory.filterConfig,
         kind: newKind,
         groups: [ALL_MEDIA_KIND_SELECTOR_GROUP, ...newKindGroups],
+        staticFilters: newStaticFilters,
       };
 
       const newActiveFilters = buildDefaultFilters(newFilterConfig);
+      newActiveFilters.kind = newKind;
 
       updatedCategory = initializeFilterableCategory({
         ...targetCategory,
