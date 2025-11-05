@@ -311,7 +311,7 @@ export class API {
     params.set("limit", String(filters.limit ?? 25));
     params.set("start", String(filters.start ?? 0));
     params.set("category", filters.category ?? "all");
-    params.set("format", filters.format ?? "all");
+    params.set("format", filters.format ?? (kind === 'movie' ? '' : 'all'));
     params.set("region", filters.region ?? "all");
     params.set("year", filters.year ?? "all");
     params.set("platform", filters.platform ?? "all");

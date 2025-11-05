@@ -26,7 +26,7 @@ export function usePlayerLifecycle({
         flushPlaybackRecord();
       } else if (nextAppState === 'active') {
         // Depending on the desired UX, you might want to resume playback automatically.
-        // player.play();
+         player.play();
       }
     };
 

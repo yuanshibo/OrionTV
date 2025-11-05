@@ -103,7 +103,7 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ isVisible, onClose, category,
 
 const styles = StyleSheet.create({
   panel: {
-    backgroundColor: "rgba(10, 10, 10, 0.8)",
+    backgroundColor: "rgba(10, 10, 10, 0.65)",
     paddingBottom: 20,
     paddingHorizontal: 20,
   },

@@ -14,13 +14,13 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     paddingHorizontal: 48, // Add horizontal padding
     paddingVertical: 16,
   },
   scrollContent: {
-    paddingTop: 80,
-    paddingBottom: 80,
+    paddingTop: 20,
+    paddingBottom: 20,
     alignItems: 'center', // Center content horizontally
   },
   title: {
