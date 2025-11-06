@@ -70,7 +70,7 @@ export const StyledButton = forwardRef<View, StyledButtonProps>(
           borderColor: colors.primary,
         },
         selectedButton: {},
-        selectedText: {},
+        selectedText: {color: colors.link,},
       }),
     };
 
