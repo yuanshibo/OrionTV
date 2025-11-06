@@ -26,7 +26,6 @@ export const CategoryNavigation: React.FC<CategoryNavigationProps> = ({ categori
         isSelected={isSelected}
         style={categoryStyles.categoryButton}
         textStyle={categoryStyles.categoryText}
-        variant="ghost"
       />
     );
   };

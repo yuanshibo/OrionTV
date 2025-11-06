@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from "react";
+import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { View, TextInput, StyleSheet, Alert, Keyboard, TouchableOpacity, useColorScheme } from "react-native";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
@@ -11,7 +11,7 @@ import { StyledButton } from "@/components/StyledButton";
 import { useRemoteControlStore } from "@/stores/remoteControlStore";
 import { RemoteControlModal } from "@/components/RemoteControlModal";
 import { useSettingsStore } from "@/stores/settingsStore";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { Colors } from "@/constants/Colors";
 import CustomScrollView from "@/components/CustomScrollView";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
@@ -24,7 +24,8 @@ import Logger from "@/utils/Logger";
 const logger = Logger.withTag("SearchScreen");
 
 export default function SearchScreen() {
-  const [keyword, setKeyword] = useState("");
+  const params = useLocalSearchParams();
+  const [keyword, setKeyword] = useState((params.q as string) || "");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,27 +42,7 @@ export default function SearchScreen() {
   const commonStyles = getCommonResponsiveStyles(responsiveConfig);
   const { deviceType, spacing } = responsiveConfig;
 
-  useEffect(() => {
-    if (lastMessage && targetPage === 'search') {
-      logger.debug("Received remote input:", lastMessage);
-      const realMessage = lastMessage.split("_")[0];
-      setKeyword(realMessage);
-      handleSearch(realMessage);
-      clearMessage(); // Clear the message after processing
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lastMessage, targetPage]);
-
-  useEffect(() => {
-    // Focus the text input when the screen loads
-    const timer = setTimeout(() => {
-      textInputRef.current?.focus();
-    }, 200);
-    return () => clearTimeout(timer);
-  }, []);
-
-  const handleSearch = async (searchText?: string) => {
-    const term = typeof searchText === "string" ? searchText : keyword;
+  const doSearch = useCallback(async (term: string) => {
     if (!term.trim()) {
       Keyboard.dismiss();
       return;
@@ -83,6 +64,33 @@ export default function SearchScreen() {
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    if (lastMessage && targetPage === 'search') {
+      logger.debug("Received remote input:", lastMessage);
+      const realMessage = lastMessage.split("_")[0];
+      setKeyword(realMessage);
+      doSearch(realMessage);
+      clearMessage(); // Clear the message after processing
+    }
+  }, [lastMessage, targetPage, clearMessage, doSearch]);
+
+  useEffect(() => {
+    if (params.q) {
+      doSearch(params.q as string);
+    } else {
+      // Focus the text input when the screen loads without a query
+      const timer = setTimeout(() => {
+        textInputRef.current?.focus();
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+  }, [params.q, doSearch]);
+
+  const handleSearch = (searchText?: string) => {
+    const term = typeof searchText === "string" ? searchText : keyword;
+    doSearch(term);
   };
 
   const onSearchPress = () => handleSearch();

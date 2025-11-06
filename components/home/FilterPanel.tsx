@@ -1,8 +1,9 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView, BackHandler, FlatList } from "react-native";
 import { Category, DoubanFilterKey } from "@/stores/homeStore";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StyledButton } from "@/components/StyledButton";
+import { Colors } from "@/constants/Colors";
 
 interface FilterPanelProps {
   isVisible: boolean;
@@ -14,6 +15,8 @@ interface FilterPanelProps {
 
 const FilterPanel: React.FC<FilterPanelProps> = ({ isVisible, onClose, category, onFilterChange, deviceType }) => {
   const insets = useSafeAreaInsets();
+  const colorScheme = "dark";
+  const colors = Colors[colorScheme];
 
   React.useEffect(() => {
     const backHandler = BackHandler.addEventListener("hardwareBackPress", () => {
@@ -27,6 +30,39 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ isVisible, onClose, category,
     return () => backHandler.remove();
   }, [isVisible, onClose]);
 
+  const styles = useMemo(() => StyleSheet.create({
+    panel: {
+      backgroundColor: "rgba(10, 10, 10, 0.75)",
+      paddingHorizontal: 20,
+      borderBottomWidth: 0,
+      borderBottomColor: "rgba(255, 255, 255, 0.1)",
+    },
+    filterSection: {
+      width: "100%",
+    },
+    filterGroup: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginVertical: 2,
+    },
+    filterGroupLabel: {
+      fontSize: 15,
+      color: colors.text,
+      opacity: 0.7,
+      fontWeight: "600",
+      minWidth: 40,
+      marginRight: 10,
+    },
+    filterOptionButton: {
+      marginRight: 4,
+      paddingVertical: 2,
+      paddingHorizontal: 4,
+    },
+    filterOptionText: {
+      fontSize: 15,
+    },
+  }), [colors]);
+
   const handleTagSelect = (tag: string) => {
     onFilterChange({ tag });
   };
@@ -36,14 +72,30 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ isVisible, onClose, category,
   };
 
   const renderTags = () => {
-    if (!category.tags) return null;
+    if (!category.tags || category.tags.length === 0) return null;
     return (
-      <View style={styles.tagsContainer}>
-        {category.tags.map((tag) => (
-          <TouchableOpacity key={tag} onPress={() => handleTagSelect(tag)} style={[styles.tag, category.tag === tag && styles.selectedTag]}>
-            <Text style={[styles.tagText, category.tag === tag && styles.selectedTagText]}>{tag}</Text>
-          </TouchableOpacity>
-        ))}
+      <View style={styles.filterGroup}>
+        <Text style={styles.filterGroupLabel}>标签</Text>
+        <FlatList
+          horizontal
+          data={category.tags}
+          showsHorizontalScrollIndicator={false}
+          keyExtractor={(tag) => tag}
+          renderItem={({ item: tag, index }) => {
+            const isSelected = category.tag === tag;
+            return (
+              <StyledButton
+                text={tag}
+                onPress={() => handleTagSelect(tag)}
+                isSelected={isSelected}
+                style={styles.filterOptionButton}
+                textStyle={styles.filterOptionText}
+                variant="ghost"
+                hasTVPreferredFocus={index === 0 && !category.filterConfig} // Focus here if no other filters exist
+              />
+            );
+          }}
+        />
       </View>
     );
   };
@@ -72,9 +124,8 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ isVisible, onClose, category,
                       onPress={() => handleFilterSelect(group.key, option.value)}
                       isSelected={isSelected}
                       style={styles.filterOptionButton}
-                      textStyle={[styles.filterOptionText, isSelected && styles.selectedFilterOptionText]}
-                      variant="ghost"
-                      hasTVPreferredFocus={groupIndex === 0 && optionIndex === 0}
+                      textStyle={styles.filterOptionText} // Simplified: no conditional style
+                      hasTVPreferredFocus={!category.tags && groupIndex === 0 && optionIndex === 0}
                     />
                   );
                 }}
@@ -89,7 +140,7 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ isVisible, onClose, category,
   return (
     <Modal transparent={true} visible={isVisible} onRequestClose={onClose} animationType="fade">
       <View style={{ flex: 1 }}>
-        <View style={[styles.panel, { paddingTop: insets.top + 10 }]}>
+        <View style={[styles.panel, { paddingTop: insets.top + 10, paddingBottom: insets.bottom + 20 }]}>
           <ScrollView>
             {renderTags()}
             {renderFilters()}
@@ -100,69 +151,5 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ isVisible, onClose, category,
     </Modal>
   );
 };
-
-const styles = StyleSheet.create({
-  panel: {
-    backgroundColor: "rgba(10, 10, 10, 0.65)",
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-  },
-  tagsContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-    marginBottom: 10,
-    marginTop: 10
-  },
-  tag: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    backgroundColor: 'transparent',
-    margin: 8,
-    borderWidth: 1,
-    borderColor: '#555',
-  },
-  selectedTag: {
-    backgroundColor: "rgba(212, 175, 55, 0.2)",
-    borderColor: '#D4AF37',
-  },
-  tagText: {
-    color: "#EAEAEA",
-    fontSize: 16,
-  },
-  selectedTagText: {
-    color: "#D4AF37",
-    fontWeight: 'bold',
-  },
-  filterSection: {
-    width: "100%",
-  },
-  filterGroup: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  filterGroupLabel: {
-    fontSize: 15,
-    color: "#AAA",
-    fontWeight: "600",
-    minWidth: 50,
-  },
-  filterOptionButton: {
-    marginRight: 10,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 8,
-  },
-  filterOptionText: {
-    fontSize: 15,
-    color: "#EAEAEA",
-  },
-  selectedFilterOptionText: {
-    color: '#D4AF37',
-    fontWeight: 'bold'
-  }
-});
 
 export default FilterPanel;
