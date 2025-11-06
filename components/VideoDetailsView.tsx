@@ -70,7 +70,7 @@ export function VideoDetailsView({ showDetails }: VideoDetailsViewProps) {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <ThemedText style={styles.title}>{detail.title}</ThemedText>
         <View style={styles.metaContainer}>
-          {detail.year && <ThemedText style={styles.metaText}>{detail.year}</ThemedText>}
+          {detail.year && <ThemedText style={styles.metaText}>{detail.year} </ThemedText>}
           {detail.type_name && <ThemedText style={styles.metaText}>{detail.type_name}</ThemedText>}
         </View>
         <ThemedText style={styles.description}>{detail.desc}</ThemedText>
