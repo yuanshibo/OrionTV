@@ -190,9 +190,9 @@ export default function HomeScreen() {
   }), [deviceType, spacing]);
 
   const categoryStyles = useMemo(() => StyleSheet.create({ 
-    categoryContainer: { paddingBottom: spacing / 2 },
+    categoryContainer: { paddingBottom: spacing / 10 },
     categoryListContent: { paddingHorizontal: spacing },
-    categoryButton: { paddingHorizontal: deviceType === "tv" ? spacing / 4 : spacing / 2, paddingVertical: spacing / 2, borderRadius: deviceType === "mobile" ? 6 : 8, marginHorizontal: deviceType === "tv" ? spacing / 4 : spacing / 2 },
+    categoryButton: { paddingHorizontal: deviceType === "tv" ? spacing / 6 : spacing / 2, paddingVertical: spacing / 2, borderRadius: deviceType === "mobile" ? 6 : 8, marginHorizontal: deviceType === "tv" ? spacing / 6 : spacing / 2 },
     categoryText: { fontSize: deviceType === "mobile" ? 14 : 16, fontWeight: "500" },
   }), [deviceType, spacing]);
 
