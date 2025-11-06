@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { View, Text, StyleSheet, Pressable, useColorScheme } from "react-native";
-import { Pause, Play, SkipForward, List, Tv, ArrowDownToDot, ArrowUpFromDot, Gauge } from "lucide-react-native";
+import { Pause, Play, SkipForward, List, Tv, ArrowDownToDot, ArrowUpFromDot, Gauge, Search } from "lucide-react-native";
 import { ThemedText } from "@/components/ThemedText";
 import { MediaButton } from "@/components/MediaButton";
 
@@ -8,6 +8,8 @@ import usePlayerStore from "@/stores/playerStore";
 import useDetailStore from "@/stores/detailStore";
 import { useSources } from "@/stores/sourceStore";
 import { Colors } from "@/constants/Colors";
+import { useRouter } from "expo-router";
+import { getSearchTermFromTitle } from "@/utils/searchUtils";
 
 interface PlayerControlsProps {
   showControls: boolean;
@@ -17,6 +19,7 @@ interface PlayerControlsProps {
 export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, setShowControls }) => {
   const colorScheme = useColorScheme() ?? "dark";
   const colors = Colors[colorScheme];
+  const router = useRouter();
 
   const {
     currentEpisodeIndex,
@@ -58,6 +61,16 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
   const onPlayNextEpisode = () => {
     if (hasNextEpisode) {
       playEpisode(currentEpisodeIndex + 1);
+    }
+  };
+
+  const handleSearch = () => {
+    if (videoTitle) {
+      const searchTerm = getSearchTermFromTitle(videoTitle);
+      router.push({
+        pathname: "/search",
+        params: { q: searchTerm },
+      });
     }
   };
   
@@ -141,7 +154,7 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
     <View style={styles.controlsOverlay}>
       <View style={styles.topControls}>
         <Text style={styles.controlTitle}>
-          {videoTitle} {currentEpisodeTitle ? `- ${currentEpisodeTitle}` : ""}{" "}
+          {videoTitle} {currentEpisodeTitle ? `- ${currentEpisodeTitle}` : ""}
           {currentSourceName ? `(${currentSourceName})` : ""}
         </Text>
       </View>
@@ -205,6 +218,10 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
 
           <MediaButton onPress={() => setShowSourceModal(true)}>
             <Tv color={colors.text} size={24} />
+          </MediaButton>
+
+          <MediaButton onPress={handleSearch}>
+            <Search color={colors.text} size={24} />
           </MediaButton>
         </View>
       </View>

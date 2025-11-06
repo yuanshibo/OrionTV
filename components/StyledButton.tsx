@@ -26,12 +26,14 @@ export const StyledButton = forwardRef<View, StyledButtonProps>(
       default: StyleSheet.create({
         button: {
           backgroundColor: colors.border,
+          borderColor: "transparent",
         },
         text: {
           color: colors.text,
         },
         selectedButton: {
           backgroundColor: colors.primary,
+          borderColor: colors.primary,
         },
         focusedButton: {
           borderColor: colors.primary,
@@ -43,13 +45,14 @@ export const StyledButton = forwardRef<View, StyledButtonProps>(
       primary: StyleSheet.create({
         button: {
           backgroundColor: "transparent",
+          borderColor: "transparent",
         },
         text: {
           color: colors.text,
         },
         focusedButton: {
-          backgroundColor: colors.primary,
-          borderColor: colors.background,
+          borderColor: colors.primary,
+          backgroundColor: "transparent",
         },
         selectedButton: {
           backgroundColor: colors.primary,
@@ -61,12 +64,12 @@ export const StyledButton = forwardRef<View, StyledButtonProps>(
       ghost: StyleSheet.create({
         button: {
           backgroundColor: "transparent",
+          borderColor: "transparent",
         },
         text: {
           color: colors.text,
         },
         focusedButton: {
-          backgroundColor: "rgba(119, 119, 119, 0.2)",
           borderColor: colors.primary,
         },
         selectedButton: {
