@@ -13,6 +13,7 @@ import ResponsiveNavigation from "@/components/navigation/ResponsiveNavigation";
 import ResponsiveHeader from "@/components/navigation/ResponsiveHeader";
 import { PlayRecordManager } from "@/services/storage";
 import { Colors } from "@/constants/Colors";
+import RelatedSeries from "@/components/RelatedSeries";
 
 type ResumeInfo = {
   hasRecord: boolean;
@@ -325,6 +326,7 @@ export default function DetailScreen() {
               ))}
             </View>
           </View>
+          <RelatedSeries title={detail.title} />
         </ScrollView>
       );
     } else {
@@ -420,6 +422,7 @@ export default function DetailScreen() {
                 ))}
               </View>
             </View>
+            <RelatedSeries title={detail.title} />
           </View>
         </ScrollView>
       );
