@@ -1,23 +1,14 @@
 import React, { memo, useMemo } from "react";
 import { StyleSheet, View, Image, Text, TouchableOpacity, ActivityIndicator } from "react-native";
 import { VideoView, VideoPlayer } from "expo-video";
-import VideoLoadingAnimation from "@/components/VideoLoadingAnimation";
 import { PlayerControls } from "@/components/PlayerControls";
 import { SeekingBar } from "@/components/SeekingBar";
 import { SearchResultWithResolution } from "@/services/api";
 import { PlaybackState } from "@/stores/playerStore";
-import { VideoViewPropsSubset } from "@/hooks/useVideoHandlers"; // Import the specific type
+import { VideoViewPropsSubset } from "@/hooks/useVideoHandlers";
 import Logger from "@/utils/Logger";
 
 const logger = Logger.withTag("PlayerView");
-
-// Helper Components
-const LoadingContainer = memo(({ style }: { style: any }) => (
-  <View style={style}>
-    <VideoLoadingAnimation showProgressBar />
-  </View>
-));
-LoadingContainer.displayName = "LoadingContainer";
 
 const ErrorContainer = memo(({ style, message, textStyle }: { style: any; message: string; textStyle: any }) => {
   logger.error(`[UI] Displaying player error: ${message}`);
@@ -29,7 +20,6 @@ const ErrorContainer = memo(({ style, message, textStyle }: { style: any; messag
 });
 ErrorContainer.displayName = "ErrorContainer";
 
-// Styles
 const createResponsiveStyles = (deviceType: string) => {
   const isMobile = deviceType === "mobile";
   const isTablet = deviceType === "tablet";
@@ -42,18 +32,18 @@ const createResponsiveStyles = (deviceType: string) => {
     videoPlayer: { ...StyleSheet.absoluteFillObject },
     posterContainer: { ...StyleSheet.absoluteFillObject },
     posterImage: { flex: 1 },
-    loadingContainer: {
+    overlayContainer: {
       ...StyleSheet.absoluteFillObject,
       backgroundColor: "rgba(0, 0, 0, 0.8)",
       justifyContent: "center",
       alignItems: "center",
       zIndex: 10,
     },
-    seekBufferingIndicator: {
+    indicatorContainer: {
       ...StyleSheet.absoluteFillObject,
-      justifyContent: 'center',
-      alignItems: 'center',
-      zIndex: 20, // Ensure it's on top
+      justifyContent: "center",
+      alignItems: "center",
+      zIndex: 20, // Ensure it's on top of other elements
     },
     errorText: {
       color: "white",
@@ -64,17 +54,17 @@ const createResponsiveStyles = (deviceType: string) => {
   });
 };
 
-// Prop Types
 interface PlayerViewProps {
   deviceType: "tv" | "mobile" | "tablet";
   detail: SearchResultWithResolution | null;
   error?: string;
   status: PlaybackState | null;
+  isLoading: boolean;
   isSeeking: boolean;
   isSeekBuffering: boolean;
   currentEpisode?: { url: string; title: string };
   player: VideoPlayer | null;
-  videoViewProps: VideoViewPropsSubset; // Use the specific type instead of any
+  videoViewProps: VideoViewPropsSubset;
   showControls: boolean;
   onScreenPress: () => void;
   setShowControls: (show: boolean) => void;
@@ -86,6 +76,7 @@ const PlayerView = memo((props: PlayerViewProps) => {
     detail,
     error,
     status,
+    isLoading,
     isSeeking,
     isSeekBuffering,
     currentEpisode,
@@ -98,6 +89,7 @@ const PlayerView = memo((props: PlayerViewProps) => {
 
   const dynamicStyles = useMemo(() => createResponsiveStyles(deviceType), [deviceType]);
   const shouldShowPoster = Boolean(detail?.poster && !status?.isLoaded && !error && !isSeeking);
+  const shouldShowLoading = isLoading || isSeekBuffering || (status?.isLoaded && status?.isBuffering);
 
   return (
     <TouchableOpacity
@@ -112,25 +104,19 @@ const PlayerView = memo((props: PlayerViewProps) => {
         </View>
       )}
 
-      {error ? (
-        <ErrorContainer style={dynamicStyles.loadingContainer} message={error} textStyle={dynamicStyles.errorText} />
-      ) : (
-        <>
-          {currentEpisode?.url && player ? (
-            <VideoView player={player} style={dynamicStyles.videoPlayer} {...videoViewProps} />
-          ) : (
-            <LoadingContainer style={dynamicStyles.loadingContainer} />
-          )}
+      {error && <ErrorContainer style={dynamicStyles.overlayContainer} message={error} textStyle={dynamicStyles.errorText} />}
 
-          {isSeekBuffering && (
-            <View style={dynamicStyles.seekBufferingIndicator} pointerEvents="none">
+      {!error && (
+        <>
+          {currentEpisode?.url && player && <VideoView player={player} style={dynamicStyles.videoPlayer} {...videoViewProps} />}
+          
+          {shouldShowLoading && (
+            <View style={dynamicStyles.indicatorContainer} pointerEvents="none">
               <ActivityIndicator size="large" color="#fff" />
             </View>
           )}
 
-          {showControls && deviceType === "tv" && (
-            <PlayerControls showControls={showControls} setShowControls={setShowControls} />
-          )}
+          {showControls && deviceType === "tv" && <PlayerControls showControls={showControls} setShowControls={setShowControls} />}
 
           <SeekingBar />
         </>

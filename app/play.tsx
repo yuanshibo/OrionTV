@@ -8,7 +8,6 @@ import { EpisodeSelectionModal } from "@/components/EpisodeSelectionModal";
 import { SourceSelectionModal } from "@/components/SourceSelectionModal";
 import { SpeedSelectionModal } from "@/components/SpeedSelectionModal";
 import { VideoDetailsView } from "@/components/VideoDetailsView";
-import VideoLoadingAnimation from "@/components/VideoLoadingAnimation";
 import useDetailStore from "@/stores/detailStore";
 import usePlayerStore, { selectCurrentEpisode } from "@/stores/playerStore";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
@@ -40,6 +39,7 @@ export default function PlayScreen() {
   const detail = useDetailStore((state) => state.detail);
   const initDetail = useDetailStore((state) => state.init);
   const status = usePlayerStore((state) => state.status);
+  const isLoading = usePlayerStore((state) => state.isLoading);
   const isSeeking = usePlayerStore((state) => state.isSeeking);
   const isSeekBuffering = usePlayerStore((state) => state.isSeekBuffering);
   const seekPosition = usePlayerStore((state) => state.seekPosition);
@@ -100,9 +100,6 @@ export default function PlayScreen() {
     return () => backHandler.remove();
   }, [showDetails, setShowDetails]);
 
-
-  // --- REFACTORED --- Effect to load video details.
-  // This effect runs when URL params change, and it's responsible for fetching the video details.
   useEffect(() => {
     const source = sourceStr;
     const id = videoId;
@@ -115,18 +112,12 @@ export default function PlayScreen() {
     }
   }, [sourceStr, videoId, videoTitle, initDetail, setError]);
 
-  // --- REFACTORED --- Effect to load the player.
-  // This effect runs ONLY when the `detail` object is successfully loaded or changed,
-  // AND its ID matches the videoId from the URL params.
-  // This prevents a race condition during navigation where stale detail data could be used.
   useEffect(() => {
-    // Ensure the detail object is not only present but also matches the current videoId.
     if (detail && detail.id.toString() === videoId) {
       loadVideo({ detail, episodeIndex, position, router });
     }
   }, [detail, videoId, episodeIndex, position, router, loadVideo]);
 
-  // Effect to clean up state ONLY when the component unmounts.
   useEffect(() => {
     return () => {
       flushPlaybackRecord();
@@ -134,7 +125,6 @@ export default function PlayScreen() {
     };
   }, [flushPlaybackRecord, reset]);
 
-  // Effect to sync the player instance from the hook to the store.
   useEffect(() => {
     setVideoPlayer(player);
     return () => {
@@ -142,9 +132,7 @@ export default function PlayScreen() {
     };
   }, [player, setVideoPlayer]);
 
-  // --- REVISED --- Effect for handling seeking logic to prevent stuttering.
-  // It no longer depends on the frequently updating 'status' object.
-  // Instead, it runs only when a seek is initiated and gets the latest status from the store.
+  // Effect for handling seeking logic
   useEffect(() => {
     if (isSeekBuffering && player) {
       const status = usePlayerStore.getState().status;
@@ -159,10 +147,6 @@ export default function PlayScreen() {
     }
   }, [isSeekBuffering, player, seekPosition]);
 
-  if (!detail && !error) {
-    return <VideoLoadingAnimation showProgressBar />;
-  }
-
   return (
     <ThemedView focusable style={styles.container}>
       <PlayerView
@@ -170,18 +154,17 @@ export default function PlayScreen() {
         detail={detail}
         error={error}
         status={status}
+        isLoading={isLoading || !detail}
         isSeeking={isSeeking}
         isSeekBuffering={isSeekBuffering}
         currentEpisode={currentEpisode}
-        player={player} // Pass the correct player instance
+        player={player}
         videoViewProps={videoViewProps}
-        showControls={showControls && !showDetails} // Hide controls when details are visible
+        showControls={showControls && !showDetails}
         onScreenPress={onScreenPress}
         setShowControls={setShowControls}
       />
-
       <VideoDetailsView showDetails={showDetails} />
-
       <EpisodeSelectionModal />
       <SourceSelectionModal />
       <SpeedSelectionModal />
