@@ -5,6 +5,7 @@ import { ThemedText } from "@/components/ThemedText";
 import VideoCard from "@/components/VideoCard";
 import VideoLoadingAnimation from "@/components/VideoLoadingAnimation";
 import { api, SearchResult } from "@/services/api";
+import { fetchSearchResults } from "@/services/searchService";
 import { Search, QrCode } from "lucide-react-native";
 import { StyledButton } from "@/components/StyledButton";
 import { useRemoteControlStore } from "@/stores/remoteControlStore";
@@ -21,22 +22,6 @@ import { DeviceUtils } from "@/utils/DeviceUtils";
 import Logger from "@/utils/Logger";
 
 const logger = Logger.withTag("SearchScreen");
-
-const groupSearchResults = (items: SearchResult[]): SearchResult[] => {
-  const seen = new Map<string, SearchResult>();
-
-  items.forEach((item) => {
-    const normalizedTitle = item.title.trim().toLowerCase();
-    const normalizedYear = (item.year || "").trim();
-    const key = `${normalizedTitle}::${normalizedYear}`;
-
-    if (!seen.has(key)) {
-      seen.set(key, item);
-    }
-  });
-
-  return Array.from(seen.values());
-};
 
 export default function SearchScreen() {
   const [keyword, setKeyword] = useState("");
@@ -84,11 +69,11 @@ export default function SearchScreen() {
     Keyboard.dismiss();
     setLoading(true);
     setError(null);
+
     try {
-      const response = await api.searchVideos(term);
-      const groupedResults = groupSearchResults(response.results);
-      if (groupedResults.length > 0) {
-        setResults(groupedResults);
+      const searchResults = await fetchSearchResults(term);
+      if (searchResults.length > 0) {
+        setResults(searchResults);
       } else {
         setError("没有找到相关内容");
       }

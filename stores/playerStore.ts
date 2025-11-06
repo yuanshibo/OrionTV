@@ -152,7 +152,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
 
       const mappedEpisodes = episodes.map((ep, index) => ({ url: ep, title: `第 ${index + 1} 集` }));
       set({
-        isLoading: true,
+        isLoading: false, // Correctly set isLoading to false after loading
         currentEpisodeIndex: episodeIndex,
         episodes: mappedEpisodes,
         ...playbackDataResult.data,
