@@ -1,9 +1,9 @@
 
 import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
-import { useRouter } from 'expo-router';
 import { ThemedText } from './ThemedText';
 import { api, SearchResult } from '@/services/api';
+import { fetchSearchResults } from '@/services/searchService';
 import VideoCard from './VideoCard';
 import { useResponsiveLayout } from '@/hooks/useResponsiveLayout';
 import { getCommonResponsiveStyles } from '@/utils/ResponsiveStyles';
@@ -15,7 +15,6 @@ interface RelatedSeriesProps {
 const RelatedSeries: React.FC<RelatedSeriesProps> = ({ title }) => {
   const [related, setRelated] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
 
   const responsiveConfig = useResponsiveLayout();
   const commonStyles = getCommonResponsiveStyles(responsiveConfig);
@@ -48,12 +47,9 @@ const RelatedSeries: React.FC<RelatedSeriesProps> = ({ title }) => {
       const isPureChinese = /^[\u4e00-\u9fa5]+$/.test(title);
 
       if (isPureChinese) {
-        const suffixMatch = title.match(/^(.*?)之.+|^(.*)第[一二三四五六七八九十]+[季部]/);
-        if (suffixMatch) {
-          const coreTitle = suffixMatch[1] || suffixMatch[2];
-          if (coreTitle && coreTitle.length >= 2) {
-            searchTerm = coreTitle;
-          }
+        const suffixMatch = title.match(/^(.*?)(?:之.+|第[一二三四五六七八九十]+[季部]|粤语|国语|剧场版|预告片)$/);
+        if (suffixMatch && suffixMatch[1] && suffixMatch[1].length >= 2) {
+          searchTerm = suffixMatch[1];
         }
       } else {
         const chinesePartMatch = title.match(/^[\u4e00-\u9fa5]+/);
@@ -62,10 +58,10 @@ const RelatedSeries: React.FC<RelatedSeriesProps> = ({ title }) => {
         }
       }
 
-      api.searchVideos(searchTerm)
-        .then(response => {
-          const filteredResults = response.results.filter(item => item.title !== title).slice(0, 10);
-          setRelated(filteredResults);
+      fetchSearchResults(searchTerm)
+        .then(results => {
+          const filteredResults = results.filter(item => item.title !== title);
+          setRelated(filteredResults.slice(0, 10));
         })
         .catch(console.error)
         .finally(() => setLoading(false));
