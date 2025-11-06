@@ -116,13 +116,15 @@ export default function PlayScreen() {
   }, [sourceStr, videoId, videoTitle, initDetail, setError]);
 
   // --- REFACTORED --- Effect to load the player.
-  // This effect runs ONLY when the `detail` object is successfully loaded or changed.
-  // It decouples the player loading from the detail fetching, breaking the infinite loop.
+  // This effect runs ONLY when the `detail` object is successfully loaded or changed,
+  // AND its ID matches the videoId from the URL params.
+  // This prevents a race condition during navigation where stale detail data could be used.
   useEffect(() => {
-    if (detail) {
+    // Ensure the detail object is not only present but also matches the current videoId.
+    if (detail && detail.id.toString() === videoId) {
       loadVideo({ detail, episodeIndex, position, router });
     }
-  }, [detail, episodeIndex, position, router, loadVideo]);
+  }, [detail, videoId, episodeIndex, position, router, loadVideo]);
 
   // Effect to clean up state ONLY when the component unmounts.
   useEffect(() => {
