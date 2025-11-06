@@ -20,7 +20,7 @@ const RelatedSeries: React.FC<RelatedSeriesProps> = ({ title }) => {
   const responsiveConfig = useResponsiveLayout();
   const commonStyles = getCommonResponsiveStyles(responsiveConfig);
   const { spacing } = responsiveConfig;
-  
+
   const styles = StyleSheet.create({
     container: {
       marginTop: spacing,
@@ -40,13 +40,30 @@ const RelatedSeries: React.FC<RelatedSeriesProps> = ({ title }) => {
     },
   });
 
-
   useEffect(() => {
     if (title) {
       setLoading(true);
-      api.searchVideos(title)
+
+      let searchTerm = title;
+      const isPureChinese = /^[\u4e00-\u9fa5]+$/.test(title);
+
+      if (isPureChinese) {
+        const suffixMatch = title.match(/^(.*?)之.+|^(.*)第[一二三四五六七八九十]+[季部]/);
+        if (suffixMatch) {
+          const coreTitle = suffixMatch[1] || suffixMatch[2];
+          if (coreTitle && coreTitle.length >= 2) {
+            searchTerm = coreTitle;
+          }
+        }
+      } else {
+        const chinesePartMatch = title.match(/^[\u4e00-\u9fa5]+/);
+        if (chinesePartMatch && chinesePartMatch[0]) {
+          searchTerm = chinesePartMatch[0];
+        }
+      }
+
+      api.searchVideos(searchTerm)
         .then(response => {
-          // Filter out the current item from the related results and take the first 10
           const filteredResults = response.results.filter(item => item.title !== title).slice(0, 10);
           setRelated(filteredResults);
         })
@@ -57,28 +74,28 @@ const RelatedSeries: React.FC<RelatedSeriesProps> = ({ title }) => {
 
   const renderItem = ({ item }: { item: SearchResult; index: number }) => (
     <View style={styles.itemContainer}>
-        <VideoCard
-            id={item.id.toString()}
-            source={item.source}
-            title={item.title}
-            poster={item.poster}
-            year={item.year}
-            sourceName={item.source_name}
-            api={api}
-        />
+      <VideoCard
+        id={item.id.toString()}
+        source={item.source}
+        title={item.title}
+        poster={item.poster}
+        year={item.year}
+        sourceName={item.source_name}
+        api={api}
+      />
     </View>
   );
 
   if (loading) {
     return (
-        <View style={[commonStyles.container, styles.container, commonStyles.center]}>
-            <ActivityIndicator />
-        </View>
+      <View style={[commonStyles.container, styles.container, commonStyles.center]}>
+        <ActivityIndicator />
+      </View>
     );
   }
 
   if (related.length === 0) {
-    return null; // Don't render anything if there are no related series
+    return null;
   }
 
   return (

@@ -28,7 +28,7 @@ const groupSearchResults = (items: SearchResult[]): SearchResult[] => {
   items.forEach((item) => {
     const normalizedTitle = item.title.trim().toLowerCase();
     const normalizedYear = (item.year || "").trim();
-    const key = `${normalizedTitle}::${normalizedYear}`;
+    const key = `${normalizedTitle}::${normalizedYear}::${item.type_name || ''}`;
 
     if (!seen.has(key)) {
       seen.set(key, item);
