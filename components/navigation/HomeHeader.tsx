@@ -28,15 +28,15 @@ export const HomeHeader: React.FC<HomeHeaderProps> = ({ styles }) => {
         <ThemedText style={styles.headerTitle}>首页</ThemedText>
       </View>
       <View style={styles.rightHeaderButtons}>
-        <StyledButton style={styles.iconButton} onPress={() => router.push('/favorites')} variant="ghost">
-          <Heart color={Colors[colorScheme].tint} size={24} />
-        </StyledButton>
         <StyledButton
           style={styles.iconButton}
           onPress={() => router.push({ pathname: '/search' })}
           variant="ghost"
         >
           <Search color={Colors[colorScheme].tint} size={24} />
+        </StyledButton>
+        <StyledButton style={styles.iconButton} onPress={() => router.push('/favorites')} variant="ghost">
+          <Heart color={Colors[colorScheme].tint} size={24} />
         </StyledButton>
         <StyledButton style={styles.iconButton} onPress={() => router.push('/settings')} variant="ghost">
           <Settings color={Colors[colorScheme].tint} size={24} />

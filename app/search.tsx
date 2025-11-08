@@ -4,7 +4,7 @@ import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
 import VideoCard from "@/components/VideoCard";
 import VideoLoadingAnimation from "@/components/VideoLoadingAnimation";
-import { api, SearchResult } from "@/services/api";
+import { api, SearchResult, DoubanRecommendationItem } from "@/services/api";
 import { fetchSearchResults } from "@/services/searchService";
 import { Search, QrCode } from "lucide-react-native";
 import { StyledButton } from "@/components/StyledButton";
@@ -23,10 +23,12 @@ import Logger from "@/utils/Logger";
 
 const logger = Logger.withTag("SearchScreen");
 
+type UnifiedResult = SearchResult | DoubanRecommendationItem;
+
 export default function SearchScreen() {
   const params = useLocalSearchParams();
   const [keyword, setKeyword] = useState((params.q as string) || "");
-  const [results, setResults] = useState<SearchResult[]>([]);
+  const [results, setResults] = useState<UnifiedResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const textInputRef = useRef<TextInput>(null);
@@ -37,26 +39,62 @@ export default function SearchScreen() {
   const colorScheme = useColorScheme() ?? 'dark';
   const colors = Colors[colorScheme];
 
+  const [discoverPage, setDiscoverPage] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+
   // 响应式布局配置
   const responsiveConfig = useResponsiveLayout();
   const commonStyles = getCommonResponsiveStyles(responsiveConfig);
   const { deviceType, spacing } = responsiveConfig;
 
+  const loadDiscoverData = useCallback(async (page: number) => {
+    if (loading || loadingMore) return;
+
+    setLoading(page === 0);
+    setLoadingMore(page > 0);
+    setError(null);
+
+    try {
+      const response = await api.discover(page, 25);
+      if (response.list.length > 0) {
+        setResults(prev => page === 0 ? response.list : [...prev, ...response.list]);
+        setDiscoverPage(page + 1);
+        setHasMore(response.list.length === 25);
+      } else {
+        setHasMore(false);
+        if (page === 0) {
+          setError("没有找到推荐内容");
+        }
+      }
+    } catch (err) {
+      setError("加载失败，请稍后重试。");
+      logger.info("Discover data loading failed:", err);
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  }, [loading, loadingMore]);
+
   const doSearch = useCallback(async (term: string) => {
     if (!term.trim()) {
       Keyboard.dismiss();
+      loadDiscoverData(0);
       return;
     }
     Keyboard.dismiss();
     setLoading(true);
     setError(null);
+    setResults([]);
 
     try {
       const searchResults = await fetchSearchResults(term);
       if (searchResults.length > 0) {
         setResults(searchResults);
+        setHasMore(false); 
       } else {
-        setError("没有找到相关内容");
+        setError("没有找到相关内容，为你推荐...");
+        loadDiscoverData(0);
       }
     } catch (err) {
       setError("搜索失败，请稍后重试。");
@@ -64,7 +102,7 @@ export default function SearchScreen() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [loadDiscoverData]);
 
   useEffect(() => {
     if (lastMessage && targetPage === 'search') {
@@ -80,13 +118,13 @@ export default function SearchScreen() {
     if (params.q) {
       doSearch(params.q as string);
     } else {
-      // Focus the text input when the screen loads without a query
+      loadDiscoverData(0);
       const timer = setTimeout(() => {
         textInputRef.current?.focus();
       }, 200);
       return () => clearTimeout(timer);
     }
-  }, [params.q, doSearch]);
+  }, [params.q, doSearch, loadDiscoverData]);
 
   const handleSearch = (searchText?: string) => {
     const term = typeof searchText === "string" ? searchText : keyword;
@@ -105,18 +143,28 @@ export default function SearchScreen() {
     }
     showRemoteModal('search');
   };
+  
+  const handleLoadMore = () => {
+    if (!loadingMore && hasMore && keyword.trim() === "") {
+        loadDiscoverData(discoverPage);
+    }
+  };
 
-  const renderItem = ({ item }: { item: SearchResult; index: number }) => (
-    <VideoCard
-      id={item.id.toString()}
-      source={item.source}
-      title={item.title}
-      poster={item.poster}
-      year={item.year}
-      sourceName={item.source_name}
-      api={api}
-    />
-  );
+  const renderItem = ({ item }: { item: UnifiedResult; index: number }) => {
+    const isSearchResult = 'source' in item;
+    return (
+        <VideoCard
+        id={item.id?.toString() || `${item.title}-${index}`}
+        source={isSearchResult ? (item as SearchResult).source : (item as DoubanRecommendationItem).url || ''}
+        title={item.title}
+        poster={item.poster}
+        year={item.year}
+        sourceName={isSearchResult ? (item as SearchResult).source_name : (item as DoubanRecommendationItem).platform || ''}
+        rate={!isSearchResult ? (item as DoubanRecommendationItem).rate : undefined}
+        api={api}
+        />
+    );
+  };
 
   // 动态样式
   const dynamicStyles = useMemo(() => createResponsiveStyles(deviceType, spacing, colors), [deviceType, spacing, colors]);
@@ -157,9 +205,9 @@ export default function SearchScreen() {
         )}
       </View>
 
-      {loading ? (
+      {loading && results.length === 0 ? (
         <VideoLoadingAnimation showProgressBar={false} />
-      ) : error ? (
+      ) : error && results.length === 0 ? (
         <View style={[commonStyles.center, { flex: 1 }]}>
           <ThemedText style={dynamicStyles.errorText}>{error}</ThemedText>
         </View>
@@ -167,8 +215,9 @@ export default function SearchScreen() {
         <CustomScrollView
           data={results}
           renderItem={renderItem}
-          loading={loading}
-          error={error}
+          onEndReached={handleLoadMore}
+          onEndReachedThreshold={0.5}
+          loading={loadingMore}
           emptyMessage="输入关键词开始搜索"
         />
       )}

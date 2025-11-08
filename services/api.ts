@@ -59,6 +59,10 @@ export interface DoubanRecommendationItem {
   type?: string;
 }
 
+export interface DiscoverResponse {
+  list: DoubanRecommendationItem[];
+}
+
 export interface DoubanRecommendationResponse {
   code: number;
   message?: string;
@@ -321,6 +325,11 @@ export class API {
     logger.info(`[info] test--- ${params.toString()}`);
 
     const response = await this._fetch('/api/douban/recommends?' + params.toString(), { signal });
+    return response.json();
+  }
+
+  async discover(page: number, limit: number): Promise<DiscoverResponse> {
+    const response = await this._fetch(`/api/discover?page=${page}&limit=${limit}`);
     return response.json();
   }
 
