@@ -150,7 +150,7 @@ export default function SearchScreen() {
     }
   };
 
-  const renderItem = ({ item }: { item: UnifiedResult; index: number }) => {
+  const renderItem = ({ item, index }: { item: UnifiedResult; index: number }) => {
     const isSearchResult = 'source' in item;
     return (
         <VideoCard
@@ -216,7 +216,7 @@ export default function SearchScreen() {
           data={results}
           renderItem={renderItem}
           onEndReached={handleLoadMore}
-          onEndReachedThreshold={0.5}
+          loadMoreThreshold={300}
           loading={loadingMore}
           emptyMessage="输入关键词开始搜索"
         />
