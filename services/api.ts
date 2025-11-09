@@ -322,8 +322,6 @@ export class API {
     params.set("sort", filters.sort ?? "T");
     params.set("label", filters.label ?? "all");
 
-    logger.info(`[info] test--- ${params.toString()}`);
-
     const response = await this._fetch('/api/douban/recommends?' + params.toString(), { signal });
     return response.json();
   }
