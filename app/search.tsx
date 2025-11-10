@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
-import { View, TextInput, StyleSheet, Alert, Keyboard, TouchableOpacity, useColorScheme } from "react-native";
+import { View, TextInput, StyleSheet, Alert, Keyboard, TouchableOpacity, useColorScheme, ActivityIndicator } from "react-native";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
 import VideoCard from "@/components/VideoCard";
@@ -32,6 +32,7 @@ export default function SearchScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const textInputRef = useRef<TextInput>(null);
+  const loadingRef = useRef(false);
   const [isInputFocused, setIsInputFocused] = useState(false);
   const { showModal: showRemoteModal, lastMessage, targetPage, clearMessage } = useRemoteControlStore();
   const { remoteInputEnabled } = useSettingsStore();
@@ -39,7 +40,7 @@ export default function SearchScreen() {
   const colorScheme = useColorScheme() ?? 'dark';
   const colors = Colors[colorScheme];
 
-  const [discoverPage, setDiscoverPage] = useState(0);
+  const [discoverPage, setDiscoverPage] = useState(1);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
 
@@ -49,37 +50,48 @@ export default function SearchScreen() {
   const { deviceType, spacing } = responsiveConfig;
 
   const loadDiscoverData = useCallback(async (page: number) => {
-    if (loading || loadingMore) return;
+    if (loadingRef.current) return;
+    loadingRef.current = true;
 
-    setLoading(page === 0);
-    setLoadingMore(page > 0);
+    if (page === 1) {
+      setLoading(true);
+    } else {
+      setLoadingMore(true);
+    }
     setError(null);
 
     try {
       const response = await api.discover(page, 25);
-      if (response.list.length > 0) {
-        setResults(prev => page === 0 ? response.list : [...prev, ...response.list]);
+      if (response && response.list && response.list.length > 0) {
+        setResults(prev => page === 1 ? response.list : [...prev, ...response.list]);
         setDiscoverPage(page + 1);
         setHasMore(response.list.length === 25);
       } else {
         setHasMore(false);
-        if (page === 0) {
-          setError("没有找到推荐内容");
+        if (page === 1) {
+          setResults([]);
         }
       }
     } catch (err) {
-      setError("加载失败，请稍后重试。");
       logger.info("Discover data loading failed:", err);
+      setHasMore(false);
+      if (page === 1) {
+        setResults([]);
+      }
     } finally {
+      loadingRef.current = false;
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [loading, loadingMore]);
+  }, []);
 
   const doSearch = useCallback(async (term: string) => {
     if (!term.trim()) {
       Keyboard.dismiss();
-      loadDiscoverData(0);
+      setResults([]); // Clear previous search results
+      setDiscoverPage(1); // Reset discover page
+      setHasMore(true); // Allow discover to load more
+      loadDiscoverData(1);
       return;
     }
     Keyboard.dismiss();
@@ -91,10 +103,10 @@ export default function SearchScreen() {
       const searchResults = await fetchSearchResults(term);
       if (searchResults.length > 0) {
         setResults(searchResults);
-        setHasMore(false); 
+        setHasMore(false);
       } else {
         setError("没有找到相关内容，为你推荐...");
-        loadDiscoverData(0);
+        loadDiscoverData(1);
       }
     } catch (err) {
       setError("搜索失败，请稍后重试。");
@@ -118,13 +130,14 @@ export default function SearchScreen() {
     if (params.q) {
       doSearch(params.q as string);
     } else {
-      loadDiscoverData(0);
+      loadDiscoverData(1);
       const timer = setTimeout(() => {
         textInputRef.current?.focus();
       }, 200);
       return () => clearTimeout(timer);
     }
-  }, [params.q, doSearch, loadDiscoverData]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.q]);
 
   const handleSearch = (searchText?: string) => {
     const term = typeof searchText === "string" ? searchText : keyword;
@@ -143,9 +156,9 @@ export default function SearchScreen() {
     }
     showRemoteModal('search');
   };
-  
+
   const handleLoadMore = () => {
-    if (!loadingMore && hasMore && keyword.trim() === "") {
+    if (!loadingRef.current && hasMore && keyword.trim() === "") {
         loadDiscoverData(discoverPage);
     }
   };
@@ -168,6 +181,11 @@ export default function SearchScreen() {
 
   // 动态样式
   const dynamicStyles = useMemo(() => createResponsiveStyles(deviceType, spacing, colors), [deviceType, spacing, colors]);
+
+  const footerComponent = useMemo(() => {
+    if (!loadingMore) return null;
+    return <ActivityIndicator style={{ marginVertical: 20 }} size="large" />;
+  }, [loadingMore]);
 
   const renderSearchContent = () => (
     <>
@@ -217,7 +235,7 @@ export default function SearchScreen() {
           renderItem={renderItem}
           onEndReached={handleLoadMore}
           loadMoreThreshold={300}
-          loading={loadingMore}
+          ListFooterComponent={footerComponent}
           emptyMessage="输入关键词开始搜索"
         />
       )}

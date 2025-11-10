@@ -328,7 +328,8 @@ export class API {
 
   async discover(page: number, limit: number): Promise<DiscoverResponse> {
     const response = await this._fetch(`/api/discover?page=${page}&limit=${limit}`);
-    return response.json();
+    const data = await response.json();
+    return { list: data.results || [] };
   }
 
   async searchVideos(query: string): Promise<{ results: SearchResult[] }> {
