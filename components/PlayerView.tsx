@@ -1,4 +1,4 @@
-import React, { memo, useMemo } from "react";
+import React, { memo, useMemo, useState, useEffect } from "react";
 import { StyleSheet, View, Image, Text, TouchableOpacity, ActivityIndicator } from "react-native";
 import { VideoView, VideoPlayer } from "expo-video";
 import { PlayerControls } from "@/components/PlayerControls";
@@ -77,7 +77,6 @@ const PlayerView = memo((props: PlayerViewProps) => {
     error,
     status,
     isLoading,
-    isSeeking,
     isSeekBuffering,
     currentEpisode,
     player,
@@ -87,8 +86,24 @@ const PlayerView = memo((props: PlayerViewProps) => {
     setShowControls,
   } = props;
 
+  const [hasEverBeenLoaded, setHasEverBeenLoaded] = useState(false);
+
+  useEffect(() => {
+    // When the media item (show/movie) changes, reset the flag.
+    // The ID is the unique identifier for a show/movie.
+    setHasEverBeenLoaded(false);
+  }, [detail?.id]);
+
+  useEffect(() => {
+    // Once the video is loaded, we set the flag and it remains set
+    // for subsequent loads (e.g., next episode, source change).
+    if (status?.isLoaded && !hasEverBeenLoaded) {
+      setHasEverBeenLoaded(true);
+    }
+  }, [status?.isLoaded, hasEverBeenLoaded]);
+
   const dynamicStyles = useMemo(() => createResponsiveStyles(deviceType), [deviceType]);
-  const shouldShowPoster = Boolean(detail?.poster && !status?.isLoaded && !error && !isSeeking);
+  const shouldShowPoster = Boolean(detail?.poster && !hasEverBeenLoaded && !error);
   const shouldShowLoading = isLoading || isSeekBuffering || (status?.isLoaded && status?.isBuffering);
 
   return (
@@ -109,7 +124,7 @@ const PlayerView = memo((props: PlayerViewProps) => {
       {!error && (
         <>
           {currentEpisode?.url && player && <VideoView player={player} style={dynamicStyles.videoPlayer} {...videoViewProps} />}
-          
+
           {shouldShowLoading && (
             <View style={dynamicStyles.indicatorContainer} pointerEvents="none">
               <ActivityIndicator size="large" color="#fff" />
