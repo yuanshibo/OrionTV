@@ -332,6 +332,16 @@ export class API {
     return { list: data.results || [] };
   }
 
+  async aiAssistantSearch(query: string, signal?: AbortSignal): Promise<{ results: SearchResult[] }> {
+    const response = await this._fetch('/api/ai/assistant', {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query }),
+      signal
+    });
+    return response.json();
+  }
+
   async searchVideos(query: string): Promise<{ results: SearchResult[] }> {
     const url = `/api/search?q=${encodeURIComponent(query)}`;
     const response = await this._fetch(url);
