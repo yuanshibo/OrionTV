@@ -5,7 +5,6 @@ import { ThemedText } from "@/components/ThemedText";
 import VideoCard from "@/components/VideoCard";
 import VideoLoadingAnimation from "@/components/VideoLoadingAnimation";
 import { api, SearchResult, DoubanRecommendationItem } from "@/services/api";
-import { fetchSearchResults } from "@/services/searchService";
 import { Search, QrCode } from "lucide-react-native";
 import { StyledButton } from "@/components/StyledButton";
 import { useRemoteControlStore } from "@/stores/remoteControlStore";
@@ -100,7 +99,7 @@ export default function SearchScreen() {
     setResults([]);
 
     try {
-      const searchResults = await fetchSearchResults(term);
+      const { results: searchResults } = await api.aiAssistantSearch(term);
       if (searchResults.length > 0) {
         setResults(searchResults);
         setHasMore(false);
