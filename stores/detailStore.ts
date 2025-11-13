@@ -1147,7 +1147,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
     const { detail } = get();
     if (!detail) return;
 
-    const { source, id, title, poster, source_name, episodes, year } = detail;
+    const { source, id, title, poster, source_name, episodes, year, desc } = detail;
     const favoriteItem = {
       cover: poster,
       title,
@@ -1156,6 +1156,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
       total_episodes: episodes.length,
       search_title: get().q!,
       year: year || "",
+      description: desc,
     };
 
     const newIsFavorited = await FavoriteManager.toggle(source, id.toString(), favoriteItem);
