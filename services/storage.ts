@@ -271,10 +271,10 @@ export class PlayRecordManager {
       allRecords[key] = newRecord;
       await AsyncStorage.setItem(STORAGE_KEYS.PLAY_RECORDS, JSON.stringify(allRecords));
     } else {
-      const recordToSave: Partial<PlayRecord> = { ...apiRecord };
+      const recordToSave = { ...apiRecord } as Omit<ApiPlayRecord, "save_time"> & { description?: string };
       const existingRecord = await this.get(source, id);
       if (description && !existingRecord?.description) {
-        (recordToSave as any).description = description;
+        recordToSave.description = description;
       }
       await api.savePlayRecord(key, recordToSave);
     }
