@@ -123,6 +123,7 @@ export interface Favorite {
   search_title: string;
   year: string;
   save_time?: number;
+  description?: string;
 }
 
 export interface PlayRecord {
