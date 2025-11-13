@@ -302,10 +302,18 @@ const usePlayerStore = create<PlayerState>((set, get) => {
       const { currentEpisodeIndex, episodes, status, introEndTime, outroStartTime } = get();
       if (detail && status?.isLoaded) {
         PlayRecordManager.save(detail.source, detail.id.toString(), {
-          title: detail.title, cover: detail.poster || "", index: currentEpisodeIndex + 1, total_episodes: episodes.length,
+          title: detail.title,
+          description: detail.description,
+          cover: detail.poster || "",
+          index: currentEpisodeIndex + 1,
+          total_episodes: episodes.length,
           play_time: Math.floor(status.positionMillis / 1000),
           total_time: status.durationMillis ? Math.floor(status.durationMillis / 1000) : 0,
-          source_name: detail.source_name, year: detail.year || "", introEndTime, outroStartTime, ...updates,
+          source_name: detail.source_name,
+          year: detail.year || "",
+          introEndTime,
+          outroStartTime,
+          ...updates,
         });
       }
     },

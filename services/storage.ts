@@ -18,6 +18,7 @@ const STORAGE_KEYS = {
 // --- Type Definitions (aligned with api.ts) ---
 // Re-exporting for consistency, though they are now primarily API types
 export type PlayRecord = ApiPlayRecord & {
+  description?: string;
   introEndTime?: number;
   outroStartTime?: number;
 };
@@ -250,18 +251,32 @@ export class PlayRecordManager {
 
   static async save(source: string, id: string, record: Omit<PlayRecord, "save_time">): Promise<void> {
     const key = generateKey(source, id);
-    const { introEndTime, outroStartTime, ...apiRecord } = record;
+    const { introEndTime, outroStartTime, description, ...apiRecord } = record;
 
     // Player settings are always saved locally
     await PlayerSettingsManager.save(source, id, { introEndTime, outroStartTime });
 
     if (this.getStorageType() === "localstorage") {
-      const allRecords = await this.getAll();
+      const data = await AsyncStorage.getItem(STORAGE_KEYS.PLAY_RECORDS);
+      const allRecords = data ? JSON.parse(data) : {};
+      const existingRecord = allRecords[key] || {};
+      
       const fullRecord = { ...apiRecord, save_time: Date.now() };
-      allRecords[key] = { ...allRecords[key], ...fullRecord };
+      const newRecord = { ...existingRecord, ...fullRecord };
+
+      // Only add description if it's provided and doesn't already exist
+      if (description && !existingRecord.description) {
+        newRecord.description = description;
+      }
+      allRecords[key] = newRecord;
       await AsyncStorage.setItem(STORAGE_KEYS.PLAY_RECORDS, JSON.stringify(allRecords));
     } else {
-      await api.savePlayRecord(key, apiRecord);
+      const recordToSave: Partial<PlayRecord> = { ...apiRecord };
+      const existingRecord = await this.get(source, id);
+      if (description && !existingRecord?.description) {
+        (recordToSave as any).description = description;
+      }
+      await api.savePlayRecord(key, recordToSave);
     }
   }
 
