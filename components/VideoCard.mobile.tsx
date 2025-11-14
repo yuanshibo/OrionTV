@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, forwardRef, useMemo } from "react";
 import { View, Text, Image, StyleSheet, TouchableOpacity, Alert, Animated, useColorScheme } from "react-native";
 import { useRouter } from "expo-router";
 import { Star, Play } from "lucide-react-native";
-import { PlayRecordManager } from "@/services/storage";
+import { PlayRecordManager, FavoriteManager } from "@/services/storage";
 import { API } from "@/services/api";
 import { ThemedText } from "@/components/ThemedText";
 import { Colors } from "@/constants/Colors";
@@ -26,7 +26,9 @@ interface VideoCardMobileProps extends React.ComponentProps<typeof TouchableOpac
   totalEpisodes?: number;
   onFocus?: () => void;
   onRecordDeleted?: () => void;
+  onFavoriteDeleted?: () => void;
   api: API;
+  type?: 'record' | 'favorite';
 }
 
 const VideoCardMobile = forwardRef<View, VideoCardMobileProps>(
@@ -43,8 +45,10 @@ const VideoCardMobile = forwardRef<View, VideoCardMobileProps>(
       episodeIndex,
       onFocus,
       onRecordDeleted,
+      onFavoriteDeleted,
       api,
       playTime = 0,
+      type = 'record',
     }: VideoCardMobileProps,
     ref
   ) => {
@@ -103,25 +107,37 @@ const VideoCardMobile = forwardRef<View, VideoCardMobileProps>(
     }, []);
 
     const handleLongPress = () => {
-      if (progress === undefined) return;
+      if (type === 'record' && progress === undefined) return;
 
       longPressTriggered.current = true;
 
-      Alert.alert("删除观看记录", `确定要删除"${title}"的观看记录吗？`, [
+      const isFavorite = type === 'favorite';
+      const titleText = isFavorite ? "删除收藏" : "删除观看记录";
+      const messageText = isFavorite ? `确定要删除"${title}"的收藏吗？` : `确定要删除"${title}"的观看记录吗？`;
+
+      Alert.alert(titleText, messageText, [
         {
           text: "取消",
           style: "cancel",
+          onPress: () => { longPressTriggered.current = false; }
         },
         {
           text: "删除",
           style: "destructive",
           onPress: async () => {
             try {
-              await PlayRecordManager.remove(source, id);
-              onRecordDeleted?.();
+              if (isFavorite) {
+                await FavoriteManager.remove(source, id);
+                onFavoriteDeleted?.();
+              } else {
+                await PlayRecordManager.remove(source, id);
+                onRecordDeleted?.();
+              }
             } catch (error) {
-              logger.info("Failed to delete play record:", error);
-              Alert.alert("错误", "删除观看记录失败，请重试");
+              logger.info(`Failed to delete ${type}:`, error);
+              Alert.alert("错误", `删除${isFavorite ? '收藏' : '观看记录'}失败，请重试`);
+            } finally {
+              longPressTriggered.current = false;
             }
           },
         },

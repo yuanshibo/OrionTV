@@ -24,7 +24,9 @@ interface VideoCardBaseProps extends Omit<React.ComponentProps<typeof TouchableO
   totalEpisodes?: number;
   onFocus?: () => void;
   onRecordDeleted?: () => void;
+  onFavoriteDeleted?: () => void;
   api: API;
+  type?: 'record' | 'favorite';
 }
 
 // 为不同的平台定义特定的onLongPress类型

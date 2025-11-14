@@ -28,6 +28,7 @@ export default function FavoritesScreen() {
     const [source, id] = item.key.split("+");
     return (
       <VideoCard
+        type="favorite"
         id={id}
         source={source}
         title={item.title}
@@ -37,6 +38,7 @@ export default function FavoritesScreen() {
         api={api}
         episodeIndex={1}
         progress={0}
+        onFavoriteDeleted={fetchFavorites}
       />
     );
   };
