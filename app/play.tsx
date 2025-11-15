@@ -8,6 +8,7 @@ import { EpisodeSelectionModal } from "@/components/EpisodeSelectionModal";
 import { SourceSelectionModal } from "@/components/SourceSelectionModal";
 import { SpeedSelectionModal } from "@/components/SpeedSelectionModal";
 import { VideoDetailsView } from "@/components/VideoDetailsView";
+import { RelatedVideosView } from "@/components/RelatedVideosView";
 import useDetailStore from "@/stores/detailStore";
 import usePlayerStore, { selectCurrentEpisode } from "@/stores/playerStore";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
@@ -45,6 +46,7 @@ export default function PlayScreen() {
   const seekPosition = usePlayerStore((state) => state.seekPosition);
   const showControls = usePlayerStore((state) => state.showControls);
   const showDetails = usePlayerStore((state) => state.showDetails);
+  const showRelatedVideos = usePlayerStore((state) => state.showRelatedVideos);
   const initialPosition = usePlayerStore((state) => state.initialPosition);
   const introEndTime = usePlayerStore((state) => state.introEndTime);
   const playbackRate = usePlayerStore((state) => state.playbackRate);
@@ -52,7 +54,7 @@ export default function PlayScreen() {
   const currentEpisode = usePlayerStore(selectCurrentEpisode);
 
   // Get non-reactive actions from the store
-  const { loadVideo, reset, setVideoPlayer, handlePlaybackStatusUpdate, setShowControls, setShowDetails, setError, _savePlayRecord } = usePlayerStore.getState();
+  const { loadVideo, reset, setVideoPlayer, handlePlaybackStatusUpdate, setShowControls, setShowDetails, setShowRelatedVideos, setError, _savePlayRecord } = usePlayerStore.getState();
 
   // Create the player instance
   const { player, videoViewProps } = useVideoHandlers({
@@ -85,6 +87,11 @@ export default function PlayScreen() {
   // Effect to handle hardware back press for the details view
   useEffect(() => {
     const backAction = () => {
+      if (showRelatedVideos) {
+        setShowRelatedVideos(false);
+        router.back();
+        return true;
+      }
       if (showDetails) {
         setShowDetails(false);
         return true; // Prevent default behavior (e.g., exiting the screen)
@@ -98,7 +105,7 @@ export default function PlayScreen() {
     );
 
     return () => backHandler.remove();
-  }, [showDetails, setShowDetails]);
+  }, [showDetails, setShowDetails, showRelatedVideos, setShowRelatedVideos, router]);
 
   useEffect(() => {
     const source = sourceStr;
@@ -160,7 +167,7 @@ export default function PlayScreen() {
         currentEpisode={currentEpisode}
         player={player}
         videoViewProps={videoViewProps}
-        showControls={showControls && !showDetails}
+        showControls={showControls && !showDetails && !showRelatedVideos}
         onScreenPress={onScreenPress}
         setShowControls={setShowControls}
       />
@@ -168,6 +175,7 @@ export default function PlayScreen() {
       <EpisodeSelectionModal />
       <SourceSelectionModal />
       <SpeedSelectionModal />
+      <RelatedVideosView show={showRelatedVideos} title={detail?.title || ''} />
     </ThemedView>
   );
 }

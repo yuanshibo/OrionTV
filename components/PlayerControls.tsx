@@ -9,7 +9,6 @@ import useDetailStore from "@/stores/detailStore";
 import { useSources } from "@/stores/sourceStore";
 import { Colors } from "@/constants/Colors";
 import { useRouter } from "expo-router";
-import { getSearchTermFromTitle } from "@/utils/searchUtils";
 
 interface PlayerControlsProps {
   showControls: boolean;
@@ -61,16 +60,6 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
   const onPlayNextEpisode = () => {
     if (hasNextEpisode) {
       playEpisode(currentEpisodeIndex + 1);
-    }
-  };
-
-  const handleSearch = () => {
-    if (videoTitle) {
-      const searchTerm = getSearchTermFromTitle(videoTitle);
-      router.push({
-        pathname: "/search",
-        params: { q: searchTerm },
-      });
     }
   };
   
@@ -218,10 +207,6 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
 
           <MediaButton onPress={() => setShowSourceModal(true)}>
             <Tv color={colors.text} size={24} />
-          </MediaButton>
-
-          <MediaButton onPress={handleSearch}>
-            <Search color={colors.text} size={24} />
           </MediaButton>
         </View>
       </View>

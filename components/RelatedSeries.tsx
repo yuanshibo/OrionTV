@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
 import { ThemedText } from './ThemedText';
-import { api, SearchResult } from '@/services/api';
+import { api, DoubanRecommendationItem, SearchResult } from '@/services/api';
 import { fetchSearchResults } from '@/services/searchService';
 import VideoCard from './VideoCard';
 import { useResponsiveLayout } from '@/hooks/useResponsiveLayout';
@@ -15,6 +15,7 @@ interface RelatedSeriesProps {
 const RelatedSeries: React.FC<RelatedSeriesProps> = ({ title }) => {
   const [related, setRelated] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(true);
+  const [listTitle, setListTitle] = useState('相关剧集');
 
   const responsiveConfig = useResponsiveLayout();
   const commonStyles = getCommonResponsiveStyles(responsiveConfig);
@@ -47,10 +48,34 @@ const RelatedSeries: React.FC<RelatedSeriesProps> = ({ title }) => {
       fetchSearchResults(searchTerm)
         .then(results => {
           const filteredResults = results.filter(item => item.title !== title);
-          setRelated(filteredResults.slice(0, 10));
+          if (filteredResults.length > 0) {
+            setRelated(filteredResults.slice(0, 10));
+            setListTitle('相关剧集');
+            setLoading(false);
+          } else {
+            setListTitle('猜你喜欢');
+            api.discover(1, 25)
+              .then(discoverResponse => {
+                const discoverResults: SearchResult[] = discoverResponse.list.map((item: DoubanRecommendationItem, index) => ({
+                  id: index, // Use index as a fallback ID
+                  title: item.title,
+                  poster: item.poster,
+                  year: item.year || '',
+                  source: item.url || item.id || '',
+                  source_name: '推荐',
+                  episodes: [],
+                  class: item.type || '',
+                } as SearchResult));
+                setRelated(discoverResults);
+              })
+              .catch(console.error)
+              .finally(() => setLoading(false));
+          }
         })
-        .catch(console.error)
-        .finally(() => setLoading(false));
+        .catch(error => {
+          console.error(error)
+          setLoading(false);
+        });
     }
   }, [title]);
 
@@ -82,7 +107,7 @@ const RelatedSeries: React.FC<RelatedSeriesProps> = ({ title }) => {
 
   return (
     <View style={styles.container}>
-      <ThemedText style={styles.title}>相关剧集</ThemedText>
+      <ThemedText style={styles.title}>{listTitle}</ThemedText>
       <FlatList
         horizontal
         data={related}
