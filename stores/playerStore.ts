@@ -54,6 +54,7 @@ interface PlayerState {
   showSourceModal: boolean;
   showSpeedModal: boolean;
   showNextEpisodeOverlay: boolean;
+  showRelatedVideos: boolean;
   isSeeking: boolean;
   isSeekBuffering: boolean;
   seekPosition: number;
@@ -81,6 +82,7 @@ interface PlayerState {
   setShowEpisodeModal: (show: boolean) => void;
   setShowSourceModal: (show: boolean) => void;
   setShowSpeedModal: (show: boolean) => void;
+  setShowRelatedVideos: (show: boolean) => void;
   setShowNextEpisodeOverlay: (show: boolean) => void;
   setPlaybackRate: (rate: number) => void;
   setIntroEndTime: () => void;
@@ -123,6 +125,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
     showSourceModal: false,
     showSpeedModal: false,
     showNextEpisodeOverlay: false,
+    showRelatedVideos: false,
     isSeeking: false,
     isSeekBuffering: false,
     seekPosition: 0,
@@ -136,7 +139,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
     setVideoPlayer: (player) => set({ videoPlayer: player }),
 
     loadVideo: async ({ detail, episodeIndex, position, router }) => {
-      set({ status: null, isLoading: true, error: undefined, router });
+      set({ status: null, isLoading: true, error: undefined, router, showRelatedVideos: false });
 
       const episodes = episodesSelectorBySource(detail.source)(useDetailStore.getState());
       if (!episodes || episodes.length === 0) {
@@ -200,7 +203,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
     },
 
     handlePlaybackStatusUpdate: (newStatus) => {
-      const { isSeekBuffering, seekPosition, status: oldStatus, router, currentEpisodeIndex, episodes, outroStartTime, playEpisode, _savePlayRecord } = get();
+      const { isSeekBuffering, seekPosition, status: oldStatus, router, currentEpisodeIndex, episodes, outroStartTime, playEpisode, _savePlayRecord, setShowRelatedVideos } = get();
 
       const nextState: Partial<PlayerState> = { status: newStatus };
       
@@ -235,8 +238,8 @@ const usePlayerStore = create<PlayerState>((set, get) => {
       if (newStatus.didJustFinish) {
         if (currentEpisodeIndex < episodes.length - 1) {
           playEpisode(currentEpisodeIndex + 1);
-        } else if (router?.canGoBack()) {
-          router.back();
+        } else {
+          setShowRelatedVideos(true);
         }
         return;
       }
@@ -325,6 +328,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
     setShowEpisodeModal: (show) => set({ showEpisodeModal: show }),
     setShowSourceModal: (show) => set({ showSourceModal: show }),
     setShowSpeedModal: (show) => set({ showSpeedModal: show }),
+    setShowRelatedVideos: (show) => set({ showRelatedVideos: show }),
     setShowNextEpisodeOverlay: (show) => set({ showNextEpisodeOverlay: show }),
 
     setPlaybackRate: async (rate) => {

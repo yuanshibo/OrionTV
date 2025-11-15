@@ -12,6 +12,7 @@ export const useTVRemoteHandler = () => {
   const showDetails = usePlayerStore((state) => state.showDetails);
   const setShowDetails = usePlayerStore((state) => state.setShowDetails);
   const showEpisodeModal = usePlayerStore((state) => state.showEpisodeModal);
+  const showRelatedVideos = usePlayerStore((state) => state.showRelatedVideos);
   const togglePlayPause = usePlayerStore((state) => state.togglePlayPause);
   const seek = usePlayerStore((state) => state.seek);
 
@@ -51,7 +52,7 @@ export const useTVRemoteHandler = () => {
   const handleTVEvent = useCallback(
     (event: HWEvent) => {
       // Modal/overlay guards: if any modal is open, block all other remote events.
-      if (showDetails || showEpisodeModal) {
+      if (showDetails || showEpisodeModal || showRelatedVideos) {
         // We only allow the `backPress` event to be handled by the component, 
         // all other remote events are ignored.
         if (event.eventType !== 'backPress') {
@@ -117,7 +118,7 @@ export const useTVRemoteHandler = () => {
         }
       }
     },
-    [showControls, showDetails, showEpisodeModal, setShowControls, resetTimer, togglePlayPause, seek, setShowDetails]
+    [showControls, showDetails, showEpisodeModal, showRelatedVideos, setShowControls, resetTimer, togglePlayPause, seek, setShowDetails]
   );
 
   useTVEventHandler(handleTVEvent);
