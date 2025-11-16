@@ -2,7 +2,7 @@ import { useEffect, useRef, useCallback } from "react";
 import { useTVEventHandler, HWEvent } from "react-native";
 import usePlayerStore from "@/stores/playerStore";
 
-const SEEK_STEP = 30 * 1000; // 快进/快退的时间步长(毫秒)
+const SEEK_STEP = 20 * 1000; // 快进/快退的时间步长(毫秒)
 const CONTROLS_TIMEOUT = 5000; // 定时器延迟时间(毫秒)
 const FAST_SEEK_INTERVAL = 200; // 连续快进/快退的间隔时间(毫秒)
 
