@@ -8,7 +8,6 @@ import { EpisodeSelectionModal } from "@/components/EpisodeSelectionModal";
 import { SourceSelectionModal } from "@/components/SourceSelectionModal";
 import { SpeedSelectionModal } from "@/components/SpeedSelectionModal";
 import { VideoDetailsView } from "@/components/VideoDetailsView";
-import { RelatedVideosView } from "@/components/RelatedVideosView";
 import useDetailStore from "@/stores/detailStore";
 import usePlayerStore, { selectCurrentEpisode } from "@/stores/playerStore";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
@@ -175,7 +174,6 @@ export default function PlayScreen() {
       <EpisodeSelectionModal />
       <SourceSelectionModal />
       <SpeedSelectionModal />
-      <RelatedVideosView show={showRelatedVideos} title={detail?.title || ''} />
     </ThemedView>
   );
 }

@@ -239,7 +239,13 @@ const usePlayerStore = create<PlayerState>((set, get) => {
         if (currentEpisodeIndex < episodes.length - 1) {
           playEpisode(currentEpisodeIndex + 1);
         } else {
-          setShowRelatedVideos(true);
+          const detail = useDetailStore.getState().detail;
+          if (router && detail?.title) {
+            router.replace({
+              pathname: '/related',
+              params: { title: detail.title },
+            });
+          }
         }
         return;
       }
