@@ -3,7 +3,6 @@ import React from 'react';
 import { StyleSheet } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { ThemedView } from '@/components/ThemedView';
-import { ThemedText } from '@/components/ThemedText';
 import RelatedSeries from '@/components/RelatedSeries';
 import { useResponsiveLayout } from '@/hooks/useResponsiveLayout';
 
@@ -23,7 +22,7 @@ export default function PostPlayScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      {<RelatedSeries title={title} />}
+      {title && <RelatedSeries title={title} />}
     </ThemedView>
   );
 }
