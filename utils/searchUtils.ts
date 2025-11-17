@@ -13,6 +13,12 @@ export function getSearchTermFromTitle(title: string): string {
     return "";
   }
 
+  // 新增规则：处理“完结篇”、“前传”、“后传”等特定后缀
+  const specialEditionMatch = title.match(/^(.*?)(?:完结篇|前传|后传)$/);
+  if (specialEditionMatch && specialEditionMatch[1] && specialEditionMatch[1].trim().length >= 2) {
+    return specialEditionMatch[1].trim();
+  }
+
   // 规则1：优先尝试移除常见的后缀，例如 "之..."、"第X季"、"S2"、"粤语"、"剧场版" 等
   // 这个规则现在也处理带空格和数字的标题，并且不区分大小写
   const suffixMatch = title.match(/^(.*?)(?:\s*(?:之.+|第[一二三四五六七八九十\d]+[季部]|S\d+|Season\s*\d+|粤语|国语|剧场版|预告片))$/i);
