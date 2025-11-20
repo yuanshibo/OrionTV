@@ -25,7 +25,7 @@ export default function HomeScreen() {
 
   // 响应式布局配置
   const responsiveConfig = useResponsiveLayout();
-  const commonStyles = getCommonResponsiveStyles(responsiveConfig);
+  const commonStyles = useMemo(() => getCommonResponsiveStyles(responsiveConfig), [responsiveConfig]);
   const { deviceType, spacing } = responsiveConfig;
   const {
     categories,
