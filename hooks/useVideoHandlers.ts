@@ -9,6 +9,9 @@ import type {
 } from 'expo-video';
 import Toast from 'react-native-toast-message';
 import usePlayerStore, { PlaybackState, createInitialPlaybackState } from '@/stores/playerStore';
+import Logger from "@/utils/Logger";
+
+const logger = Logger.withTag("VideoHandlers");
 
 export type VideoViewPropsSubset = Pick<VideoViewProps, 'nativeControls' | 'contentFit'>;
 
@@ -72,6 +75,11 @@ export const useVideoHandlers = ({
   const pendingSeekRef = useRef<number>(0);
   const lastErrorRef = useRef<string | null>(null);
 
+  // Access store for seeking state
+  const isSeekBuffering = usePlayerStore((state) => state.isSeekBuffering);
+  const seekPosition = usePlayerStore((state) => state.seekPosition);
+  const status = usePlayerStore((state) => state.status);
+
   const emitStatusUpdate = useCallback(
     (updates: Partial<PlaybackState>) => {
       statusRef.current = { ...statusRef.current, ...updates };
@@ -97,7 +105,7 @@ export const useVideoHandlers = ({
       try {
         player.currentTime = target / 1000;
       } catch (error) {
-        console.warn('[VIDEO] Failed to apply initial seek', error);
+        logger.warn('Failed to apply initial seek', error);
       }
     }
     pendingSeekRef.current = 0;
@@ -112,6 +120,20 @@ export const useVideoHandlers = ({
     const durationMillis = Number.isFinite(durationSeconds) && durationSeconds > 0 ? durationSeconds * 1000 : undefined;
     emitStatusUpdate({ durationMillis });
   }, [player, emitStatusUpdate]);
+
+  // Handle Seeking Logic (Moved from play.tsx)
+  useEffect(() => {
+    if (isSeekBuffering && player && status?.durationMillis) {
+      const newPositionMillis = seekPosition * status.durationMillis;
+      try {
+        // currentTime expects seconds
+        player.currentTime = newPositionMillis / 1000;
+      } catch (e) {
+        logger.error("Failed to set currentTime on video player:", e);
+      }
+    }
+  }, [isSeekBuffering, player, seekPosition, status?.durationMillis]);
+
 
   useEffect(() => {
     if (!player) return undefined;
@@ -131,7 +153,7 @@ export const useVideoHandlers = ({
             try {
               player.play();
             } catch (err) {
-              console.warn('[VIDEO] Failed to start playback automatically', err);
+              logger.warn('Failed to start playback automatically', err);
             }
             lastErrorRef.current = null;
             break;
@@ -140,6 +162,8 @@ export const useVideoHandlers = ({
             break;
           case 'error': {
             const message = error?.message ?? 'Unknown playback error';
+            logger.error(`Playback error: ${message}`, error);
+
             if (currentEpisode?.url && lastErrorRef.current !== message) {
               lastErrorRef.current = message;
               const { handleVideoError } = usePlayerStore.getState();
@@ -172,7 +196,7 @@ export const useVideoHandlers = ({
         try {
           player.play();
         } catch (err) {
-          console.warn('[VIDEO] Failed to start playback after loading source', err);
+          logger.warn('Failed to start playback after loading source', err);
         }
       }),
     ];
@@ -188,7 +212,7 @@ export const useVideoHandlers = ({
     try {
       player.playbackRate = playbackRate;
     } catch (error) {
-      console.warn('[VIDEO] Failed to apply playback rate update', error);
+      logger.warn('Failed to apply playback rate update', error);
     }
   }, [player, playbackRate]);
 

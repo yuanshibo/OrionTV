@@ -1,7 +1,8 @@
-import React, { useEffect, useCallback } from "react";
-import { StyleSheet, BackHandler } from "react-native";
+import React, { useEffect, useCallback, useRef } from "react";
+import { StyleSheet } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useKeepAwake } from "expo-keep-awake";
+import { useShallow } from "zustand/react/shallow";
 import { ThemedView } from "@/components/ThemedView";
 import PlayerView from "@/components/PlayerView";
 import { EpisodeSelectionModal } from "@/components/EpisodeSelectionModal";
@@ -10,11 +11,13 @@ import { SpeedSelectionModal } from "@/components/SpeedSelectionModal";
 import { VideoDetailsView } from "@/components/VideoDetailsView";
 import useDetailStore from "@/stores/detailStore";
 import usePlayerStore, { selectCurrentEpisode } from "@/stores/playerStore";
+import usePlayerUIStore from "@/stores/playerUIStore";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { useVideoHandlers } from "@/hooks/useVideoHandlers";
 import { usePlayerInteractions } from "@/hooks/usePlayerInteractions";
 import { usePlayerLifecycle } from "@/hooks/usePlayerLifecycle";
 import Logger from "@/utils/Logger";
+import { requestTVFocus } from "@/utils/tvUtils";
 
 const logger = Logger.withTag("PlayScreen");
 
@@ -35,25 +38,59 @@ export default function PlayScreen() {
   const episodeIndex = parseInt(episodeIndexStr || "0", 10);
   const position = positionStr ? parseInt(positionStr, 10) : undefined;
 
-  // Select state from the store reactively
-  const detail = useDetailStore((state) => state.detail);
+  const playerContainerRef = useRef<React.ElementRef<typeof ThemedView>>(null);
+
+  // Select state from stores reactively using useShallow where appropriate
+  const detail = useDetailStore(useShallow((state) => state.detail));
   const initDetail = useDetailStore((state) => state.init);
-  const status = usePlayerStore((state) => state.status);
-  const isLoading = usePlayerStore((state) => state.isLoading);
-  const isSeeking = usePlayerStore((state) => state.isSeeking);
-  const isSeekBuffering = usePlayerStore((state) => state.isSeekBuffering);
-  const seekPosition = usePlayerStore((state) => state.seekPosition);
-  const showControls = usePlayerStore((state) => state.showControls);
-  const showDetails = usePlayerStore((state) => state.showDetails);
-  const showRelatedVideos = usePlayerStore((state) => state.showRelatedVideos);
-  const initialPosition = usePlayerStore((state) => state.initialPosition);
-  const introEndTime = usePlayerStore((state) => state.introEndTime);
-  const playbackRate = usePlayerStore((state) => state.playbackRate);
-  const error = usePlayerStore((state) => state.error);
-  const currentEpisode = usePlayerStore(selectCurrentEpisode);
+
+  const {
+    status,
+    isLoading,
+    isSeeking,
+    isSeekBuffering,
+    seekPosition,
+    initialPosition,
+    introEndTime,
+    playbackRate,
+    error,
+    currentEpisode,
+  } = usePlayerStore(
+    useShallow((state) => ({
+      status: state.status,
+      isLoading: state.isLoading,
+      isSeeking: state.isSeeking,
+      isSeekBuffering: state.isSeekBuffering,
+      seekPosition: state.seekPosition,
+      initialPosition: state.initialPosition,
+      introEndTime: state.introEndTime,
+      playbackRate: state.playbackRate,
+      error: state.error,
+      currentEpisode: selectCurrentEpisode(state),
+    }))
+  );
+
+  const {
+    showControls,
+    showDetails,
+    showRelatedVideos,
+    showEpisodeModal,
+    showSourceModal,
+    showSpeedModal,
+  } = usePlayerUIStore(
+    useShallow((state) => ({
+      showControls: state.showControls,
+      showDetails: state.showDetails,
+      showRelatedVideos: state.showRelatedVideos,
+      showEpisodeModal: state.showEpisodeModal,
+      showSourceModal: state.showSourceModal,
+      showSpeedModal: state.showSpeedModal,
+    }))
+  );
 
   // Get non-reactive actions from the store
-  const { loadVideo, reset, setVideoPlayer, handlePlaybackStatusUpdate, setShowControls, setShowDetails, setShowRelatedVideos, setError, _savePlayRecord } = usePlayerStore.getState();
+  const { loadVideo, reset, setVideoPlayer, handlePlaybackStatusUpdate, setError, _savePlayRecord } = usePlayerStore.getState();
+  const { setShowControls } = usePlayerUIStore.getState();
 
   // Create the player instance
   const { player, videoViewProps } = useVideoHandlers({
@@ -78,33 +115,8 @@ export default function PlayScreen() {
 
   usePlayerLifecycle({
     player,
-    showControls,
     flushPlaybackRecord,
-    setShowControls,
   });
-
-  // Effect to handle hardware back press for the details view
-  useEffect(() => {
-    const backAction = () => {
-      if (showRelatedVideos) {
-        setShowRelatedVideos(false);
-        router.back();
-        return true;
-      }
-      if (showDetails) {
-        setShowDetails(false);
-        return true; // Prevent default behavior (e.g., exiting the screen)
-      }
-      return false; // Allow default behavior
-    };
-
-    const backHandler = BackHandler.addEventListener(
-      "hardwareBackPress",
-      backAction
-    );
-
-    return () => backHandler.remove();
-  }, [showDetails, setShowDetails, showRelatedVideos, setShowRelatedVideos, router]);
 
   useEffect(() => {
     const source = sourceStr;
@@ -138,23 +150,20 @@ export default function PlayScreen() {
     };
   }, [player, setVideoPlayer]);
 
-  // Effect for handling seeking logic
+  // Focus Restoration on TV
   useEffect(() => {
-    if (isSeekBuffering && player) {
-      const status = usePlayerStore.getState().status;
-      if (status && status.durationMillis) {
-        const newPositionMillis = seekPosition * status.durationMillis;
-        try {
-          player.currentTime = newPositionMillis / 1000;
-        } catch (e) {
-          logger.error("Failed to set currentTime on video player:", e);
-        }
-      }
+    if (deviceType !== 'tv') return;
+
+    // If all modals are closed and we are not showing related videos/details
+    if (!showEpisodeModal && !showSourceModal && !showSpeedModal && !showDetails && !showRelatedVideos) {
+       // Request focus on the main container to ensure remote keys (Up/Down etc) are captured by the handler
+       // This works because ThemedView is focusable=true
+       requestTVFocus(playerContainerRef);
     }
-  }, [isSeekBuffering, player, seekPosition]);
+  }, [deviceType, showEpisodeModal, showSourceModal, showSpeedModal, showDetails, showRelatedVideos]);
 
   return (
-    <ThemedView focusable style={styles.container}>
+    <ThemedView ref={playerContainerRef} focusable style={styles.container}>
       <PlayerView
         deviceType={deviceType}
         detail={detail}

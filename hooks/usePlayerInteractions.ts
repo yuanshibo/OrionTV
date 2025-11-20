@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { useTVRemoteHandler } from './useTVRemoteHandler';
-import usePlayerStore from '@/stores/playerStore';
+import usePlayerUIStore from '@/stores/playerUIStore';
 
 /**
  * A hook to centralize player interaction logic based on device type.
@@ -13,8 +13,8 @@ export function usePlayerInteractions(deviceType: string) {
   const tvRemoteHandler = useTVRemoteHandler();
   // By selecting state properties individually, we prevent unnecessary re-renders
   // and avoid the infinite loop issue caused by creating a new object on every render.
-  const showControls = usePlayerStore((state) => state.showControls);
-  const setShowControls = usePlayerStore((state) => state.setShowControls);
+  const showControls = usePlayerUIStore((state) => state.showControls);
+  const setShowControls = usePlayerUIStore((state) => state.setShowControls);
 
   /**
    * Handles the primary screen press action.

@@ -5,6 +5,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { MediaButton } from "@/components/MediaButton";
 
 import usePlayerStore from "@/stores/playerStore";
+import usePlayerUIStore from "@/stores/playerUIStore";
 import useDetailStore from "@/stores/detailStore";
 import { useSources } from "@/stores/sourceStore";
 import { Colors } from "@/constants/Colors";
@@ -18,24 +19,25 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
   const colorScheme = useColorScheme() ?? "dark";
   const colors = Colors[colorScheme];
 
-  const {
-    currentEpisodeIndex,
-    episodes,
-    status,
-    isSeeking,
-    seekPosition,
-    progressPosition,
-    playbackRate,
-    togglePlayPause,
-    playEpisode,
-    setShowEpisodeModal,
-    setShowSourceModal,
-    setShowSpeedModal,
-    setIntroEndTime,
-    setOutroStartTime,
-    introEndTime,
-    outroStartTime,
-  } = usePlayerStore();
+  // Use Player Store
+  const currentEpisodeIndex = usePlayerStore((state) => state.currentEpisodeIndex);
+  const episodes = usePlayerStore((state) => state.episodes);
+  const status = usePlayerStore((state) => state.status);
+  const isSeeking = usePlayerStore((state) => state.isSeeking);
+  const seekPosition = usePlayerStore((state) => state.seekPosition);
+  const progressPosition = usePlayerStore((state) => state.progressPosition);
+  const playbackRate = usePlayerStore((state) => state.playbackRate);
+  const togglePlayPause = usePlayerStore((state) => state.togglePlayPause);
+  const playEpisode = usePlayerStore((state) => state.playEpisode);
+  const setIntroEndTime = usePlayerStore((state) => state.setIntroEndTime);
+  const setOutroStartTime = usePlayerStore((state) => state.setOutroStartTime);
+  const introEndTime = usePlayerStore((state) => state.introEndTime);
+  const outroStartTime = usePlayerStore((state) => state.outroStartTime);
+
+  // Use UI Store
+  const setShowEpisodeModal = usePlayerUIStore((state) => state.setShowEpisodeModal);
+  const setShowSourceModal = usePlayerUIStore((state) => state.setShowSourceModal);
+  const setShowSpeedModal = usePlayerUIStore((state) => state.setShowSpeedModal);
 
   const { detail } = useDetailStore();
   const resources = useSources();

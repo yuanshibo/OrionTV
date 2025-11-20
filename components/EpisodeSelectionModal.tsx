@@ -2,11 +2,19 @@ import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, Modal, FlatList } from "react-native";
 import { StyledButton } from "./StyledButton";
 import usePlayerStore from "@/stores/playerStore";
+import usePlayerUIStore from "@/stores/playerUIStore";
 
 const EPISODE_GROUP_SIZE = 30;
 
 export const EpisodeSelectionModal: React.FC = () => {
-  const { showEpisodeModal, episodes, currentEpisodeIndex, playEpisode, setShowEpisodeModal } = usePlayerStore();
+  // Store selections
+  const episodes = usePlayerStore((state) => state.episodes);
+  const currentEpisodeIndex = usePlayerStore((state) => state.currentEpisodeIndex);
+  const playEpisode = usePlayerStore((state) => state.playEpisode);
+
+  // UI Store selections
+  const showEpisodeModal = usePlayerUIStore((state) => state.showEpisodeModal);
+  const setShowEpisodeModal = usePlayerUIStore((state) => state.setShowEpisodeModal);
 
   const initialGroup = currentEpisodeIndex >= 0 ? Math.floor(currentEpisodeIndex / EPISODE_GROUP_SIZE) : 0;
   const [selectedEpisodeGroup, setSelectedEpisodeGroup] = useState(initialGroup);
