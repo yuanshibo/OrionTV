@@ -22,7 +22,7 @@ export default function PostPlayScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      {title && <RelatedSeries title={title} />}
+      {title && <RelatedSeries title={title} autoFocus={true} />}
     </ThemedView>
   );
 }

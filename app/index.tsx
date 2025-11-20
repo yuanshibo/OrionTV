@@ -1,5 +1,5 @@
 import React, { useEffect, useCallback, useMemo, useRef, useState } from "react";
-import { StyleSheet, ActivityIndicator, FlatList, Animated, StatusBar, Platform, BackHandler, ToastAndroid } from "react-native";
+import { StyleSheet, ActivityIndicator, FlatList, Animated, StatusBar, Platform, BackHandler, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ThemedView } from "@/components/ThemedView";
 import { api } from "@/services/api";
@@ -14,16 +14,18 @@ import { HomeHeader } from "@/components/navigation/HomeHeader";
 import { CategoryNavigation } from "@/components/navigation/CategoryNavigation";
 import { ContentDisplay } from "@/components/home/ContentDisplay";
 import FilterPanel from "@/components/home/FilterPanel";
+import { requestTVFocus } from "@/utils/tvUtils";
 
 export default function HomeScreen() {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const insets = useSafeAreaInsets();
   const listRef = useRef<FlatList<RowItem>>(null);
+  const firstItemRef = useRef<View>(null);
   const lastCheckedPlayRecords = useRef<number>(0);
 
   // 响应式布局配置
   const responsiveConfig = useResponsiveLayout();
-  const commonStyles = getCommonResponsiveStyles(responsiveConfig);
+  const commonStyles = useMemo(() => getCommonResponsiveStyles(responsiveConfig), [responsiveConfig]);
   const { deviceType, spacing } = responsiveConfig;
   const {
     categories,
@@ -46,6 +48,7 @@ export default function HomeScreen() {
   const selectedCategoryType = selectedCategory?.type;
   const apiConfigStatus = useApiConfig();
   const [isFilterPanelVisible, setFilterPanelVisible] = useState(false);
+  const [categoryFocusTrigger, setCategoryFocusTrigger] = useState(0);
 
   useEffect(() => {
     void hydrateFromStorage();
@@ -54,7 +57,9 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       if (selectedCategoryType === "record") {
-        refreshPlayRecords();
+        refreshPlayRecords().then(() => {
+          setCategoryFocusTrigger((prev) => prev + 1);
+        });
       } else if (!hasRecordCategory) {
         const now = Date.now();
         if (now - lastCheckedPlayRecords.current > 5000) {
@@ -78,6 +83,10 @@ export default function HomeScreen() {
 
         if (!backPressTimeRef.current || now - backPressTimeRef.current > 2000) {
           listRef.current?.scrollToOffset({ offset: 0, animated: true });
+
+          setTimeout(() => {
+            requestTVFocus(firstItemRef);
+          }, 300);
 
           backPressTimeRef.current = now;
           return true;
@@ -215,6 +224,7 @@ export default function HomeScreen() {
 
       return (
         <VideoCard
+          ref={index === 0 ? firstItemRef : undefined}
           id={item.id}
           source={item.source}
           title={item.title}
@@ -255,6 +265,7 @@ export default function HomeScreen() {
         categoryStyles={categoryStyles}
         deviceType={deviceType}
         spacing={spacing}
+        focusTrigger={categoryFocusTrigger}
       />
 
       <ContentDisplay
@@ -275,7 +286,10 @@ export default function HomeScreen() {
       {selectedCategory && (
         <FilterPanel
           isVisible={isFilterPanelVisible}
-          onClose={() => setFilterPanelVisible(false)}
+          onClose={() => {
+            setFilterPanelVisible(false);
+            setCategoryFocusTrigger((prev) => prev + 1);
+          }}
           category={selectedCategory}
           onFilterChange={handleFilterChange}
           deviceType={deviceType}

@@ -50,6 +50,7 @@ const VideoCard = forwardRef<View, VideoCardProps>(
       api,
       playTime = 0,
       type = 'record',
+      ...rest
     }: VideoCardProps,
     ref
   ) => {
@@ -198,6 +199,7 @@ const VideoCard = forwardRef<View, VideoCardProps>(
     return (
       <Animated.View style={[styles.wrapper, animatedStyle, { opacity: fadeAnim }]}>
         <Pressable
+          ref={ref}
           android_ripple={Platform.isTV || deviceType !== 'tv' ? { color: 'transparent' } : { color: colors.link }}
           onPress={handlePress}
           onLongPress={handleLongPress}
@@ -210,6 +212,7 @@ const VideoCard = forwardRef<View, VideoCardProps>(
             },
           ]}
           delayLongPress={1000}
+          {...rest}
         >
           <View style={styles.card}>
             <Image source={{ uri: api.getImageProxyUrl(poster) }} style={styles.poster} />
