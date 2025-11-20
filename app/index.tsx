@@ -14,6 +14,7 @@ import { HomeHeader } from "@/components/navigation/HomeHeader";
 import { CategoryNavigation } from "@/components/navigation/CategoryNavigation";
 import { ContentDisplay } from "@/components/home/ContentDisplay";
 import FilterPanel from "@/components/home/FilterPanel";
+import { requestTVFocus } from "@/utils/tvUtils";
 
 export default function HomeScreen() {
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -84,12 +85,7 @@ export default function HomeScreen() {
           listRef.current?.scrollToOffset({ offset: 0, animated: true });
 
           setTimeout(() => {
-            if (firstItemRef.current) {
-              firstItemRef.current.setNativeProps({ hasTVPreferredFocus: true });
-              setTimeout(() => {
-                firstItemRef.current?.setNativeProps({ hasTVPreferredFocus: false });
-              }, 500);
-            }
+            requestTVFocus(firstItemRef);
           }, 300);
 
           backPressTimeRef.current = now;

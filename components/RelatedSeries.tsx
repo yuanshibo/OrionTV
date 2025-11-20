@@ -7,6 +7,7 @@ import VideoCard from './VideoCard';
 import { useResponsiveLayout } from '@/hooks/useResponsiveLayout';
 import { getCommonResponsiveStyles } from '@/utils/ResponsiveStyles';
 import { getSearchTermFromTitle } from '@/utils/searchUtils';
+import { requestTVFocus } from '@/utils/tvUtils';
 
 interface RelatedSeriesProps {
   title: string;
@@ -45,12 +46,7 @@ const RelatedSeries: React.FC<RelatedSeriesProps> = ({ title, autoFocus = false 
   useEffect(() => {
     if (!loading && related.length > 0 && autoFocus) {
       const timer = setTimeout(() => {
-        if (firstCardRef.current) {
-          firstCardRef.current.setNativeProps({ hasTVPreferredFocus: true });
-          setTimeout(() => {
-            firstCardRef.current?.setNativeProps({ hasTVPreferredFocus: false });
-          }, 500);
-        }
+        requestTVFocus(firstCardRef);
       }, 500);
       return () => clearTimeout(timer);
     }

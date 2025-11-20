@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from "react";
 import { FlatList, View } from "react-native";
 import { StyledButton } from "@/components/StyledButton";
 import { Category } from "@/stores/homeStore";
+import { requestTVFocus } from "@/utils/tvUtils";
 
 interface CategoryNavigationProps {
   categories: Category[];
@@ -22,13 +23,7 @@ export const CategoryNavigation: React.FC<CategoryNavigationProps> = ({ categori
     if (focusTrigger && selectedCategory) {
       const index = categories.findIndex((c) => c.title === selectedCategory.title);
       const buttonRef = buttonRefs.current[index];
-
-      if (buttonRef) {
-        buttonRef.setNativeProps({ hasTVPreferredFocus: true });
-        setTimeout(() => {
-          buttonRef.setNativeProps({ hasTVPreferredFocus: false });
-        }, 500);
-      }
+      requestTVFocus(buttonRef);
     }
   }, [focusTrigger, selectedCategory, categories]);
 
