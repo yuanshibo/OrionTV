@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
-import { View, TextInput, StyleSheet, Alert, Keyboard, TouchableOpacity, useColorScheme, ActivityIndicator } from "react-native";
+import { View, TextInput, StyleSheet, Alert, Keyboard, TouchableOpacity, useColorScheme, ActivityIndicator, Platform } from "react-native";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
 import VideoCard from "@/components/VideoCard";
@@ -31,6 +31,7 @@ export default function SearchScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const textInputRef = useRef<TextInput>(null);
+
   const loadingRef = useRef(false);
   const [isInputFocused, setIsInputFocused] = useState(false);
   const { showModal: showRemoteModal, lastMessage, targetPage, clearMessage } = useRemoteControlStore();
@@ -130,13 +131,23 @@ export default function SearchScreen() {
       doSearch(params.q as string);
     } else {
       loadDiscoverData(1);
-      const timer = setTimeout(() => {
-        textInputRef.current?.focus();
-      }, 200);
-      return () => clearTimeout(timer);
+      // TV Focus Optimization
+      if (deviceType === 'tv' || Platform.isTV) {
+         const timer = setTimeout(() => {
+            if (textInputRef.current) {
+                textInputRef.current.focus();
+            }
+         }, 500);
+         return () => clearTimeout(timer);
+      } else {
+        const timer = setTimeout(() => {
+           textInputRef.current?.focus();
+        }, 200);
+        return () => clearTimeout(timer);
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.q]);
+  }, [params.q, deviceType]);
 
   const handleSearch = (searchText?: string) => {
     const term = typeof searchText === "string" ? searchText : keyword;
@@ -162,21 +173,22 @@ export default function SearchScreen() {
     }
   };
 
-  const renderItem = ({ item, index }: { item: UnifiedResult; index: number }) => {
+  // Optimization: Memoize renderItem to prevent re-creation on every render
+  const renderItem = useCallback(({ item, index }: { item: UnifiedResult; index: number }) => {
     const isSearchResult = 'source' in item;
     return (
         <VideoCard
-        id={item.id?.toString() || `${item.title}-${index}`}
-        source={isSearchResult ? (item as SearchResult).source : (item as DoubanRecommendationItem).url || ''}
-        title={item.title}
-        poster={item.poster}
-        year={item.year}
-        sourceName={isSearchResult ? (item as SearchResult).source_name : (item as DoubanRecommendationItem).platform || ''}
-        rate={!isSearchResult ? (item as DoubanRecommendationItem).rate : undefined}
-        api={api}
+          id={item.id?.toString() || `${item.title}-${index}`}
+          source={isSearchResult ? (item as SearchResult).source : (item as DoubanRecommendationItem).url || ''}
+          title={item.title}
+          poster={item.poster}
+          year={item.year}
+          sourceName={isSearchResult ? (item as SearchResult).source_name : (item as DoubanRecommendationItem).platform || ''}
+          rate={!isSearchResult ? (item as DoubanRecommendationItem).rate : undefined}
+          api={api}
         />
     );
-  };
+  }, []);
 
   // 动态样式
   const dynamicStyles = useMemo(() => createResponsiveStyles(deviceType, spacing, colors), [deviceType, spacing, colors]);
@@ -210,6 +222,8 @@ export default function SearchScreen() {
             onFocus={() => setIsInputFocused(true)}
             onBlur={() => setIsInputFocused(false)}
             returnKeyType="search"
+            // TV specific props
+            importantForAccessibility="yes"
           />
         </TouchableOpacity>
         <StyledButton style={dynamicStyles.searchButton} onPress={onSearchPress}>
