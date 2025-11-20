@@ -45,7 +45,12 @@ const RelatedSeries: React.FC<RelatedSeriesProps> = ({ title, autoFocus = false 
   useEffect(() => {
     if (!loading && related.length > 0 && autoFocus) {
       const timer = setTimeout(() => {
-        firstCardRef.current?.setNativeProps({ hasTVPreferredFocus: true });
+        if (firstCardRef.current) {
+          firstCardRef.current.setNativeProps({ hasTVPreferredFocus: true });
+          setTimeout(() => {
+            firstCardRef.current?.setNativeProps({ hasTVPreferredFocus: false });
+          }, 500);
+        }
       }, 500);
       return () => clearTimeout(timer);
     }

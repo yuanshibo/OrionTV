@@ -81,7 +81,12 @@ export default function HomeScreen() {
           listRef.current?.scrollToOffset({ offset: 0, animated: true });
 
           setTimeout(() => {
-            firstItemRef.current?.setNativeProps({ hasTVPreferredFocus: true });
+            if (firstItemRef.current) {
+              firstItemRef.current.setNativeProps({ hasTVPreferredFocus: true });
+              setTimeout(() => {
+                firstItemRef.current?.setNativeProps({ hasTVPreferredFocus: false });
+              }, 500);
+            }
           }, 300);
 
           backPressTimeRef.current = now;
