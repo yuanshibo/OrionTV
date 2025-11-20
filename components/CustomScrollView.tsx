@@ -1,7 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle } from "react";
+import React, { useCallback, useMemo, useRef, useState, forwardRef, useImperativeHandle } from "react";
 import {
   ActivityIndicator,
-  BackHandler,
   FlatList,
   StyleSheet,
   TouchableOpacity,
@@ -42,8 +41,6 @@ const CustomScrollView = forwardRef<FlatList<any>, CustomScrollViewProps>((
   const listRef = useRef<FlatList<any>>(null);
   useImperativeHandle(ref, () => listRef.current as FlatList<any>);
 
-  const scrollToTopTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const firstCardRef = useRef<any>(null); // <--- 新增
   const [showScrollToTop, setShowScrollToTop] = useState(false);
   const responsiveConfig = useResponsiveLayout();
   const commonStyles = getCommonResponsiveStyles(responsiveConfig);
@@ -51,31 +48,7 @@ const CustomScrollView = forwardRef<FlatList<any>, CustomScrollViewProps>((
 
   const scrollToTop = useCallback(() => {
     listRef.current?.scrollToOffset({ offset: 0, animated: true });
-
-    // 滚动动画结束后聚焦第一个卡片
-    if (scrollToTopTimeout.current) {
-      clearTimeout(scrollToTopTimeout.current);
-    }
-
-    scrollToTopTimeout.current = setTimeout(() => {
-      firstCardRef.current?.focus?.();
-    }, 500); // 500ms 适配大多数动画时长
   }, []);
-
-  // 添加返回键处理逻辑
-  useEffect(() => {
-    if (deviceType === 'tv') {
-      const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
-        if (showScrollToTop) {
-          scrollToTop();
-          return true; // 阻止默认的返回行为
-        }
-        return false; // 允许默认的返回行为
-      });
-
-      return () => backHandler.remove();
-    }
-  }, [deviceType, scrollToTop, showScrollToTop]);
 
   // 使用响应式列数，如果没有明确指定的话
   const effectiveColumns = numColumns || responsiveConfig.columns;
@@ -94,14 +67,6 @@ const CustomScrollView = forwardRef<FlatList<any>, CustomScrollViewProps>((
     },
     [onEndReached, loadingMore, loadMoreThreshold]
   );
-
-  useEffect(() => {
-    return () => {
-      if (scrollToTopTimeout.current) {
-        clearTimeout(scrollToTopTimeout.current);
-      }
-    };
-  }, []);
 
   const renderFooter = useMemo(() => {
     if (ListFooterComponent) {
@@ -177,7 +142,7 @@ const CustomScrollView = forwardRef<FlatList<any>, CustomScrollViewProps>((
       const containerStyle = isLastColumn ? dynamicStyles.cardContainer : dynamicStyles.cardContainerWithSpacing;
 
       return (
-        <View ref={index === 0 ? firstCardRef : undefined} style={containerStyle}>
+        <View style={containerStyle}>
           {renderItem({ item, index })}
         </View>
       );

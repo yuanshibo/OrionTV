@@ -1,5 +1,5 @@
 import React, { useEffect, useCallback, useMemo, useRef, useState } from "react";
-import { StyleSheet, ActivityIndicator, FlatList, Animated, StatusBar, Platform, BackHandler, ToastAndroid } from "react-native";
+import { StyleSheet, ActivityIndicator, FlatList, Animated, StatusBar, Platform, BackHandler, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ThemedView } from "@/components/ThemedView";
 import { api } from "@/services/api";
@@ -19,6 +19,7 @@ export default function HomeScreen() {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const insets = useSafeAreaInsets();
   const listRef = useRef<FlatList<RowItem>>(null);
+  const firstItemRef = useRef<View>(null);
   const lastCheckedPlayRecords = useRef<number>(0);
 
   // 响应式布局配置
@@ -78,6 +79,10 @@ export default function HomeScreen() {
 
         if (!backPressTimeRef.current || now - backPressTimeRef.current > 2000) {
           listRef.current?.scrollToOffset({ offset: 0, animated: true });
+
+          setTimeout(() => {
+            firstItemRef.current?.setNativeProps({ hasTVPreferredFocus: true });
+          }, 300);
 
           backPressTimeRef.current = now;
           return true;
@@ -215,6 +220,7 @@ export default function HomeScreen() {
 
       return (
         <VideoCard
+          ref={index === 0 ? firstItemRef : undefined}
           id={item.id}
           source={item.source}
           title={item.title}
