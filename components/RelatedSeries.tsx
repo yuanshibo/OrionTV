@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { View, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
 import { ThemedText } from './ThemedText';
 import { api, DoubanRecommendationItem, SearchResult } from '@/services/api';
@@ -10,11 +10,13 @@ import { getSearchTermFromTitle } from '@/utils/searchUtils';
 
 interface RelatedSeriesProps {
   title: string;
+  autoFocus?: boolean;
 }
 
-const RelatedSeries: React.FC<RelatedSeriesProps> = ({ title }) => {
+const RelatedSeries: React.FC<RelatedSeriesProps> = ({ title, autoFocus = false }) => {
   const [related, setRelated] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(true);
+  const firstCardRef = useRef<View>(null);
   const [listTitle, setListTitle] = useState('相关剧集');
 
   const responsiveConfig = useResponsiveLayout();
@@ -39,6 +41,15 @@ const RelatedSeries: React.FC<RelatedSeriesProps> = ({ title }) => {
       marginRight: spacing,
     },
   });
+
+  useEffect(() => {
+    if (!loading && related.length > 0 && autoFocus) {
+      const timer = setTimeout(() => {
+        firstCardRef.current?.setNativeProps({ hasTVPreferredFocus: true });
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [loading, related, autoFocus]);
 
   useEffect(() => {
     if (title) {
@@ -79,9 +90,10 @@ const RelatedSeries: React.FC<RelatedSeriesProps> = ({ title }) => {
     }
   }, [title]);
 
-  const renderItem = ({ item }: { item: SearchResult; index: number }) => (
+  const renderItem = ({ item, index }: { item: SearchResult; index: number }) => (
     <View style={styles.itemContainer}>
       <VideoCard
+        ref={index === 0 ? firstCardRef : undefined}
         id={item.id.toString()}
         source={item.source}
         title={item.title}
