@@ -47,6 +47,7 @@ export default function HomeScreen() {
   const selectedCategoryType = selectedCategory?.type;
   const apiConfigStatus = useApiConfig();
   const [isFilterPanelVisible, setFilterPanelVisible] = useState(false);
+  const [categoryFocusTrigger, setCategoryFocusTrigger] = useState(0);
 
   useEffect(() => {
     void hydrateFromStorage();
@@ -55,7 +56,9 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       if (selectedCategoryType === "record") {
-        refreshPlayRecords();
+        refreshPlayRecords().then(() => {
+          setCategoryFocusTrigger((prev) => prev + 1);
+        });
       } else if (!hasRecordCategory) {
         const now = Date.now();
         if (now - lastCheckedPlayRecords.current > 5000) {
@@ -266,6 +269,7 @@ export default function HomeScreen() {
         categoryStyles={categoryStyles}
         deviceType={deviceType}
         spacing={spacing}
+        focusTrigger={categoryFocusTrigger}
       />
 
       <ContentDisplay
@@ -286,7 +290,10 @@ export default function HomeScreen() {
       {selectedCategory && (
         <FilterPanel
           isVisible={isFilterPanelVisible}
-          onClose={() => setFilterPanelVisible(false)}
+          onClose={() => {
+            setFilterPanelVisible(false);
+            setCategoryFocusTrigger((prev) => prev + 1);
+          }}
           category={selectedCategory}
           onFilterChange={handleFilterChange}
           deviceType={deviceType}
