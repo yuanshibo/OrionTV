@@ -2,6 +2,7 @@ import React from "react";
 import { View, Text, StyleSheet, Modal, FlatList } from "react-native";
 import { StyledButton } from "./StyledButton";
 import usePlayerStore from "@/stores/playerStore";
+import usePlayerUIStore from "@/stores/playerUIStore";
 
 interface SpeedOption {
   rate: number;
@@ -19,7 +20,8 @@ const SPEED_OPTIONS: SpeedOption[] = [
 ];
 
 export const SpeedSelectionModal: React.FC = () => {
-  const { showSpeedModal, setShowSpeedModal, playbackRate, setPlaybackRate } = usePlayerStore();
+  const { playbackRate, setPlaybackRate } = usePlayerStore();
+  const { showSpeedModal, setShowSpeedModal } = usePlayerUIStore();
 
   const onSelectSpeed = (rate: number) => {
     setPlaybackRate(rate);

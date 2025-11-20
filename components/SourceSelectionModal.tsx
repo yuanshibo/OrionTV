@@ -3,14 +3,16 @@ import { View, Text, StyleSheet, Modal, FlatList } from "react-native";
 import { StyledButton } from "./StyledButton";
 import useDetailStore from "@/stores/detailStore";
 import usePlayerStore from "@/stores/playerStore";
+import usePlayerUIStore from "@/stores/playerUIStore";
 import Logger from '@/utils/Logger';
 import { useRouter } from "expo-router";
 
 const logger = Logger.withTag('SourceSelectionModal');
 
 export const SourceSelectionModal: React.FC = () => {
-    const router = useRouter();
-  const { showSourceModal, setShowSourceModal, loadVideo, currentEpisodeIndex, status } = usePlayerStore();
+  const router = useRouter();
+  const { loadVideo, currentEpisodeIndex, status } = usePlayerStore();
+  const { showSourceModal, setShowSourceModal } = usePlayerUIStore();
   const { searchResults, detail, setDetail } = useDetailStore();
 
   const onSelectSource = (index: number) => {
