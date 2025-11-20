@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from "react";
-import { View, Text, StyleSheet, Image, ScrollView, ActivityIndicator, BackHandler, useColorScheme } from "react-native";
+import { View, Image, ScrollView, BackHandler, useColorScheme } from "react-native";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
@@ -14,6 +14,9 @@ import ResponsiveHeader from "@/components/navigation/ResponsiveHeader";
 import { PlayRecordManager } from "@/services/storage";
 import { Colors } from "@/constants/Colors";
 import RelatedSeries from "@/components/RelatedSeries";
+import { SourceList } from '@/components/detail/SourceList';
+import { EpisodeList } from '@/components/detail/EpisodeList';
+import { createResponsiveStyles } from './detail.styles';
 
 type ResumeInfo = {
   hasRecord: boolean;
@@ -278,54 +281,21 @@ export default function DetailScreen() {
             <ThemedText style={dynamicStyles.description}>{detail.desc}</ThemedText>
           </View>
 
-          <View style={dynamicStyles.sourcesContainer}>
-            <View style={dynamicStyles.sourcesTitleContainer}>
-              <ThemedText style={dynamicStyles.sourcesTitle}>播放源 ({searchResults.length})</ThemedText>
-              {!allSourcesLoaded && <ActivityIndicator style={{ marginLeft: 10 }} />}
-            </View>
-            <View style={dynamicStyles.sourceList}>
-              {searchResults.map((item, index) => {
-                const isSelected = detail?.source === item.source;
-                return (
-                  <StyledButton
-                    key={index}
-                    onPress={() => setDetail(item)}
-                    isSelected={isSelected}
-                    style={dynamicStyles.sourceButton}
-                  >
-                    <ThemedText style={dynamicStyles.sourceButtonText}>{item.source_name}</ThemedText>
-                    {item.episodes.length > 1 && (
-                      <View style={[dynamicStyles.badge, isSelected && dynamicStyles.selectedBadge]}>
-                        <Text style={dynamicStyles.badgeText}>
-                          {item.episodes.length > 99 ? "99+" : `${item.episodes.length}`} 集
-                        </Text>
-                      </View>
-                    )}
-                    {item.resolution && (
-                      <View style={[dynamicStyles.badge, { backgroundColor: colors.border }, isSelected && dynamicStyles.selectedBadge]}>
-                        <Text style={dynamicStyles.badgeText}>{item.resolution}</Text>
-                      </View>
-                    )}
-                  </StyledButton>
-                );
-              })}
-            </View>
-          </View>
+          <SourceList
+            searchResults={searchResults}
+            currentSource={detail.source}
+            onSelect={setDetail}
+            loading={!allSourcesLoaded}
+            deviceType={deviceType}
+            styles={dynamicStyles}
+            colors={colors}
+          />
 
-          <View style={dynamicStyles.episodesContainer}>
-            <ThemedText style={dynamicStyles.episodesTitle}>播放列表</ThemedText>
-            <View style={dynamicStyles.episodeList}>
-              {detail.episodes.map((episode, index) => (
-                <StyledButton
-                  key={index}
-                  style={dynamicStyles.episodeButton}
-                  onPress={() => handlePlay(index)}
-                  text={`第 ${index + 1} 集`}
-                  textStyle={dynamicStyles.episodeButtonText}
-                />
-              ))}
-            </View>
-          </View>
+          <EpisodeList
+            episodes={detail.episodes}
+            onPlay={handlePlay}
+            styles={dynamicStyles}
+          />
           <RelatedSeries title={detail.title} />
         </ScrollView>
       );
@@ -373,55 +343,20 @@ export default function DetailScreen() {
           </View>
 
           <View style={dynamicStyles.bottomContainer}>
-            <View style={dynamicStyles.sourcesContainer}>
-              <View style={dynamicStyles.sourcesTitleContainer}>
-                <ThemedText style={dynamicStyles.sourcesTitle}>选择播放源 共 {searchResults.length} 个</ThemedText>
-                {!allSourcesLoaded && <ActivityIndicator style={{ marginLeft: 10 }} />}
-              </View>
-              <ScrollView
-                horizontal
-                style={dynamicStyles.sourceList}
-                showsHorizontalScrollIndicator={false}
-              >
-                {searchResults.map((item, index) => {
-                  const isSelected = detail?.source === item.source;
-                  const episodesDisplay = item.episodes.length > 99 ? "99+集" : `${item.episodes.length}集`;
-                  const metaLine = item.resolution ? `${episodesDisplay} · ${item.resolution}` : episodesDisplay;
-                  return (
-                    <StyledButton
-                      key={index}
-                       onPress={() => setDetail(item)}
-                       hasTVPreferredFocus={!isTvExperience && index === 0}
-                      isSelected={isSelected}
-                      style={dynamicStyles.sourceButton}
-                    >
-                      <View style={dynamicStyles.sourceButtonContent}>
-                        <ThemedText style={dynamicStyles.sourceNameText} numberOfLines={1}>
-                            {item.source_name}
-                        </ThemedText>
-                        <ThemedText style={dynamicStyles.sourceMetaText} numberOfLines={1}>
-                            {metaLine}
-                        </ThemedText>
-                       </View>
-                    </StyledButton>
-                  );
-                })}
-              </ScrollView>
-            </View>
-            <View style={dynamicStyles.episodesContainer}>
-              <ThemedText style={dynamicStyles.episodesTitle}>播放列表</ThemedText>
-              <View style={dynamicStyles.episodeList}>
-                {detail.episodes.map((episode, index) => (
-                  <StyledButton
-                    key={index}
-                    style={dynamicStyles.episodeButton}
-                    onPress={() => handlePlay(index)}
-                    text={`第 ${index + 1} 集`}
-                    textStyle={dynamicStyles.episodeButtonText}
-                  />
-                ))}
-              </View>
-            </View>
+            <SourceList
+              searchResults={searchResults}
+              currentSource={detail.source}
+              onSelect={setDetail}
+              loading={!allSourcesLoaded}
+              deviceType={deviceType}
+              styles={dynamicStyles}
+              colors={colors}
+            />
+            <EpisodeList
+              episodes={detail.episodes}
+              onPlay={handlePlay}
+              styles={dynamicStyles}
+            />
             <RelatedSeries title={detail.title} />
           </View>
         </ScrollView>
@@ -446,175 +381,3 @@ export default function DetailScreen() {
     </ResponsiveNavigation>
   );
 }
-
-const createResponsiveStyles = (deviceType: string, spacing: number, colors: typeof Colors.dark) => {
-  const isTV = deviceType === 'tv';
-  const isTablet = deviceType === 'tablet';
-  const isMobile = deviceType === 'mobile';
-
-  return StyleSheet.create({
-    scrollContainer: {
-      flex: 1,
-    },
-    mobileTopContainer: {
-      paddingHorizontal: spacing,
-      paddingTop: spacing,
-      paddingBottom: spacing / 2,
-    },
-    mobilePoster: {
-      width: '100%',
-      height: 280,
-      borderRadius: 8,
-      alignSelf: 'center',
-      marginBottom: spacing,
-    },
-    mobileInfoContainer: {
-      flex: 1,
-    },
-    descriptionContainer: {
-      paddingHorizontal: spacing,
-      paddingBottom: spacing,
-    },
-    topContainer: {
-      flexDirection: "row",
-      padding: spacing,
-    },
-    poster: {
-      width: isTV ? 200 : 160,
-      height: isTV ? 300 : 240,
-      borderRadius: 8,
-    },
-    infoContainer: {
-      flex: 1,
-      marginLeft: spacing,
-      justifyContent: "flex-start",
-    },
-    descriptionScrollView: {
-      height: 150,
-    },
-    titleContainer: {
-      flexDirection: "row",
-      alignItems: "center",
-      marginBottom: spacing / 2,
-    },
-    title: {
-      paddingTop: 16,
-      fontSize: isMobile ? 20 : isTablet ? 24 : 28,
-      fontWeight: "bold",
-      flexShrink: 1,
-      color: colors.text,
-      height: 45,
-    },
-    favoriteButton: {
-      padding: 10,
-      marginLeft: 10,
-      backgroundColor: "transparent",
-    },
-    playButton: {
-      marginTop: spacing / 6,
-      alignSelf: isMobile ? "stretch" : "flex-start",
-      minWidth: isTV ? 130 : isTablet ? 140 : 140,
-    },
-    playButtonText: {
-      fontSize: isMobile ? 14 : isTablet ? 15 : 15,
-      fontWeight: "600",
-    },
-    metaContainer: {
-      flexDirection: "row",
-      marginBottom: spacing / 2,
-    },
-    metaText: {
-      color: colors.icon,
-      marginRight: spacing / 2,
-      fontSize: isMobile ? 12 : 14,
-    },
-    description: {
-      fontSize: isMobile ? 13 : 14,
-      color: colors.text,
-      lineHeight: isMobile ? 18 : 22,
-    },
-    bottomContainer: {
-      paddingHorizontal: spacing,
-    },
-    sourcesContainer: {
-      marginTop: spacing,
-    },
-    sourcesTitleContainer: {
-      flexDirection: "row",
-      alignItems: "center",
-      marginBottom: spacing / 2,
-    },
-    sourcesTitle: {
-      fontSize: isMobile ? 16 : isTablet ? 18 : 20,
-      fontWeight: "bold",
-      color: colors.text,
-    },
-    sourceList: {
-      flexDirection: "row",
-      flexWrap: isMobile ? "wrap" : "nowrap",
-    },
-    sourceButton: {
-      margin: isMobile ? 4 : 8,
-      minHeight: isMobile ? 36 : 44,
-    },
-    sourceButtonContent: {
-      flexDirection: "column",
-      alignItems: "stretch",
-    },
-    sourceButtonText: {
-      color: colors.text,
-      fontSize: isMobile ? 14 : 16,
-    },
-    badge: {
-      backgroundColor: colors.border,
-      borderRadius: 10,
-      paddingHorizontal: 6,
-      paddingVertical: 2,
-      marginLeft: 8,
-    },
-    badgeText: {
-      color: colors.text,
-      fontSize: isMobile ? 10 : 12,
-      fontWeight: "bold",
-      paddingBottom: 2.5,
-    },
-    selectedBadge: {
-      backgroundColor: colors.background,
-    },
-    sourceNameText: {
-      color: colors.text,
-      fontSize: isMobile ? 14 : 14,
-      fontWeight: "600"
-    },
-    sourceMetaText: {
-      color: colors.icon,
-      fontSize: isMobile ? 10 : 10,
-      marginTop: 2,
-      textAlign: 'center',
-    },
-    episodesContainer: {
-      marginTop: spacing,
-      paddingBottom: spacing * 2,
-    },
-    episodesTitle: {
-      fontSize: isMobile ? 16 : isTablet ? 18 : 20,
-      fontWeight: "bold",
-      marginBottom: spacing / 2,
-      color: colors.text,
-    },
-    episodeList: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-    },
-    episodeButton: {
-      margin: isMobile ? 3 : 5,
-      minHeight: isMobile ? 32 : 36,
-      width: isMobile ? '23%': isTablet ? '11.5%' : '8.88%',
-    },
-    episodeButtonText: {
-      color: colors.text,
-      fontSize: isMobile ? 12 : 11,
-      textAlign: 'center',
-    },
-  });
-};
