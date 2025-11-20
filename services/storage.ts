@@ -15,8 +15,7 @@ const STORAGE_KEYS = {
   LOGIN_CREDENTIALS: "mytv_login_credentials",
 } as const;
 
-// --- Type Definitions (aligned with api.ts) ---
-// Re-exporting for consistency, though they are now primarily API types
+// --- Types ---
 export type PlayRecord = ApiPlayRecord & {
   description?: string;
   introEndTime?: number;
@@ -47,65 +46,102 @@ export interface LoginCredentials {
   password: string;
 }
 
-// --- Helper ---
 const generateKey = (source: string, id: string) => `${source}+${id}`;
 
-// --- PlayerSettingsManager (Uses AsyncStorage) ---
+// --- Base Cache Class ---
+class MemoryCache<T> {
+  private cache: T | null = null;
+  private key: string;
+  private lastFetch: number = 0;
+  private ttl: number; // Time to live in ms
+
+  constructor(key: string, ttl: number = 5000) { // Default 5s cache for safety against rapid reads
+    this.key = key;
+    this.ttl = ttl;
+  }
+
+  async get(fetcher: () => Promise<T>): Promise<T> {
+    const now = Date.now();
+    if (this.cache && (now - this.lastFetch < this.ttl)) {
+      return this.cache;
+    }
+    const data = await fetcher();
+    this.cache = data;
+    this.lastFetch = Date.now();
+    return data;
+  }
+
+  set(data: T) {
+    this.cache = data;
+    this.lastFetch = Date.now();
+  }
+
+  invalidate() {
+    this.cache = null;
+  }
+}
+
+// --- Caches ---
+// We use a longer TTL for settings and records as they don't change externally often.
+// Write operations will manually update the cache.
+const playerSettingsCache = new MemoryCache<Record<string, PlayerSettings>>(STORAGE_KEYS.PLAYER_SETTINGS, 60000);
+
+// --- PlayerSettingsManager ---
 export class PlayerSettingsManager {
   static async getAll(): Promise<Record<string, PlayerSettings>> {
-    try {
-      const data = await AsyncStorage.getItem(STORAGE_KEYS.PLAYER_SETTINGS);
-      return data ? JSON.parse(data) : {};
-    } catch (error) {
-      logger.info("Failed to get all player settings:", error);
-      return {};
-    }
+    return playerSettingsCache.get(async () => {
+      try {
+        const data = await AsyncStorage.getItem(STORAGE_KEYS.PLAYER_SETTINGS);
+        return data ? JSON.parse(data) : {};
+      } catch (error) {
+        logger.info("Failed to get all player settings:", error);
+        return {};
+      }
+    });
   }
 
   static async get(source: string, id: string): Promise<PlayerSettings | null> {
-    const perfStart = performance.now();
-    logger.info(`[PERF] PlayerSettingsManager.get START - source: ${source}, id: ${id}`);
-    
     const allSettings = await this.getAll();
-    const result = allSettings[generateKey(source, id)] || null;
-    
-    const perfEnd = performance.now();
-    logger.info(`[PERF] PlayerSettingsManager.get END - took ${(perfEnd - perfStart).toFixed(2)}ms, found: ${!!result}`);
-    
-    return result;
+    return allSettings[generateKey(source, id)] || null;
   }
 
   static async save(source: string, id: string, settings: PlayerSettings): Promise<void> {
-    const allSettings = await this.getAll();
+    const allSettings = await this.getAll(); // Ensure cache is warm
     const key = generateKey(source, id);
-    // Only save if there are actual values to save
+
     if (settings.introEndTime !== undefined || settings.outroStartTime !== undefined || settings.playbackRate !== undefined) {
       allSettings[key] = { ...allSettings[key], ...settings };
     } else {
-      // If all are undefined, remove the key
       delete allSettings[key];
     }
-    await AsyncStorage.setItem(STORAGE_KEYS.PLAYER_SETTINGS, JSON.stringify(allSettings));
+
+    // Update cache immediately
+    playerSettingsCache.set(allSettings);
+    // Persist asynchronously
+    AsyncStorage.setItem(STORAGE_KEYS.PLAYER_SETTINGS, JSON.stringify(allSettings)).catch(e => logger.error("Failed to persist player settings", e));
   }
 
   static async remove(source: string, id: string): Promise<void> {
     const allSettings = await this.getAll();
     delete allSettings[generateKey(source, id)];
-    await AsyncStorage.setItem(STORAGE_KEYS.PLAYER_SETTINGS, JSON.stringify(allSettings));
+    playerSettingsCache.set(allSettings);
+    AsyncStorage.setItem(STORAGE_KEYS.PLAYER_SETTINGS, JSON.stringify(allSettings)).catch(e => logger.error("Failed to persist player settings removal", e));
   }
 
   static async clearAll(): Promise<void> {
+    playerSettingsCache.set({});
     await AsyncStorage.removeItem(STORAGE_KEYS.PLAYER_SETTINGS);
   }
 }
 
-// --- FavoriteManager (Dynamic: API or LocalStorage) ---
+// --- FavoriteManager ---
 export class FavoriteManager {
   private static getStorageType() {
     return storageConfig.getStorageType();
   }
 
   static async getAll(): Promise<Record<string, Favorite>> {
+    // Note: Not caching Favorites heavily yet as they might be edited elsewhere if using API
     if (this.getStorageType() === "localstorage") {
       try {
         const data = await AsyncStorage.getItem(STORAGE_KEYS.FAVORITES);
@@ -170,37 +206,39 @@ export class FavoriteManager {
   }
 }
 
-// --- PlayRecordManager (Dynamic: API or LocalStorage) ---
+// --- PlayRecordManager Cache ---
+// Caching API records is tricky if they change on server, but for play records usually local is freshest.
+// We'll cache local storage read.
+const localPlayRecordsCache = new MemoryCache<Record<string, PlayRecord>>(STORAGE_KEYS.PLAY_RECORDS, 30000);
+
 export class PlayRecordManager {
   private static getStorageType() {
     return storageConfig.getStorageType();
   }
 
   static async getAll(): Promise<Record<string, PlayRecord>> {
-    const perfStart = performance.now();
     const storageType = this.getStorageType();
-    logger.info(`[PERF] PlayRecordManager.getAll START - storageType: ${storageType}`);
     
     let apiRecords: Record<string, PlayRecord> = {};
     if (storageType === "localstorage") {
-      try {
-        const data = await AsyncStorage.getItem(STORAGE_KEYS.PLAY_RECORDS);
-        apiRecords = data ? JSON.parse(data) : {};
-      } catch (error) {
-        logger.info("Failed to get all local play records:", error);
-        return {};
-      }
+      apiRecords = await localPlayRecordsCache.get(async () => {
+        try {
+          const data = await AsyncStorage.getItem(STORAGE_KEYS.PLAY_RECORDS);
+          return data ? JSON.parse(data) : {};
+        } catch (error) {
+          logger.info("Failed to get all local play records:", error);
+          return {};
+        }
+      });
     } else {
-      const apiStart = performance.now();
-      logger.info(`[PERF] API getPlayRecords START`);
-      
+      // For API, we probably shouldn't cache indefinitely, but maybe for a short session
       apiRecords = await api.getPlayRecords();
-      
-      const apiEnd = performance.now();
-      logger.info(`[PERF] API getPlayRecords END - took ${(apiEnd - apiStart).toFixed(2)}ms, records: ${Object.keys(apiRecords).length}`);
     }
 
+    // Merge with settings (which is cached now)
     const localSettings = await PlayerSettingsManager.getAll();
+
+    // Merging is fast enough in memory usually, unless thousands of records
     const mergedRecords: Record<string, PlayRecord> = {};
     for (const key in apiRecords) {
       mergedRecords[key] = {
@@ -209,16 +247,11 @@ export class PlayRecordManager {
       };
     }
     
-    const perfEnd = performance.now();
-    logger.info(`[PERF] PlayRecordManager.getAll END - took ${(perfEnd - perfStart).toFixed(2)}ms, total records: ${Object.keys(mergedRecords).length}`);
-    
     return mergedRecords;
   }
 
   static async getAllLatestByTitle(): Promise<Record<string, PlayRecord>> {
     const allRecords = await this.getAll();
-
-    // 1. Sort all records by save_time descending
     const sortedRecords = Object.entries(allRecords).sort(([, a], [, b]) => (b.save_time ?? 0) - (a.save_time ?? 0));
 
     const latestByTitle: Record<string, PlayRecord> = {};
@@ -226,26 +259,17 @@ export class PlayRecordManager {
     const limit = 25;
 
     for (const [key, record] of sortedRecords) {
-        // 2. Stop if we have collected enough unique titles
-        if (Object.keys(latestByTitle).length >= limit) {
-            break;
-        }
-
+        if (Object.keys(latestByTitle).length >= limit) break;
         const normTitle = (record?.title ?? '').trim().replace(/\s+/g, ' ');
-
-        // 3. If title is empty, treat it as unique and add it
         if (!normTitle) {
             latestByTitle[key] = record;
             continue;
         }
-
-        // 4. If we haven't seen this title yet, add it to our results
         if (!seenTitles.has(normTitle)) {
             latestByTitle[key] = record;
             seenTitles.add(normTitle);
         }
     }
-
     return latestByTitle;
   }
 
@@ -253,23 +277,27 @@ export class PlayRecordManager {
     const key = generateKey(source, id);
     const { introEndTime, outroStartTime, description, ...apiRecord } = record;
 
-    // Player settings are always saved locally
     await PlayerSettingsManager.save(source, id, { introEndTime, outroStartTime });
 
     if (this.getStorageType() === "localstorage") {
-      const data = await AsyncStorage.getItem(STORAGE_KEYS.PLAY_RECORDS);
-      const allRecords = data ? JSON.parse(data) : {};
-      const existingRecord = allRecords[key] || {};
+      // Get from cache first to avoid reading disk
+      const allRecords = await localPlayRecordsCache.get(async () => {
+         const data = await AsyncStorage.getItem(STORAGE_KEYS.PLAY_RECORDS);
+         return data ? JSON.parse(data) : {};
+      });
       
+      const existingRecord = allRecords[key] || {};
       const fullRecord = { ...apiRecord, save_time: Date.now() };
       const newRecord = { ...existingRecord, ...fullRecord };
 
-      // Only add description if it's provided and doesn't already exist
       if (description && !existingRecord.description) {
         newRecord.description = description;
       }
       allRecords[key] = newRecord;
-      await AsyncStorage.setItem(STORAGE_KEYS.PLAY_RECORDS, JSON.stringify(allRecords));
+
+      // Update cache and persist
+      localPlayRecordsCache.set(allRecords);
+      AsyncStorage.setItem(STORAGE_KEYS.PLAY_RECORDS, JSON.stringify(allRecords)).catch(e => logger.error("Failed to save play record", e));
     } else {
       const recordToSave = { ...apiRecord } as Omit<ApiPlayRecord, "save_time"> & { description?: string };
       const existingRecord = await this.get(source, id);
@@ -281,27 +309,19 @@ export class PlayRecordManager {
   }
 
   static async get(source: string, id: string): Promise<PlayRecord | null> {
-    const perfStart = performance.now();
     const key = generateKey(source, id);
-    const storageType = this.getStorageType();
-    logger.info(`[PERF] PlayRecordManager.get START - source: ${source}, id: ${id}, storageType: ${storageType}`);
-    
     const records = await this.getAll();
-    const result = records[key] || null;
-    
-    const perfEnd = performance.now();
-    logger.info(`[PERF] PlayRecordManager.get END - took ${(perfEnd - perfStart).toFixed(2)}ms, found: ${!!result}`);
-    
-    return result;
+    return records[key] || null;
   }
 
   static async remove(source: string, id: string): Promise<void> {
     const key = generateKey(source, id);
-    await PlayerSettingsManager.remove(source, id); // Always remove local settings
+    await PlayerSettingsManager.remove(source, id);
 
     if (this.getStorageType() === "localstorage") {
-      const allRecords = await this.getAll();
+      const allRecords = await localPlayRecordsCache.get(async () => ({})); // Should satisfy type, or fetch if empty
       delete allRecords[key];
+      localPlayRecordsCache.set(allRecords);
       await AsyncStorage.setItem(STORAGE_KEYS.PLAY_RECORDS, JSON.stringify(allRecords));
     } else {
       await api.deletePlayRecord(key);
@@ -309,9 +329,10 @@ export class PlayRecordManager {
   }
 
   static async clearAll(): Promise<void> {
-    await PlayerSettingsManager.clearAll(); // Always clear local settings
+    await PlayerSettingsManager.clearAll();
 
     if (this.getStorageType() === "localstorage") {
+      localPlayRecordsCache.set({});
       await AsyncStorage.removeItem(STORAGE_KEYS.PLAY_RECORDS);
     } else {
       await api.deletePlayRecord();
@@ -319,7 +340,7 @@ export class PlayRecordManager {
   }
 }
 
-// --- SearchHistoryManager (Dynamic: API or LocalStorage) ---
+// --- SearchHistoryManager ---
 export class SearchHistoryManager {
   private static getStorageType() {
     return storageConfig.getStorageType();
@@ -344,7 +365,7 @@ export class SearchHistoryManager {
 
     if (this.getStorageType() === "localstorage") {
       let history = await this.get();
-      history = [trimmed, ...history.filter((k) => k !== trimmed)].slice(0, 20); // Keep latest 20
+      history = [trimmed, ...history.filter((k) => k !== trimmed)].slice(0, 20);
       await AsyncStorage.setItem(STORAGE_KEYS.SEARCH_HISTORY, JSON.stringify(history));
       return;
     }
@@ -360,7 +381,7 @@ export class SearchHistoryManager {
   }
 }
 
-// --- SettingsManager (Uses AsyncStorage) ---
+// --- SettingsManager ---
 export class SettingsManager {
   static async get(): Promise<AppSettings> {
     const defaultSettings: AppSettings = {
@@ -392,7 +413,7 @@ export class SettingsManager {
   }
 }
 
-// --- LoginCredentialsManager (Uses AsyncStorage) ---
+// --- LoginCredentialsManager ---
 export class LoginCredentialsManager {
   static async get(): Promise<LoginCredentials | null> {
     try {

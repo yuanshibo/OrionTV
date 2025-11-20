@@ -58,11 +58,13 @@ const VideoCard = forwardRef<View, VideoCardProps>(
     const colorScheme = useColorScheme() ?? 'dark';
     const colors = Colors[colorScheme];
     const [isFocused, setIsFocused] = useState(false);
-    const [fadeAnim] = useState(new Animated.Value(0));
+
+    // Optimization: Use useRef for Animated Values to ensure stability and avoid recreation
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+    const scale = useRef(new Animated.Value(1)).current;
 
     const longPressTriggered = useRef(false);
 
-    const scale = useRef(new Animated.Value(1)).current;
     const fadeInAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
     const scaleAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
 
