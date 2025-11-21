@@ -1080,6 +1080,7 @@ const useHomeStore = create<HomeState>((set, get) => ({
     const { apiBaseUrl } = useSettingsStore.getState();
     await useAuthStore.getState().checkLoginStatus(apiBaseUrl);
     const { isLoggedIn } = useAuthStore.getState();
+
     if (!isLoggedIn) {
       set((state) => {
         const recordCategoryExists = state.categories.some((c) => c.type === "record");
@@ -1087,9 +1088,7 @@ const useHomeStore = create<HomeState>((set, get) => ({
           const newCategories = state.categories.filter((c) => c.type !== "record");
           if (state.selectedCategory.type === "record") {
             const nextCategory = newCategories[0];
-            if (nextCategory) {
-              get().selectCategory(nextCategory);
-            }
+            return { categories: newCategories, selectedCategory: nextCategory || state.selectedCategory };
           }
           return { categories: newCategories };
         }
@@ -1097,27 +1096,44 @@ const useHomeStore = create<HomeState>((set, get) => ({
       });
       return;
     }
+
     const records = await PlayRecordManager.getAllLatestByTitle();
     const hasRecords = Object.keys(records).length > 0;
+
     set((state) => {
       const recordCategoryExists = state.categories.some((c) => c.type === "record");
+      let newCategories = state.categories;
+
       if (hasRecords && !recordCategoryExists) {
-        return { categories: [initialCategories[0], ...state.categories] };
+        newCategories = [initialCategories[0], ...state.categories];
+      } else if (!hasRecords && recordCategoryExists) {
+        newCategories = state.categories.filter((c) => c.type !== "record");
       }
-      if (!hasRecords && recordCategoryExists) {
-        const newCategories = state.categories.filter((c) => c.type !== "record");
-        if (state.selectedCategory.type === "record") {
+
+      const updates: Partial<HomeState> = {};
+      if (newCategories !== state.categories) {
+        updates.categories = newCategories;
+      }
+
+      if (state.selectedCategory.type === "record") {
+        if (hasRecords) {
+          const rowItems = transformPlayRecordsToRowItems(records);
+          updates.contentData = rowItems;
+          updates.pageStart = rowItems.length;
+          updates.hasMore = false;
+          updates.loading = false;
+          updates.loadingMore = false;
+          updates.error = null;
+        } else {
           const nextCategory = newCategories[0];
           if (nextCategory) {
-            get().selectCategory(nextCategory);
+            updates.selectedCategory = nextCategory;
           }
         }
-        return { categories: newCategories };
       }
-      return {};
-    });
 
-    get().fetchInitialData();
+      return updates;
+    });
   },
 
   clearError: () => {

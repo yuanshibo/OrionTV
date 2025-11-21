@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView, BackHandler, FlatList } from "react-native";
+import { Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView, FlatList } from "react-native";
 import { Category, DoubanFilterKey } from "@/stores/homeStore";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StyledButton } from "@/components/StyledButton";
@@ -17,18 +17,6 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ isVisible, onClose, category,
   const insets = useSafeAreaInsets();
   const colorScheme = "dark";
   const colors = Colors[colorScheme];
-
-  React.useEffect(() => {
-    const backHandler = BackHandler.addEventListener("hardwareBackPress", () => {
-      if (isVisible) {
-        onClose();
-        return true;
-      }
-      return false;
-    });
-
-    return () => backHandler.remove();
-  }, [isVisible, onClose]);
 
   const styles = useMemo(() => StyleSheet.create({
     panel: {

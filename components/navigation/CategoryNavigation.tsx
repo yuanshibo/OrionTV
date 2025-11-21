@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { FlatList, View } from "react-native";
 import { StyledButton } from "@/components/StyledButton";
 import { Category } from "@/stores/homeStore";
+import { requestTVFocus } from "@/utils/tvUtils";
 
 interface CategoryNavigationProps {
   categories: Category[];
@@ -12,13 +13,25 @@ interface CategoryNavigationProps {
   categoryStyles: any;
   deviceType: "mobile" | "tablet" | "tv";
   spacing: number;
+  focusTrigger?: number;
 }
 
-export const CategoryNavigation: React.FC<CategoryNavigationProps> = ({ categories, selectedCategory, onCategorySelect, onCategoryLongPress, onTagSelect, categoryStyles, deviceType, spacing }) => {
+export const CategoryNavigation: React.FC<CategoryNavigationProps> = ({ categories, selectedCategory, onCategorySelect, onCategoryLongPress, onTagSelect, categoryStyles, deviceType, spacing, focusTrigger }) => {
+  const buttonRefs = useRef<(any)[]>([]);
+
+  useEffect(() => {
+    if (focusTrigger && selectedCategory) {
+      const index = categories.findIndex((c) => c.title === selectedCategory.title);
+      const buttonRef = buttonRefs.current[index];
+      requestTVFocus(buttonRef);
+    }
+  }, [focusTrigger, selectedCategory, categories]);
+
   const renderCategory = ({ item, index }: { item: Category; index: number }) => {
     const isSelected = selectedCategory?.title === item.title;
     return (
       <StyledButton
+        ref={(ref) => { buttonRefs.current[index] = ref; }}
         hasTVPreferredFocus={index === 0}
         text={item.title}
         onPress={() => onCategorySelect(item)}
