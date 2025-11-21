@@ -1,20 +1,29 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback, memo } from "react";
 import { View, Text, StyleSheet, Modal, FlatList } from "react-native";
+import { useShallow } from "zustand/react/shallow";
 import { StyledButton } from "./StyledButton";
 import usePlayerStore from "@/stores/playerStore";
 import usePlayerUIStore from "@/stores/playerUIStore";
 
 const EPISODE_GROUP_SIZE = 30;
 
-export const EpisodeSelectionModal: React.FC = () => {
+export const EpisodeSelectionModal = memo(() => {
   // Store selections
-  const episodes = usePlayerStore((state) => state.episodes);
-  const currentEpisodeIndex = usePlayerStore((state) => state.currentEpisodeIndex);
-  const playEpisode = usePlayerStore((state) => state.playEpisode);
+  const { episodes, currentEpisodeIndex, playEpisode } = usePlayerStore(
+    useShallow((state) => ({
+      episodes: state.episodes,
+      currentEpisodeIndex: state.currentEpisodeIndex,
+      playEpisode: state.playEpisode,
+    }))
+  );
 
   // UI Store selections
-  const showEpisodeModal = usePlayerUIStore((state) => state.showEpisodeModal);
-  const setShowEpisodeModal = usePlayerUIStore((state) => state.setShowEpisodeModal);
+  const { showEpisodeModal, setShowEpisodeModal } = usePlayerUIStore(
+    useShallow((state) => ({
+      showEpisodeModal: state.showEpisodeModal,
+      setShowEpisodeModal: state.setShowEpisodeModal,
+    }))
+  );
 
   const initialGroup = currentEpisodeIndex >= 0 ? Math.floor(currentEpisodeIndex / EPISODE_GROUP_SIZE) : 0;
   const [selectedEpisodeGroup, setSelectedEpisodeGroup] = useState(initialGroup);
@@ -43,14 +52,14 @@ export const EpisodeSelectionModal: React.FC = () => {
   const startIndex = selectedEpisodeGroup * EPISODE_GROUP_SIZE;
   const visibleEpisodes = episodes.slice(startIndex, startIndex + EPISODE_GROUP_SIZE);
 
-  const onSelectEpisode = (index: number) => {
+  const onSelectEpisode = useCallback((index: number) => {
     playEpisode(index);
     setShowEpisodeModal(false);
-  };
+  }, [playEpisode, setShowEpisodeModal]);
 
-  const onClose = () => {
+  const onClose = useCallback(() => {
     setShowEpisodeModal(false);
-  };
+  }, [setShowEpisodeModal]);
 
   return (
     <Modal visible={showEpisodeModal} transparent={true} animationType="slide" onRequestClose={onClose}>
@@ -81,7 +90,7 @@ export const EpisodeSelectionModal: React.FC = () => {
               const absoluteIndex = startIndex + index;
               return (
                 <StyledButton
-                  text={item.title || `第 {absoluteIndex + 1} 集`}
+                  text={item.title || `第 ${absoluteIndex + 1} 集`}
                   onPress={() => onSelectEpisode(absoluteIndex)}
                   isSelected={currentEpisodeIndex === absoluteIndex}
                   hasTVPreferredFocus={currentEpisodeIndex === absoluteIndex}
@@ -90,12 +99,15 @@ export const EpisodeSelectionModal: React.FC = () => {
                 />
               );
             }}
+            initialNumToRender={15}
+            maxToRenderPerBatch={15}
+            windowSize={5}
           />
         </View>
       </View>
     </Modal>
   );
-};
+});
 
 const styles = StyleSheet.create({
   modalContainer: {
