@@ -1,23 +1,19 @@
-import React, { useEffect, useState, useCallback, useMemo } from "react";
-import { View, ScrollView, BackHandler, useColorScheme } from "react-native";
-import { Image } from 'expo-image';
+import React, { useEffect, useCallback, useMemo } from "react";
+import { BackHandler, useColorScheme } from "react-native";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
-import { StyledButton } from "@/components/StyledButton";
 import VideoLoadingAnimation from "@/components/VideoLoadingAnimation";
 import useDetailStore from "@/stores/detailStore";
-import { FontAwesome } from "@expo/vector-icons";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { getCommonResponsiveStyles } from "@/utils/ResponsiveStyles";
 import ResponsiveNavigation from "@/components/navigation/ResponsiveNavigation";
 import ResponsiveHeader from "@/components/navigation/ResponsiveHeader";
 import { Colors } from "@/constants/Colors";
-import RelatedSeries from "@/components/RelatedSeries";
-import { SourceList } from '@/components/detail/SourceList';
-import { EpisodeList } from '@/components/detail/EpisodeList';
 import { createResponsiveStyles } from './_detail.styles';
 import { useResumeProgress } from "@/hooks/useResumeProgress";
+import { DetailMobileView } from "@/components/detail/DetailMobileView";
+import { DetailTVView } from "@/components/detail/DetailTVView";
 
 export default function DetailScreen() {
   const { q, source, id } = useLocalSearchParams<{ q: string; source?: string; id?: string }>();
@@ -62,9 +58,7 @@ export default function DetailScreen() {
         return;
       }
       const handler = BackHandler.addEventListener("hardwareBackPress", () => {
-        const canGoBack = router.canGoBack();
-
-        if (canGoBack) {
+        if (router.canGoBack()) {
           router.back();
           return true;
         }
@@ -156,133 +150,28 @@ export default function DetailScreen() {
   const isPlayDisabled = totalEpisodes === 0;
   const playButtonLabel = (resumeInfo.hasRecord ? `继续播放 · 第${resumeInfo.episodeIndex + 1}集` : "立即播放 · 第1集") + `/全${totalEpisodes}集`;
 
-
-  const renderDetailContent = () => {
-    if (deviceType === 'mobile') {
-      return (
-        <ScrollView
-          style={dynamicStyles.scrollContainer}
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={dynamicStyles.mobileTopContainer}>
-            <Image source={{ uri: detail.poster }} style={dynamicStyles.mobilePoster} contentFit="cover" />
-            <View style={dynamicStyles.mobileInfoContainer}>
-              <View style={dynamicStyles.titleContainer}>
-                <ThemedText style={dynamicStyles.title} numberOfLines={2}>
-                  {detail.title}
-                </ThemedText>
-                <StyledButton onPress={toggleFavorite} variant="ghost" style={dynamicStyles.favoriteButton}>
-                  <FontAwesome
-                    name={isFavorited ? "heart" : "heart-o"}
-                    size={20}
-                    color={isFavorited ? colors.tint : colors.icon}
-                  />
-                </StyledButton>
-              </View>
-              <StyledButton
-                onPress={handlePrimaryPlay}
-                style={dynamicStyles.playButton}
-                text={playButtonLabel}
-                textStyle={dynamicStyles.playButtonText}
-                disabled={isPlayDisabled}
-              />
-              <View style={dynamicStyles.metaContainer}>
-                <ThemedText style={dynamicStyles.metaText}>{detail.year}</ThemedText>
-                <ThemedText style={dynamicStyles.metaText}>{detail.type_name}</ThemedText>
-              </View>
-            </View>
-          </View>
-
-          <View style={dynamicStyles.descriptionContainer}>
-            <ThemedText style={dynamicStyles.description}>{detail.desc}</ThemedText>
-          </View>
-
-          <SourceList
-            searchResults={searchResults}
-            currentSource={detail.source}
-            onSelect={setDetail}
-            loading={!allSourcesLoaded}
-            deviceType={deviceType}
-            styles={dynamicStyles}
-            colors={colors}
-          />
-
-          <EpisodeList
-            episodes={detail.episodes}
-            onPlay={handlePlay}
-            styles={dynamicStyles}
-          />
-          <RelatedSeries title={detail.title} />
-        </ScrollView>
-      );
-    } else {
-      return (
-        <ScrollView
-          style={dynamicStyles.scrollContainer}
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={dynamicStyles.topContainer}>
-            <Image source={{ uri: detail.poster }} style={dynamicStyles.poster} contentFit="cover" />
-            <View style={dynamicStyles.infoContainer}>
-              <View style={dynamicStyles.titleContainer}>
-                <ThemedText style={dynamicStyles.title} numberOfLines={1} ellipsizeMode="tail">
-                  {detail.title}
-                </ThemedText>
-                <StyledButton onPress={toggleFavorite} variant="ghost" style={dynamicStyles.favoriteButton}>
-                  <FontAwesome
-                    name={isFavorited ? "heart" : "heart-o"}
-                    size={24}
-                    color={isFavorited ? colors.tint : colors.icon}
-                  />
-                </StyledButton>
-              </View>
-               <StyledButton
-                 onPress={handlePrimaryPlay}
-                 style={dynamicStyles.playButton}
-                 text={playButtonLabel}
-                 textStyle={dynamicStyles.playButtonText}
-                 disabled={isPlayDisabled}
-                 hasTVPreferredFocus={isTvExperience}
-               />
-              <View style={dynamicStyles.metaContainer}>
-                <ThemedText style={dynamicStyles.metaText}>{detail.year}</ThemedText>
-                <ThemedText style={dynamicStyles.metaText}>{detail.type_name}</ThemedText>
-              </View>
-
-              <ScrollView
-                style={dynamicStyles.descriptionScrollView}
-                showsVerticalScrollIndicator={false}
-              >
-                <ThemedText style={dynamicStyles.description}>{detail.desc}</ThemedText>
-              </ScrollView>
-            </View>
-          </View>
-
-          <View style={dynamicStyles.bottomContainer}>
-            <SourceList
-              searchResults={searchResults}
-              currentSource={detail.source}
-              onSelect={setDetail}
-              loading={!allSourcesLoaded}
-              deviceType={deviceType}
-              styles={dynamicStyles}
-              colors={colors}
-            />
-            <EpisodeList
-              episodes={detail.episodes}
-              onPlay={handlePlay}
-              styles={dynamicStyles}
-            />
-            <RelatedSeries title={detail.title} />
-          </View>
-        </ScrollView>
-      );
-    }
+  const detailProps = {
+    detail,
+    searchResults,
+    allSourcesLoaded,
+    isFavorited,
+    toggleFavorite,
+    handlePrimaryPlay,
+    playButtonLabel,
+    isPlayDisabled,
+    setDetail,
+    handlePlay,
+    colors,
+    dynamicStyles,
   };
 
   const content = (
     <ThemedView style={[commonStyles.container, { paddingTop: isTvExperience ? 40 : 0 }]}>
-      {renderDetailContent()}
+       {deviceType === 'mobile' ? (
+         <DetailMobileView {...detailProps} />
+       ) : (
+         <DetailTVView {...detailProps} />
+       )}
     </ThemedView>
   );
 

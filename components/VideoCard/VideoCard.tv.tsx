@@ -181,7 +181,7 @@ const VideoCard = forwardRef<View, VideoCardProps>(
           style={({ pressed }) => [
             styles.pressable,
             {
-              zIndex: pressed ? 999 : 1,
+              zIndex: pressed || isFocused ? 999 : 1,
             },
           ]}
           delayLongPress={1000}
