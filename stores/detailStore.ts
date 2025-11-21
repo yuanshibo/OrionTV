@@ -1,411 +1,29 @@
 import { create } from "zustand";
-import { SearchResult, api, isNetworkStatusZeroError, SearchResultWithResolution } from "@/services/api";
-import { getResolutionFromM3U8 } from "@/services/m3u8";
+import { api, SearchResult, SearchResultWithResolution } from "@/services/api";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { FavoriteManager } from "@/services/storage";
 import Logger from "@/utils/Logger";
+import { DetailState } from "@/types/detail";
+import {
+  getDetailCacheEntry,
+  setDetailCacheEntry,
+  getResolutionWithCache,
+} from "@/services/detailCache";
+import {
+  buildDetailCacheKey,
+  buildResultDedupeKey,
+  normalizeSourceName,
+  shouldPreferRawResult,
+  mergeResultsByDedupeKey,
+} from "@/utils/detailUtils";
+import { mapErrorToMessage } from "@/utils/errorUtils";
 
 const logger = Logger.withTag('DetailStore');
 
 const MAX_PLAY_SOURCES = 8;
 const MAX_CONCURRENT_SOURCE_REQUESTS = 3;
 
-const DETAIL_CACHE_TTL = 10 * 60 * 1000;
-const DETAIL_CACHE_MAX_ENTRIES = 8;
-const RESOLUTION_CACHE_TTL = 60 * 60 * 1000;
-const NETWORK_ERROR_FRIENDLY_MESSAGE = "网络请求失败，请检查网络连接后重试";
-
-const mapNetworkErrorMessage = (error: unknown, fallback: string): string => {
-  if (isNetworkStatusZeroError(error)) {
-    return NETWORK_ERROR_FRIENDLY_MESSAGE;
-  }
-
-  if (typeof fallback === "string" && fallback.trim().length > 0) {
-    return fallback;
-  }
-
-  return NETWORK_ERROR_FRIENDLY_MESSAGE;
-};
-
-
-const normalizeIdentifier = (value?: string | null): string => {
-  if (!value) {
-    return "";
-  }
-
-  return value
-    .normalize("NFKC")
-    .trim()
-    .toLowerCase()
-    .replace(/[\u3000\u00A0\s]+/g, "")
-    .replace(/[·•~!@#$%^&*()_+=[\]{}|\\;:'",.<>/?`！￥…（）—【】「」『』、《》？。，、丨-]/g, "");
-};
-
-const VARIANT_SUFFIX_PATTERNS: readonly RegExp[] = [
-  /(?:第?\d{1,3}(?:线|源))$/u, // “第1线”“1源”等线路编号
-  /(?:线路?\d{1,3})$/u, // “线路1”“线1” 等简写
-  /(?:line\d{1,3})$/u, // “line1” 等英文线路标签
-  /(?:主线|多线|备用)$/u, // “主线”“备用”等调度说明
-  /(?:无广|无广告)$/u, // “无广”一类去广告说明
-  /(?:超清|高清|蓝光|标清|普清)$/u, // 画质标签
-  /(?:\d{3,4}p)$/u, // 1080p 等数字画质标签
-  /(?:4k|2k|uhd|fhd)$/u, // UHD/FHD 等英文画质标签
-  /(?:资源|源|source)\d{1,3}$/u, // “资源1”“source2”等编号
-];
-
-/**
- * Remove marketing/line suffixes that aggregators append to provider names so that
- * "暴风资源线路1"、"暴风资源蓝光" 等变体都会映射到同一个去重键。
- */
-const stripVariantSuffixes = (value: string): string => {
-  let result = value;
-  let previous: string;
-
-  do {
-    previous = result;
-    for (const pattern of VARIANT_SUFFIX_PATTERNS) {
-      result = result.replace(pattern, "");
-    }
-  } while (previous !== result);
-
-  return result;
-};
-
-const normalizeSourceName = (sourceName?: string | null): string => {
-  if (!sourceName) {
-    return "";
-  }
-
-  const normalized = normalizeIdentifier(sourceName);
-  return stripVariantSuffixes(normalized);
-};
-
-const buildDetailCacheKey = (query: string, preferredSource?: string, resourceId?: string) => {
-  const normalizedQuery = normalizeIdentifier(query);
-  const normalizedSource = preferredSource ? normalizeIdentifier(preferredSource) : "";
-  const normalizedId = resourceId ? resourceId.toString() : "";
-  return `${normalizedQuery}::${normalizedSource}::${normalizedId}`;
-};
-
-
-const buildResultDedupeKey = (
-  item: Pick<SearchResult, "source" | "source_name" | "title" | "id">,
-  contextSourceKey?: string
-): string => {
-  const contextKey = stripVariantSuffixes(normalizeIdentifier(contextSourceKey));
-  const sourceKey = stripVariantSuffixes(normalizeIdentifier(item.source));
-  const nameKey = normalizeSourceName(item.source_name);
-
-  if (contextKey) {
-    return contextKey;
-  }
-
-  if (sourceKey) {
-    return sourceKey;
-  }
-
-  if (nameKey) {
-    return nameKey;
-  }
-
-  const titleKey = normalizeIdentifier(item.title);
-  return titleKey ? `${titleKey}:${item.id}` : `${item.id}`;
-};
-
-const labelPriority = (sourceName?: string | null): number => {
-  if (!sourceName) {
-    return 0;
-  }
-
-  const normalized = sourceName.trim().toLowerCase();
-  let score = 0;
-
-  if (normalized.includes("无广") || normalized.includes("无广告")) {
-    score += 4;
-  }
-  if (normalized.includes("蓝光")) {
-    score += 3;
-  }
-  if (normalized.includes("超清")) {
-    score += 2;
-  }
-  if (normalized.includes("高清")) {
-    score += 1;
-  }
-  if (normalized.includes("备用")) {
-    score -= 3;
-  }
-  if (normalized.includes("线路") || normalized.includes("line")) {
-    score -= 2;
-  }
-  if (normalized.includes("主线")) {
-    score -= 1;
-  }
-
-  return score;
-};
-
-const resolutionPriority = (resolution?: string | null): number => {
-  if (!resolution) {
-    return 0;
-  }
-
-  const normalized = resolution.toLowerCase();
-
-  if (/(4k|2160)/.test(normalized)) {
-    return 6;
-  }
-  if (/(2k|1440)/.test(normalized)) {
-    return 5;
-  }
-
-  const match = normalized.match(/(\d{3,4})p/);
-  if (match) {
-    const value = Number(match[1]);
-    if (value >= 2160) {
-      return 6;
-    }
-    if (value >= 1440) {
-      return 5;
-    }
-    if (value >= 1080) {
-      return 4;
-    }
-    if (value >= 720) {
-      return 3;
-    }
-    if (value >= 540) {
-      return 2;
-    }
-    if (value >= 480) {
-      return 1;
-    }
-  }
-
-  if (normalized.includes("蓝光")) {
-    return 4;
-  }
-  if (normalized.includes("超清")) {
-    return 3;
-  }
-  if (normalized.includes("高清")) {
-    return 2;
-  }
-  if (normalized.includes("标清")) {
-    return 1;
-  }
-
-  return 0;
-};
-
-const shouldPreferRawResult = (current: SearchResult, candidate: SearchResult): boolean => {
-  const currentEpisodes = current.episodes?.length ?? 0;
-  const candidateEpisodes = candidate.episodes?.length ?? 0;
-
-  if (candidateEpisodes > currentEpisodes) {
-    return true;
-  }
-
-  if (candidateEpisodes < currentEpisodes) {
-    return false;
-  }
-
-  const currentLabelScore = labelPriority(current.source_name);
-  const candidateLabelScore = labelPriority(candidate.source_name);
-
-  if (candidateLabelScore > currentLabelScore) {
-    return true;
-  }
-
-  if (candidateLabelScore < currentLabelScore) {
-    return false;
-  }
-
-  const currentNameLength = current.source_name?.trim().length ?? 0;
-  const candidateNameLength = candidate.source_name?.trim().length ?? 0;
-
-  if (candidateNameLength && (!currentNameLength || candidateNameLength < currentNameLength)) {
-    return true;
-  }
-
-  return false;
-};
-
-type DetailCacheEntry = {
-  timestamp: number;
-  detail: SearchResultWithResolution | null;
-  searchResults: SearchResultWithResolution[];
-  sources: { source: string; source_name: string; resolution: string | null | undefined }[];
-  allSourcesLoaded: boolean;
-};
-
-const detailCache = new Map<string, DetailCacheEntry>();
-const resolutionCache = new Map<string, { value: string | null | undefined; timestamp: number }>();
-const resolutionCachePending = new Map<string, Promise<string | null | undefined>>();
 let lastCacheKey: string | null = null;
-
-const getDetailCacheEntry = (cacheKey: string): DetailCacheEntry | null => {
-  const entry = detailCache.get(cacheKey);
-  if (!entry) {
-    return null;
-  }
-
-  if (Date.now() - entry.timestamp > DETAIL_CACHE_TTL) {
-    detailCache.delete(cacheKey);
-    return null;
-  }
-
-  return entry;
-};
-
-const setDetailCacheEntry = (
-  cacheKey: string,
-  detail: SearchResultWithResolution | null,
-  searchResults: SearchResultWithResolution[],
-  sources: { source: string; source_name: string; resolution: string | null | undefined }[],
-  allSourcesLoaded: boolean
-) => {
-  detailCache.set(cacheKey, {
-    timestamp: Date.now(),
-    detail: detail ? { ...detail } : null,
-    searchResults: searchResults.map((item) => ({ ...item })),
-    sources: sources.map((item) => ({ ...item })),
-    allSourcesLoaded,
-  });
-
-  if (detailCache.size > DETAIL_CACHE_MAX_ENTRIES) {
-    let oldestKey: string | null = null;
-    let oldestTimestamp = Number.POSITIVE_INFINITY;
-    for (const [key, value] of detailCache.entries()) {
-      if (value.timestamp < oldestTimestamp) {
-        oldestTimestamp = value.timestamp;
-        oldestKey = key;
-      }
-    }
-
-    if (oldestKey) {
-      detailCache.delete(oldestKey);
-    }
-  }
-};
-
-const getResolutionWithCache = async (episodeUrl: string, signal?: AbortSignal) => {
-  if (!episodeUrl) {
-    return undefined;
-  }
-
-  const cached = resolutionCache.get(episodeUrl);
-  if (cached && Date.now() - cached.timestamp < RESOLUTION_CACHE_TTL) {
-    return cached.value;
-  }
-
-  const pending = resolutionCachePending.get(episodeUrl);
-  if (pending) {
-    return pending;
-  }
-
-  const fetchPromise = (async () => {
-    try {
-      const value = await getResolutionFromM3U8(episodeUrl, signal);
-      resolutionCache.set(episodeUrl, { value, timestamp: Date.now() });
-      return value;
-    } finally {
-      resolutionCachePending.delete(episodeUrl);
-    }
-  })();
-
-  resolutionCachePending.set(episodeUrl, fetchPromise);
-
-  try {
-    return await fetchPromise;
-  } catch (error) {
-    resolutionCache.delete(episodeUrl);
-    throw error;
-  }
-};
-
-
-const shouldPreferEnrichedResult = (
-  current: SearchResultWithResolution,
-  candidate: SearchResultWithResolution
-): boolean => {
-  const currentEpisodes = current.episodes?.length ?? 0;
-  const candidateEpisodes = candidate.episodes?.length ?? 0;
-
-  if (candidateEpisodes > currentEpisodes) {
-    return true;
-  }
-
-  if (candidateEpisodes < currentEpisodes) {
-    return false;
-  }
-
-  const currentResolutionScore = resolutionPriority(current.resolution);
-  const candidateResolutionScore = resolutionPriority(candidate.resolution);
-
-  if (candidateResolutionScore > currentResolutionScore) {
-    return true;
-  }
-
-  if (candidateResolutionScore < currentResolutionScore) {
-    return false;
-  }
-
-  const currentLabelScore = labelPriority(current.source_name);
-  const candidateLabelScore = labelPriority(candidate.source_name);
-
-  if (candidateLabelScore > currentLabelScore) {
-    return true;
-  }
-
-  if (candidateLabelScore < currentLabelScore) {
-    return false;
-  }
-
-  return false;
-};
-
-const mergeResultsByDedupeKey = (
-  items: SearchResultWithResolution[]
-): SearchResultWithResolution[] => {
-  const merged = new Map<string, SearchResultWithResolution>();
-
-  for (const item of items) {
-    const key = item.dedupeKey || buildResultDedupeKey(item);
-    const existing = merged.get(key);
-
-    if (!existing) {
-      merged.set(key, item);
-      continue;
-    }
-
-    if (shouldPreferEnrichedResult(existing, item)) {
-      merged.set(key, item);
-    }
-  }
-
-  return Array.from(merged.values());
-};
-
-interface DetailState {
-  q: string | null;
-  searchResults: SearchResultWithResolution[];
-  sources: { source: string; source_name: string; resolution: string | null | undefined }[];
-  detail: SearchResultWithResolution | null;
-  loading: boolean;
-  error: string | null;
-  allSourcesLoaded: boolean;
-  controller: AbortController | null;
-  isFavorited: boolean;
-  failedSources: Set<string>; // 记录失败的source列表
-
-  init: (q: string, preferredSource?: string, id?: string) => Promise<void>;
-  setDetail: (detail: SearchResultWithResolution) => Promise<void>;
-  abort: () => void;
-  toggleFavorite: () => Promise<void>;
-  markSourceAsFailed: (source: string, reason: string) => void;
-  getNextAvailableSource: (currentSource: string, episodeIndex: number) => SearchResultWithResolution | null;
-}
 
 const useDetailStore = create<DetailState>((set, get) => ({
   q: null,
@@ -498,7 +116,6 @@ const useDetailStore = create<DetailState>((set, get) => ({
       return finalizeInitialization(reason);
     };
 
-    // 如果有有效缓存,直接使用缓存数据,不需要加载状态
     const hasValidCache = cachedEntry && cachedDetail && cachedSearchResults.length > 0;
     logger.info(`[CACHE] Cache status for "${q}": ${hasValidCache ? 'VALID' : 'MISS'}`);
 
@@ -515,8 +132,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
       isFavorited: false,
     });
 
-    // 如果有有效缓存且不是 abort 的结果,直接返回
-    if (hasValidCache) {
+    if (hasValidCache && cachedDetail) {
       logger.info(`[CACHE] Using cached data for "${q}", skipping fetch`);
 
       try {
@@ -542,7 +158,6 @@ const useDetailStore = create<DetailState>((set, get) => ({
     ): Promise<number> => {
       const options = typeof mergeOrOptions === "boolean" ? { merge: mergeOrOptions } : mergeOrOptions;
       const { merge = false, sourceKey } = options;
-      // 检查是否已被 abort
       if (signal.aborted) {
         logger.info(`[ABORT] processAndSetResults aborted before processing`);
         return 0;
@@ -811,7 +426,6 @@ const useDetailStore = create<DetailState>((set, get) => ({
             }
           }
 
-          // 立即尝试所有源，不再依赖后台搜索
           const fallbackStart = performance.now();
           logger.info(`[PERF] FALLBACK search (all sources) START - query: "${q}"`);
 
@@ -853,7 +467,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
             }
             logger.error(`[ERROR] FALLBACK search FAILED:`, fallbackError);
             set({
-              error: `搜索失败：${fallbackError instanceof Error ? fallbackError.message : "网络错误，请稍后重试"}`,
+              error: mapErrorToMessage(fallbackError, "网络错误，请稍后重试"),
               loading: false,
             });
           }
@@ -891,7 +505,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
           logger.info(`[INFO] Preferred source ready; background enrichment scheduled asynchronously`);
         }
       } else {
-        // Standard navigation: fetch resources, then fetch details one by one
+        // Standard navigation
         const resourcesStart = performance.now();
         logger.info(`[PERF] API getResources START - query: "${q}"`);
         
@@ -990,8 +604,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
                 logger.info(`[INFO] searchVideo request for ${resource.name} aborted`);
                 return;
               }
-              const rawMessage = error instanceof Error ? error.message : String(error);
-              const displayMessage = mapNetworkErrorMessage(error, rawMessage);
+              const displayMessage = mapErrorToMessage(error, String(error));
               logger.warn(`[WARN] Failed to fetch from ${resource.name}: ${displayMessage}`);
             }
           };
@@ -1023,7 +636,6 @@ const useDetailStore = create<DetailState>((set, get) => ({
 
           await Promise.all(workers);
 
-          // 检查是否找到任何结果
           if (totalResults === 0) {
             logger.error(`[ERROR] All sources returned 0 results for "${q}"`);
             set({
@@ -1037,13 +649,8 @@ const useDetailStore = create<DetailState>((set, get) => ({
           }
         } catch (resourceError) {
           logger.error(`[ERROR] Failed to get resources:`, resourceError);
-          const rawMessage =
-            resourceError instanceof Error
-              ? resourceError.message
-              : "网络错误，请稍后重试";
-          const displayMessage = mapNetworkErrorMessage(resourceError, rawMessage);
           set({
-            error: `获取视频源失败：${displayMessage}`,
+            error: `获取视频源失败：${mapErrorToMessage(resourceError)}`,
             loading: false,
           });
           return;
@@ -1053,7 +660,6 @@ const useDetailStore = create<DetailState>((set, get) => ({
       const favoriteCheckStart = performance.now();
       const finalState = get();
       
-      // 最终检查：如果所有搜索都完成但仍然没有结果
       if (finalState.searchResults.length === 0 && !finalState.error) {
         logger.error(`[ERROR] All search attempts completed but no results found for "${q}"`);
         set({ error: `未找到 "${q}" 的播放源，请检查标题拼写或稍后重试` });
@@ -1082,8 +688,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
       if ((e as Error).name !== "AbortError") {
         logger.error(`[ERROR] DetailStore.init caught unexpected error:`, e);
         const errorMessage = e instanceof Error ? e.message : "获取数据失败";
-        const displayMessage = mapNetworkErrorMessage(e, errorMessage);
-        set({ error: `搜索失败：${displayMessage}` });
+        set({ error: `搜索失败：${mapErrorToMessage(e, errorMessage)}` });
       } else {
         logger.info(`[INFO] DetailStore.init aborted by user`);
       }
@@ -1136,7 +741,6 @@ const useDetailStore = create<DetailState>((set, get) => ({
         state.allSourcesLoaded
       );
     }
-
   },
 
   abort: () => {
@@ -1180,7 +784,6 @@ const useDetailStore = create<DetailState>((set, get) => ({
     newFailedSources.add(source);
     
     logger.warn(`[SOURCE_FAILED] Marking source "${source}" as failed due to: ${reason}`);
-    logger.info(`[SOURCE_FAILED] Total failed sources: ${newFailedSources.size}`);
     
     set({ failedSources: newFailedSources });
   },
@@ -1188,10 +791,6 @@ const useDetailStore = create<DetailState>((set, get) => ({
   getNextAvailableSource: (currentSource: string, episodeIndex: number) => {
     const { searchResults, failedSources } = get();
     
-    logger.info(`[SOURCE_SELECTION] Looking for alternative to "${currentSource}" for episode ${episodeIndex + 1}`);
-    logger.info(`[SOURCE_SELECTION] Failed sources: [${Array.from(failedSources).join(', ')}]`);
-    
-    // 过滤掉当前source和已失败的sources
     const availableSources = searchResults.filter(result => 
       result.source !== currentSource && 
       !failedSources.has(result.source) &&
@@ -1199,22 +798,15 @@ const useDetailStore = create<DetailState>((set, get) => ({
       result.episodes.length > episodeIndex
     );
     
-    logger.info(`[SOURCE_SELECTION] Available sources: ${availableSources.length}`);
-    availableSources.forEach(source => {
-      logger.info(`[SOURCE_SELECTION] - ${source.source} (${source.source_name}): ${source.episodes?.length || 0} episodes`);
-    });
-    
     if (availableSources.length === 0) {
       logger.error(`[SOURCE_SELECTION] No available sources for episode ${episodeIndex + 1}`);
       return null;
     }
     
-    // 优先选择有高分辨率的source
     const sortedSources = availableSources.sort((a, b) => {
       const aResolution = a.resolution || '';
       const bResolution = b.resolution || '';
       
-      // 优先级: 1080p > 720p > 其他 > 无分辨率
       const resolutionPriority = (res: string) => {
         if (res.includes('1080')) return 4;
         if (res.includes('720')) return 3;
@@ -1226,10 +818,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
       return resolutionPriority(bResolution) - resolutionPriority(aResolution);
     });
     
-    const selectedSource = sortedSources[0];
-    logger.info(`[SOURCE_SELECTION] Selected fallback source: ${selectedSource.source} (${selectedSource.source_name}) with resolution: ${selectedSource.resolution || 'unknown'}`);
-    
-    return selectedSource;
+    return sortedSources[0];
   },
 }));
 

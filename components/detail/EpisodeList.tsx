@@ -11,7 +11,7 @@ interface EpisodeListProps {
 
 const GROUP_SIZE = 30;
 
-export const EpisodeList: React.FC<EpisodeListProps> = ({ episodes, onPlay, styles }) => {
+export const EpisodeList: React.FC<EpisodeListProps> = React.memo(({ episodes, onPlay, styles }) => {
   const [selectedGroup, setSelectedGroup] = useState(0);
 
   const groups = useMemo(() => {
@@ -85,4 +85,6 @@ export const EpisodeList: React.FC<EpisodeListProps> = ({ episodes, onPlay, styl
       </View>
     </View>
   );
-};
+});
+
+EpisodeList.displayName = 'EpisodeList';

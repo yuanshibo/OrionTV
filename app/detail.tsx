@@ -12,19 +12,12 @@ import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { getCommonResponsiveStyles } from "@/utils/ResponsiveStyles";
 import ResponsiveNavigation from "@/components/navigation/ResponsiveNavigation";
 import ResponsiveHeader from "@/components/navigation/ResponsiveHeader";
-import { PlayRecordManager } from "@/services/storage";
 import { Colors } from "@/constants/Colors";
 import RelatedSeries from "@/components/RelatedSeries";
 import { SourceList } from '@/components/detail/SourceList';
 import { EpisodeList } from '@/components/detail/EpisodeList';
 import { createResponsiveStyles } from './detail.styles';
-
-type ResumeInfo = {
-  hasRecord: boolean;
-  episodeIndex: number;
-  position?: number;
-};
-
+import { useResumeProgress } from "@/hooks/useResumeProgress";
 
 export default function DetailScreen() {
   const { q, source, id } = useLocalSearchParams<{ q: string; source?: string; id?: string }>();
@@ -52,11 +45,7 @@ export default function DetailScreen() {
     toggleFavorite,
   } = useDetailStore();
 
-  const [resumeInfo, setResumeInfo] = useState<ResumeInfo>(() => ({ 
-    hasRecord: false,
-    episodeIndex: 0,
-    position: undefined,
-  }));
+  const resumeInfo = useResumeProgress(detail);
 
   useEffect(() => {
     if (q) {
@@ -66,80 +55,6 @@ export default function DetailScreen() {
       abort();
     };
   }, [init, q, source, id, abort]);
-
-  const applyResumeInfo = useCallback((next: ResumeInfo) => {
-    setResumeInfo((prev) => {
-      if (
-        prev.hasRecord === next.hasRecord &&
-        prev.episodeIndex === next.episodeIndex &&
-        prev.position === next.position
-      ) {
-        return prev;
-      }
-
-      return next;
-    });
-  }, []);
-
-  const loadResumeInfo = useCallback(async (): Promise<ResumeInfo> => {
-    if (!detail) {
-      return { hasRecord: false, episodeIndex: 0, position: undefined };
-    }
-
-    try {
-      const record = await PlayRecordManager.get(detail.source, detail.id.toString());
-      const totalEpisodes = detail.episodes?.length ?? 0;
-
-      if (record && totalEpisodes > 0) {
-        const rawIndex = typeof record.index === "number" ? record.index - 1 : 0;
-        const clampedIndex = Math.min(Math.max(rawIndex, 0), totalEpisodes - 1);
-        const resumePosition =
-          record.play_time && record.play_time > 0
-            ? Math.max(0, Math.floor(record.play_time * 1000))
-            : undefined;
-
-        return {
-          hasRecord: true,
-          episodeIndex: clampedIndex,
-          position: resumePosition,
-        };
-      }
-    } catch {
-      // Ignore errors and fall back to default resume info
-    }
-
-    return { hasRecord: false, episodeIndex: 0, position: undefined };
-  }, [detail]);
-
-  useEffect(() => {
-    let isActive = true;
-
-    loadResumeInfo().then((info) => {
-      if (isActive) {
-        applyResumeInfo(info);
-      }
-    });
-
-    return () => {
-      isActive = false;
-    };
-  }, [loadResumeInfo, applyResumeInfo]);
-
-  useFocusEffect(
-    useCallback(() => {
-      let isActive = true;
-
-      loadResumeInfo().then((info) => {
-        if (isActive) {
-          applyResumeInfo(info);
-        }
-      });
-
-      return () => {
-        isActive = false;
-      };
-    }, [loadResumeInfo, applyResumeInfo])
-  );
 
   useFocusEffect(
     useCallback(() => {
