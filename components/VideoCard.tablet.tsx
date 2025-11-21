@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, forwardRef, useMemo } from "react";
-import { View, Text, Image, StyleSheet, TouchableOpacity, Alert, Animated, useColorScheme } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Animated, useColorScheme } from "react-native";
+import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { Star, Play } from "lucide-react-native";
 import { PlayRecordManager } from "@/services/storage";
@@ -9,6 +10,7 @@ import { Colors } from "@/constants/Colors";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { DeviceUtils } from "@/utils/DeviceUtils";
 import Logger from '@/utils/Logger';
+import useAuthStore from "@/stores/authStore";
 
 const logger = Logger.withTag('VideoCardTablet');
 
@@ -56,11 +58,16 @@ const VideoCardTablet = forwardRef<View, VideoCardTabletProps>(
     const [isPressed, setIsPressed] = useState(false);
 
     const longPressTriggered = useRef(false);
+    const lastPressTime = useRef(0);
     const scale = useRef(new Animated.Value(1)).current;
     const fadeInAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
     const scaleAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
 
     const handlePress = () => {
+      const now = Date.now();
+      if (now - lastPressTime.current < 500) return;
+      lastPressTime.current = now;
+
       if (longPressTriggered.current) {
         longPressTriggered.current = false;
         return;
@@ -168,6 +175,14 @@ const VideoCardTablet = forwardRef<View, VideoCardTabletProps>(
     };
 
     const styles = useMemo(() => createTabletStyles(cardWidth, cardHeight, spacing, colors), [cardWidth, cardHeight, spacing, colors]);
+    const authCookie = useAuthStore((state) => state.authCookie);
+    const imageSource = useMemo(
+      () => ({
+        uri: api.getImageProxyUrl(poster),
+        headers: authCookie ? { Cookie: authCookie } : undefined,
+      }),
+      [poster, authCookie, api]
+    );
 
     return (
       <Animated.View style={[styles.wrapper, animatedStyle, { opacity: fadeAnim }]} ref={ref}>
@@ -181,7 +196,7 @@ const VideoCardTablet = forwardRef<View, VideoCardTabletProps>(
           delayLongPress={900}
         >
           <View style={[styles.card, isPressed && styles.cardPressed]}>
-            <Image source={{ uri: api.getImageProxyUrl(poster) }} style={styles.poster} />
+            <Image source={imageSource} style={styles.poster} contentFit="cover" transition={300} />
             
             {/* 悬停效果遮罩 */}
             {isPressed && (
@@ -267,7 +282,6 @@ const createTabletStyles = (cardWidth: number, cardHeight: number, spacing: numb
     poster: {
       width: "100%",
       height: "100%",
-      resizeMode: 'cover',
     },
     pressOverlay: {
       ...StyleSheet.absoluteFillObject,
