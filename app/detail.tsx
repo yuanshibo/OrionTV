@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo } from "react";
-import { View, Image, ScrollView, BackHandler, useColorScheme } from "react-native";
+import { View, ScrollView, BackHandler, useColorScheme } from "react-native";
+import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
@@ -249,7 +250,7 @@ export default function DetailScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={dynamicStyles.mobileTopContainer}>
-            <Image source={{ uri: detail.poster }} style={dynamicStyles.mobilePoster} />
+            <Image source={{ uri: detail.poster }} style={dynamicStyles.mobilePoster} contentFit="cover" />
             <View style={dynamicStyles.mobileInfoContainer}>
               <View style={dynamicStyles.titleContainer}>
                 <ThemedText style={dynamicStyles.title} numberOfLines={2}>
@@ -306,7 +307,7 @@ export default function DetailScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={dynamicStyles.topContainer}>
-            <Image source={{ uri: detail.poster }} style={dynamicStyles.poster} />
+            <Image source={{ uri: detail.poster }} style={dynamicStyles.poster} contentFit="cover" />
             <View style={dynamicStyles.infoContainer}>
               <View style={dynamicStyles.titleContainer}>
                 <ThemedText style={dynamicStyles.title} numberOfLines={1} ellipsizeMode="tail">
