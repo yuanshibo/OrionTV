@@ -1,5 +1,6 @@
-import React, { useMemo } from "react";
+import React, { useMemo, memo } from "react";
 import { View, Text, useColorScheme, StyleSheet } from "react-native";
+import { useShallow } from "zustand/react/shallow";
 import usePlayerStore from "@/stores/playerStore";
 import usePlayerUIStore from "@/stores/playerUIStore";
 import { Colors } from "@/constants/Colors";
@@ -21,9 +22,18 @@ const formatTime = (milliseconds: number) => {
   return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
 };
 
-export const SeekingBar = () => {
-  const { isSeeking, isSeekBuffering, seekPosition, status } = usePlayerStore();
-  const { showControls } = usePlayerUIStore();
+export const SeekingBar = memo(() => {
+  const { isSeeking, isSeekBuffering, seekPosition, durationMillis, playableDurationMillis, positionMillis } = usePlayerStore(
+    useShallow((state) => ({
+      isSeeking: state.isSeeking,
+      isSeekBuffering: state.isSeekBuffering,
+      seekPosition: state.seekPosition,
+      durationMillis: state.status?.durationMillis || 0,
+      playableDurationMillis: state.status?.playableDurationMillis || 0,
+      positionMillis: state.status?.positionMillis || 0,
+    }))
+  );
+  const showControls = usePlayerUIStore((state) => state.showControls);
   const colorScheme = useColorScheme() ?? "dark";
   const colors = Colors[colorScheme];
 
@@ -81,8 +91,6 @@ export const SeekingBar = () => {
     return null;
   }
 
-  const durationMillis = status?.durationMillis || 0;
-  const playableDurationMillis = status?.playableDurationMillis || 0;
   const loadedPercentage = durationMillis > 0 ? playableDurationMillis / durationMillis : 0;
 
   let currentPositionMillis: number;
@@ -92,7 +100,7 @@ export const SeekingBar = () => {
     progressPercentage = seekPosition;
     currentPositionMillis = seekPosition * durationMillis;
   } else {
-    currentPositionMillis = status?.positionMillis || 0;
+    currentPositionMillis = positionMillis;
     progressPercentage = durationMillis > 0 ? currentPositionMillis / durationMillis : 0;
   }
 
@@ -122,4 +130,4 @@ export const SeekingBar = () => {
       </View>
     </View>
   );
-};
+});

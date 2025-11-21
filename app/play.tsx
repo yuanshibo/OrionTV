@@ -45,7 +45,8 @@ export default function PlayScreen() {
   const initDetail = useDetailStore((state) => state.init);
 
   const {
-    status,
+    isLoaded,
+    isBuffering,
     isLoading,
     isSeeking,
     isSeekBuffering,
@@ -57,7 +58,8 @@ export default function PlayScreen() {
     currentEpisode,
   } = usePlayerStore(
     useShallow((state) => ({
-      status: state.status,
+      isLoaded: state.status?.isLoaded ?? false,
+      isBuffering: state.status?.isBuffering ?? false,
       isLoading: state.isLoading,
       isSeeking: state.isSeeking,
       isSeekBuffering: state.isSeekBuffering,
@@ -102,7 +104,8 @@ export default function PlayScreen() {
     deviceType,
   });
 
-  useKeepAwake(status?.isPlaying ? "video" : undefined);
+  const isPlaying = usePlayerStore(useShallow((state) => state.status?.isPlaying));
+  useKeepAwake(isPlaying ? "video" : undefined);
 
   const { onScreenPress } = usePlayerInteractions(deviceType);
 
@@ -186,7 +189,8 @@ export default function PlayScreen() {
         deviceType={deviceType}
         detail={detail}
         error={error}
-        status={status}
+        isLoaded={isLoaded}
+        isBuffering={isBuffering}
         isLoading={isLoading || !detail}
         isSeeking={isSeeking}
         isSeekBuffering={isSeekBuffering}

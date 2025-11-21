@@ -15,6 +15,7 @@ import {
   normalizeSourceName,
   shouldPreferRawResult,
   mergeResultsByDedupeKey,
+  resolutionPriority,
 } from "@/utils/detailUtils";
 import { mapErrorToMessage } from "@/utils/errorUtils";
 
@@ -806,15 +807,6 @@ const useDetailStore = create<DetailState>((set, get) => ({
     const sortedSources = availableSources.sort((a, b) => {
       const aResolution = a.resolution || '';
       const bResolution = b.resolution || '';
-      
-      const resolutionPriority = (res: string) => {
-        if (res.includes('1080')) return 4;
-        if (res.includes('720')) return 3;
-        if (res.includes('480')) return 2;
-        if (res.includes('360')) return 1;
-        return 0;
-      };
-      
       return resolutionPriority(bResolution) - resolutionPriority(aResolution);
     });
     
