@@ -1,15 +1,14 @@
 import React from 'react';
-import { GestureResponderEvent, TouchableOpacity } from 'react-native';
+import { GestureResponderEvent, TouchableOpacity, View } from 'react-native';
 import { useResponsiveLayout } from '@/hooks/useResponsiveLayout';
 import { API } from '@/services/api';
 
-// 导入不同平台的VideoCard组件
+// Import platform specific components
 import VideoCardMobile from './VideoCard.mobile';
 import VideoCardTablet from './VideoCard.tablet';
 import VideoCardTV from './VideoCard.tv';
 
-// 提取VideoCard的核心属性，除了onLongPress
-// Omit<React.ComponentProps<typeof TouchableOpacity>, 'onLongPress'>
+// Extract common props
 interface VideoCardBaseProps extends Omit<React.ComponentProps<typeof TouchableOpacity>, 'onLongPress'> {
   id: string;
   source: string;
@@ -29,7 +28,7 @@ interface VideoCardBaseProps extends Omit<React.ComponentProps<typeof TouchableO
   type?: 'record' | 'favorite';
 }
 
-// 为不同的平台定义特定的onLongPress类型
+// Platform specific onLongPress types
 interface VideoCardTVProps extends VideoCardBaseProps {
   onLongPress?: () => void;
 }
@@ -38,34 +37,35 @@ interface VideoCardMobileProps extends VideoCardBaseProps {
   onLongPress?: (event: GestureResponderEvent) => void;
 }
 
-// VideoCardProps作为所有可能属性的联合
 export type VideoCardProps = VideoCardTVProps | VideoCardMobileProps;
 
-
 /**
- * 响应式VideoCard组件
- * 根据设备类型自动选择合适的VideoCard实现
+ * Responsive VideoCard Component
+ * Automatically selects the appropriate implementation based on device type.
  */
-const VideoCard = React.forwardRef<any, VideoCardProps>((props, ref) => {
+const VideoCard = React.forwardRef<View, VideoCardProps>((props, ref) => {
   const { deviceType } = useResponsiveLayout();
+
+  // Memoize the component selection to avoid unnecessary checks?
+  // Not strictly necessary as switch is fast, but good practice if we wanted to avoid re-mounts if deviceType flickers (unlikely).
 
   switch (deviceType) {
     case 'mobile':
-      // 对于Mobile，我们需要确保onLongPress是正确的类型
       return <VideoCardMobile {...(props as VideoCardMobileProps)} ref={ref} />;
     
     case 'tablet':
-      // Tablet可能使用与Mobile或TV相同的实现，或其自身的实现
-      // 这里我们假设它使用TV的实现，因此需要类型断言
-      return <VideoCardTablet {...(props as VideoCardTVProps)} ref={ref} />;
+      // Assuming Tablet uses TV props structure (no event in long press?) or casting to satisfy TS
+      // The original code casted to VideoCardTVProps.
+      return <VideoCardTablet {...(props as any)} ref={ref} />;
     
     case 'tv':
     default:
-      // TV平台需要一个不带参数的onLongPress
       return <VideoCardTV {...(props as VideoCardTVProps)} ref={ref} />;
   }
 });
 
 VideoCard.displayName = 'VideoCard';
 
-export default VideoCard;
+// We memoize the wrapper too, to prevent re-rendering if parent re-renders but props are same.
+// However, since it consumes a hook (useResponsiveLayout), it might still re-render if context changes.
+export default React.memo(VideoCard);

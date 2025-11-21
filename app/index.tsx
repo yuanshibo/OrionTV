@@ -5,7 +5,9 @@ import { ThemedView } from "@/components/ThemedView";
 import { api } from "@/services/api";
 import VideoCard from "@/components/VideoCard";
 import { useFocusEffect } from "expo-router";
-import useHomeStore, { RowItem, Category, DoubanFilterKey } from "@/stores/homeStore";
+import { useShallow } from "zustand/react/shallow";
+import useHomeStore from "@/stores/homeStore";
+import type { RowItem, Category, DoubanFilterKey } from "@/types/home";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { getCommonResponsiveStyles } from "@/utils/ResponsiveStyles";
 import ResponsiveNavigation from "@/components/navigation/ResponsiveNavigation";
@@ -41,7 +43,23 @@ export default function HomeScreen() {
     refreshPlayRecords,
     clearError,
     hydrateFromStorage,
-  } = useHomeStore();
+  } = useHomeStore(
+    useShallow((state) => ({
+      categories: state.categories,
+      selectedCategory: state.selectedCategory,
+      contentData: state.contentData,
+      loading: state.loading,
+      loadingMore: state.loadingMore,
+      error: state.error,
+      fetchInitialData: state.fetchInitialData,
+      loadMoreData: state.loadMoreData,
+      selectCategory: state.selectCategory,
+      updateFilterOption: state.updateFilterOption,
+      refreshPlayRecords: state.refreshPlayRecords,
+      clearError: state.clearError,
+      hydrateFromStorage: state.hydrateFromStorage,
+    }))
+  );
   const hasRecordCategory = useMemo(() => categories.some((category) => category.type === "record"), [categories]);
   const hasContent = contentData.length > 0;
   const hadContentRef = useRef(hasContent);
@@ -204,21 +222,20 @@ export default function HomeScreen() {
     categoryText: { fontSize: deviceType === "mobile" ? 14 : 16, fontWeight: "500" },
   }), [deviceType, spacing]);
 
+  const handleOpenFilterPanel = useCallback(() => {
+    setFilterPanelVisible(true);
+  }, []);
+
   const renderContentItem = useCallback(
     ({ item, index }: { item: RowItem; index: number }) => {
       const isFilterableCategory = selectedCategory?.title === "所有";
-      const isRecordCategory = selectedCategory?.type === "record";
 
       let longPressAction;
       if (deviceType === "tv") {
         if (isFilterableCategory) {
-          longPressAction = () => setFilterPanelVisible(true);
-        } else if (isRecordCategory) {
-          // Let VideoCard handle it internally for deletion.
-          longPressAction = undefined;
+          longPressAction = handleOpenFilterPanel;
         } else {
-          // For any other category, long-press should do nothing.
-          longPressAction = () => {};
+          longPressAction = undefined;
         }
       }
 
@@ -242,7 +259,7 @@ export default function HomeScreen() {
         />
       );
     },
-    [fetchInitialData, deviceType, selectedCategory]
+    [fetchInitialData, deviceType, selectedCategory, handleOpenFilterPanel]
   );
 
   const footerComponent = useMemo(() => {

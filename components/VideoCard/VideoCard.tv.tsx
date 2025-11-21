@@ -3,14 +3,11 @@ import { View, Text, StyleSheet, Pressable, TouchableOpacity, Alert, Animated, P
 import { Image } from 'expo-image';
 import { useRouter } from "expo-router";
 import { Star, Play } from "lucide-react-native";
-import { PlayRecordManager, FavoriteManager } from "@/services/storage";
 import { API } from "@/services/api";
 import { ThemedText } from "@/components/ThemedText";
 import { Colors } from "@/constants/Colors";
-import Logger from '@/utils/Logger';
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
-
-const logger = Logger.withTag('VideoCardTV');
+import { useVideoCardLogic } from "./useVideoCardLogic";
 
 interface VideoCardProps extends React.ComponentProps<typeof TouchableOpacity> {
   id: string;
@@ -75,22 +72,24 @@ const VideoCard = forwardRef<View, VideoCardProps>(
       transform: [{ scale }],
     };
 
+    const { handlePress: performNavigation, showDeleteAlert } = useVideoCardLogic({
+      id,
+      source,
+      title,
+      progress,
+      playTime,
+      episodeIndex,
+      type,
+      onRecordDeleted,
+      onFavoriteDeleted,
+    });
+
     const handlePress = () => {
       if (longPressTriggered.current) {
         longPressTriggered.current = false;
         return;
       }
-      if (progress !== undefined && episodeIndex !== undefined) {
-        router.push({
-          pathname: "/play",
-          params: { source, id, episodeIndex: episodeIndex - 1, title, position: playTime * 1000 },
-        });
-      } else {
-        router.push({
-          pathname: "/detail",
-          params: { source, q: title },
-        });
-      }
+      performNavigation();
     };
 
     const runScaleAnimation = useCallback(
@@ -157,43 +156,9 @@ const VideoCard = forwardRef<View, VideoCardProps>(
       if (type === 'record' && progress === undefined) return;
 
       longPressTriggered.current = true;
-
-      const isFavorite = type === 'favorite';
-      const titleText = isFavorite ? "删除收藏" : "删除观看记录";
-      const messageText = isFavorite ? `确定要删除"${title}"的收藏吗？` : `确定要删除"${title}"的观看记录吗？`;
-
-      Alert.alert(titleText, messageText, [
-        {
-          text: "删除",
-          style: "destructive",
-          isPreferred: true,
-          onPress: async () => {
-            try {
-              if (isFavorite) {
-                await FavoriteManager.remove(source, id);
-                onFavoriteDeleted?.();
-              } else {
-                await PlayRecordManager.remove(source, id);
-                if (onRecordDeleted) {
-                  onRecordDeleted();
-                } else if (router.canGoBack()) {
-                  router.replace("/");
-                }
-              }
-            } catch (error) {
-              logger.info(`Failed to delete ${type}:`, error);
-              Alert.alert("错误", `删除${isFavorite ? '收藏' : '观看记录'}失败，请重试`);
-            } finally {
-              longPressTriggered.current = false;
-            }
-          },
-        },
-        {
-          text: "取消",
-          style: "cancel",
-          onPress: () => { longPressTriggered.current = false; }
-        },
-      ]);
+      showDeleteAlert(() => {
+        longPressTriggered.current = false;
+      });
     };
 
     const isContinueWatching = progress !== undefined && progress > 0 && progress < 1;
