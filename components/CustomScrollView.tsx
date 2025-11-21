@@ -1,11 +1,11 @@
 import React, { useCallback, useMemo, useRef, useState, forwardRef, useImperativeHandle } from "react";
 import {
   ActivityIndicator,
-  FlatList,
   StyleSheet,
   TouchableOpacity,
   View,
 } from "react-native";
+import { FlashList } from "@shopify/flash-list";
 import { ThemedText } from "@/components/ThemedText";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { getCommonResponsiveStyles } from "@/utils/ResponsiveStyles";
@@ -23,7 +23,7 @@ interface CustomScrollViewProps {
   ListFooterComponent?: React.ComponentType<any> | React.ReactElement | null;
 }
 
-const CustomScrollView = forwardRef<FlatList<any>, CustomScrollViewProps>((
+const CustomScrollView = forwardRef<React.ElementRef<typeof FlashList>, CustomScrollViewProps>((
   {
     data,
     renderItem,
@@ -38,8 +38,8 @@ const CustomScrollView = forwardRef<FlatList<any>, CustomScrollViewProps>((
   },
   ref
 ) => {
-  const listRef = useRef<FlatList<any>>(null);
-  useImperativeHandle(ref, () => listRef.current as FlatList<any>);
+  const listRef = useRef<React.ElementRef<typeof FlashList>>(null);
+  useImperativeHandle(ref, () => listRef.current!);
 
   const [showScrollToTop, setShowScrollToTop] = useState(false);
   const responsiveConfig = useResponsiveLayout();
@@ -94,17 +94,14 @@ const CustomScrollView = forwardRef<FlatList<any>, CustomScrollViewProps>((
           paddingBottom: responsiveConfig.spacing * 2,
           paddingHorizontal: responsiveConfig.spacing / 2,
         },
-        columnWrapper: {
-          flexDirection: "row",
-          alignItems: "flex-start",
-          marginBottom: responsiveConfig.spacing,
-        },
         cardContainer: {
           width: responsiveConfig.cardWidth,
+          marginBottom: responsiveConfig.spacing,
         },
         cardContainerWithSpacing: {
           width: responsiveConfig.cardWidth,
           marginRight: responsiveConfig.spacing,
+          marginBottom: responsiveConfig.spacing,
         },
         scrollToTopButton: {
           position: "absolute",
@@ -150,11 +147,6 @@ const CustomScrollView = forwardRef<FlatList<any>, CustomScrollViewProps>((
     [dataLength, dynamicStyles, effectiveColumns, renderItem]
   );
 
-  const initialItemCount = useMemo(() => {
-    const rowsToRender = Math.ceil(responsiveConfig.screenHeight / responsiveConfig.cardHeight) + 2;
-    return Math.max(rowsToRender * effectiveColumns, effectiveColumns);
-  }, [effectiveColumns, responsiveConfig.cardHeight, responsiveConfig.screenHeight]);
-
   if (loading) {
     return (
       <View style={commonStyles.center}>
@@ -183,13 +175,14 @@ const CustomScrollView = forwardRef<FlatList<any>, CustomScrollViewProps>((
 
   return (
     <View style={{ flex: 1 }}>
-      <FlatList
+      <FlashList
         ref={listRef}
         data={data}
         keyExtractor={getItemKey}
         renderItem={renderGridItem}
         numColumns={effectiveColumns}
-        columnWrapperStyle={effectiveColumns > 1 ? dynamicStyles.columnWrapper : undefined}
+        // @ts-ignore
+        estimatedItemSize={responsiveConfig.cardHeight + responsiveConfig.spacing}
         contentContainerStyle={dynamicStyles.listContent}
         onScroll={handleScroll}
         scrollEventThrottle={16}
@@ -200,9 +193,6 @@ const CustomScrollView = forwardRef<FlatList<any>, CustomScrollViewProps>((
           </View>
         )}
         ListFooterComponent={renderFooter}
-        initialNumToRender={initialItemCount}
-        windowSize={5}
-        removeClippedSubviews={deviceType !== "tv"}
       />
       {deviceType !== 'tv' && (
         <TouchableOpacity

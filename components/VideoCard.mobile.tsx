@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, forwardRef, useMemo } from "react";
-import { View, Text, Image, StyleSheet, TouchableOpacity, Alert, Animated, useColorScheme } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Animated, useColorScheme } from "react-native";
+import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { Star, Play } from "lucide-react-native";
 import { PlayRecordManager, FavoriteManager } from "@/services/storage";
@@ -60,8 +61,13 @@ const VideoCardMobile = forwardRef<View, VideoCardMobileProps>(
     const fadeInAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
 
     const longPressTriggered = useRef(false);
+    const lastPressTime = useRef(0);
 
     const handlePress = () => {
+      const now = Date.now();
+      if (now - lastPressTime.current < 500) return;
+      lastPressTime.current = now;
+
       if (longPressTriggered.current) {
         longPressTriggered.current = false;
         return;
@@ -158,7 +164,7 @@ const VideoCardMobile = forwardRef<View, VideoCardMobileProps>(
           delayLongPress={800}
         >
           <View style={styles.card}>
-            <Image source={{ uri: api.getImageProxyUrl(poster) }} style={styles.poster} />
+            <Image source={{ uri: api.getImageProxyUrl(poster) }} style={styles.poster} contentFit="cover" transition={300} />
             
             {isContinueWatching && (
               <View style={styles.progressContainer}>
@@ -228,7 +234,6 @@ const createMobileStyles = (cardWidth: number, cardHeight: number, spacing: numb
     poster: {
       width: "100%",
       height: "100%",
-      resizeMode: 'cover',
     },
     progressContainer: {
       position: "absolute",

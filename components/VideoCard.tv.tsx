@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, forwardRef, useMemo } from "react";
-import { View, Text, Image, StyleSheet, Pressable, TouchableOpacity, Alert, Animated, Platform, useColorScheme } from "react-native";
+import { View, Text, StyleSheet, Pressable, TouchableOpacity, Alert, Animated, Platform, useColorScheme } from "react-native";
+import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { Star, Play } from "lucide-react-native";
 import { PlayRecordManager, FavoriteManager } from "@/services/storage";
@@ -61,6 +62,7 @@ const VideoCard = forwardRef<View, VideoCardProps>(
     const [fadeAnim] = useState(new Animated.Value(0));
 
     const longPressTriggered = useRef(false);
+    const lastPressTime = useRef(0);
 
     const scale = useRef(new Animated.Value(1)).current;
     const fadeInAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
@@ -73,6 +75,10 @@ const VideoCard = forwardRef<View, VideoCardProps>(
     };
 
     const handlePress = () => {
+      const now = Date.now();
+      if (now - lastPressTime.current < 500) return;
+      lastPressTime.current = now;
+
       if (longPressTriggered.current) {
         longPressTriggered.current = false;
         return;
@@ -215,7 +221,7 @@ const VideoCard = forwardRef<View, VideoCardProps>(
           {...rest}
         >
           <View style={styles.card}>
-            <Image source={{ uri: api.getImageProxyUrl(poster) }} style={styles.poster} />
+            <Image source={{ uri: api.getImageProxyUrl(poster) }} style={styles.poster} contentFit="cover" transition={300} />
             {isFocused && (
               <View style={styles.overlay}>
                 {isContinueWatching && (
