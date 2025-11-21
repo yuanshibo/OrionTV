@@ -9,6 +9,9 @@ import { Colors } from "@/constants/Colors";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { DeviceUtils } from "@/utils/DeviceUtils";
 import { useVideoCardLogic } from "./useVideoCardLogic";
+import Logger from '@/utils/Logger';
+
+const logger = Logger.withTag('VideoCardTablet');
 
 interface VideoCardTabletProps extends React.ComponentProps<typeof TouchableOpacity> {
   id: string;
@@ -168,6 +171,7 @@ const VideoCardTablet = forwardRef<View, VideoCardTabletProps>(
               style={styles.poster}
               contentFit="cover"
               transition={200}
+              onError={(e) => logger.warn(`Image load failed for ${title} (Tablet):`, e.error, "URL:", api.getImageProxyUrl(poster))}
             />
             
             {/* 悬停效果遮罩 */}

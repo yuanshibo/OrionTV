@@ -16,7 +16,7 @@ import { Colors } from "@/constants/Colors";
 import RelatedSeries from "@/components/RelatedSeries";
 import { SourceList } from '@/components/detail/SourceList';
 import { EpisodeList } from '@/components/detail/EpisodeList';
-import { createResponsiveStyles } from './detail.styles';
+import { createResponsiveStyles } from './_detail.styles';
 import { useResumeProgress } from "@/hooks/useResumeProgress";
 
 export default function DetailScreen() {

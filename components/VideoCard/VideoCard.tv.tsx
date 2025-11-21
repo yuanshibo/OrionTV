@@ -8,6 +8,9 @@ import { ThemedText } from "@/components/ThemedText";
 import { Colors } from "@/constants/Colors";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { useVideoCardLogic } from "./useVideoCardLogic";
+import Logger from '@/utils/Logger';
+
+const logger = Logger.withTag('VideoCardTV');
 
 interface VideoCardProps extends React.ComponentProps<typeof TouchableOpacity> {
   id: string;
@@ -188,6 +191,7 @@ const VideoCard = forwardRef<View, VideoCardProps>(
               style={styles.poster}
               contentFit="cover"
               transition={200}
+              onError={(e) => logger.warn(`Image load failed for ${title} (TV):`, e.error, "URL:", api.getImageProxyUrl(poster))}
             />
             {isFocused && (
               <View style={styles.overlay}>

@@ -9,6 +9,9 @@ import { Colors } from "@/constants/Colors";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { DeviceUtils } from "@/utils/DeviceUtils";
 import { useVideoCardLogic } from "./useVideoCardLogic";
+import Logger from '@/utils/Logger';
+
+const logger = Logger.withTag('VideoCardMobile');
 
 interface VideoCardMobileProps extends React.ComponentProps<typeof TouchableOpacity> {
   id: string;
@@ -133,6 +136,7 @@ const VideoCardMobile = forwardRef<View, VideoCardMobileProps>(
               style={styles.poster}
               contentFit="cover"
               transition={200}
+              onError={(e) => logger.warn(`Image load failed for ${title}:`, e.error, "URL:", api.getImageProxyUrl(poster))}
             />
             
             {isContinueWatching && (
