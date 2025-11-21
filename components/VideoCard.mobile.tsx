@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, forwardRef, useMemo } from "react";
-import { View, Text, Image, StyleSheet, TouchableOpacity, Alert, Animated, useColorScheme } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Animated, useColorScheme } from "react-native";
+import { Image } from 'expo-image';
 import { useRouter } from "expo-router";
 import { Star, Play } from "lucide-react-native";
 import { PlayRecordManager, FavoriteManager } from "@/services/storage";
@@ -158,7 +159,12 @@ const VideoCardMobile = forwardRef<View, VideoCardMobileProps>(
           delayLongPress={800}
         >
           <View style={styles.card}>
-            <Image source={{ uri: api.getImageProxyUrl(poster) }} style={styles.poster} />
+            <Image
+              source={{ uri: api.getImageProxyUrl(poster) }}
+              style={styles.poster}
+              contentFit="cover"
+              transition={200}
+            />
             
             {isContinueWatching && (
               <View style={styles.progressContainer}>
@@ -228,7 +234,6 @@ const createMobileStyles = (cardWidth: number, cardHeight: number, spacing: numb
     poster: {
       width: "100%",
       height: "100%",
-      resizeMode: 'cover',
     },
     progressContainer: {
       position: "absolute",
@@ -263,8 +268,8 @@ const createMobileStyles = (cardWidth: number, cardHeight: number, spacing: numb
       position: "absolute",
       top: 6,
       right: 6,
-      flexDirection: "row",
-      alignItems: "center",
+      flexDirection: 'row',
+      alignItems: 'center',
       backgroundColor: "rgba(0, 0, 0, 0.7)",
       borderRadius: 4,
       paddingHorizontal: 4,
