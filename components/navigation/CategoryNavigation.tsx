@@ -18,12 +18,23 @@ interface CategoryNavigationProps {
 
 export const CategoryNavigation: React.FC<CategoryNavigationProps> = ({ categories, selectedCategory, onCategorySelect, onCategoryLongPress, onTagSelect, categoryStyles, deviceType, spacing, focusTrigger }) => {
   const buttonRefs = useRef<(any)[]>([]);
+  const lastSelectedTitleRef = useRef<string | undefined>(undefined);
+  const lastFocusTriggerRef = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     if (focusTrigger && selectedCategory) {
-      const index = categories.findIndex((c) => c.title === selectedCategory.title);
-      const buttonRef = buttonRefs.current[index];
-      requestTVFocus(buttonRef);
+      const shouldFocus =
+        lastSelectedTitleRef.current !== selectedCategory.title ||
+        lastFocusTriggerRef.current !== focusTrigger;
+
+      lastSelectedTitleRef.current = selectedCategory.title;
+      lastFocusTriggerRef.current = focusTrigger;
+
+      if (shouldFocus) {
+        const index = categories.findIndex((c) => c.title === selectedCategory.title);
+        const buttonRef = buttonRefs.current[index];
+        requestTVFocus(buttonRef);
+      }
     }
   }, [focusTrigger, selectedCategory, categories]);
 
