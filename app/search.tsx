@@ -4,7 +4,7 @@ import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
 import VideoCard from "@/components/VideoCard";
 import VideoLoadingAnimation from "@/components/VideoLoadingAnimation";
-import { api, SearchResult, DoubanRecommendationItem } from "@/services/api";
+import { contentApi, SearchResult, DoubanRecommendationItem } from "@/services/api";
 import { Search, QrCode } from "lucide-react-native";
 import { StyledButton } from "@/components/StyledButton";
 import { useRemoteControlStore } from "@/stores/remoteControlStore";
@@ -113,7 +113,7 @@ export default function SearchScreen() {
           year={item.year}
           sourceName={isSearchResult ? (item as SearchResult).source_name : (item as DoubanRecommendationItem).platform || ''}
           rate={!isSearchResult ? (item as DoubanRecommendationItem).rate : undefined}
-          api={api}
+          api={contentApi}
         />
     );
   }, []);

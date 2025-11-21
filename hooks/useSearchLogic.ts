@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from "react";
 import { Keyboard } from "react-native";
-import { api, SearchResult, DoubanRecommendationItem } from "@/services/api";
+import { contentApi, SearchResult, DoubanRecommendationItem } from "@/services/api";
 import Logger from "@/utils/Logger";
 
 const logger = Logger.withTag("useSearchLogic");
@@ -29,7 +29,7 @@ export const useSearchLogic = (initialKeyword: string = "") => {
     setError(null);
 
     try {
-      const response = await api.discover(page, 25);
+      const response = await contentApi.discover(page, 25);
       if (response && response.list && response.list.length > 0) {
         setResults(prev => page === 1 ? response.list : [...prev, ...response.list]);
         setDiscoverPage(page + 1);
@@ -69,7 +69,7 @@ export const useSearchLogic = (initialKeyword: string = "") => {
     setResults([]);
 
     try {
-      const { results: searchResults } = await api.aiAssistantSearch(searchTerm);
+      const { results: searchResults } = await contentApi.aiAssistantSearch(searchTerm);
       if (searchResults.length > 0) {
         setResults(searchResults);
         setHasMore(false);

@@ -2,7 +2,7 @@ import React, { useEffect, useCallback, useMemo, useRef, useState } from "react"
 import { StyleSheet, ActivityIndicator, FlatList, Animated, StatusBar, Platform, BackHandler, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ThemedView } from "@/components/ThemedView";
-import { api } from "@/services/api";
+import { contentApi } from "@/services/api";
 import VideoCard from "@/components/VideoCard";
 import { useFocusEffect } from "expo-router";
 import { useShallow } from "zustand/react/shallow";
@@ -253,7 +253,7 @@ export default function HomeScreen() {
           episodeIndex={item.episodeIndex}
           sourceName={item.sourceName}
           totalEpisodes={item.totalEpisodes}
-          api={api}
+          api={contentApi}
           onRecordDeleted={fetchInitialData}
           onLongPress={longPressAction}
         />

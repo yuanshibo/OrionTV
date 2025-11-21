@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSettingsStore } from '@/stores/settingsStore';
-import { api } from '@/services/api';
+import { authApi } from '@/services/api';
 
 export interface ApiConfigStatus {
   isConfigured: boolean;
@@ -40,7 +40,7 @@ export const useApiConfig = () => {
       setValidationState(prev => ({ ...prev, isValidating: true, error: null }));
       
       try {
-        await api.getServerConfig();
+        await authApi.getServerConfig();
         setValidationState({
           isValidating: false,
           isValid: true,

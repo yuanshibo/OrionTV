@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { api, PlayRecord as ApiPlayRecord, Favorite as ApiFavorite } from "./api";
+import { userApi, PlayRecord as ApiPlayRecord, Favorite as ApiFavorite } from "./api";
 import { storageConfig } from "./storageConfig";
 import Logger from '@/utils/Logger';
 
@@ -151,7 +151,7 @@ export class FavoriteManager {
         return {};
       }
     }
-    return (await api.getFavorites()) as Record<string, Favorite>;
+    return (await userApi.getFavorites()) as Record<string, Favorite>;
   }
 
   static async save(source: string, id: string, item: Favorite): Promise<void> {
@@ -162,7 +162,7 @@ export class FavoriteManager {
       await AsyncStorage.setItem(STORAGE_KEYS.FAVORITES, JSON.stringify(allFavorites));
       return;
     }
-    await api.addFavorite(key, item);
+    await userApi.addFavorite(key, item);
   }
 
   static async remove(source: string, id: string): Promise<void> {
@@ -173,7 +173,7 @@ export class FavoriteManager {
       await AsyncStorage.setItem(STORAGE_KEYS.FAVORITES, JSON.stringify(allFavorites));
       return;
     }
-    await api.deleteFavorite(key);
+    await userApi.deleteFavorite(key);
   }
 
   static async isFavorited(source: string, id: string): Promise<boolean> {
@@ -182,7 +182,7 @@ export class FavoriteManager {
       const allFavorites = await this.getAll();
       return !!allFavorites[key];
     }
-    const favorite = await api.getFavorites(key);
+    const favorite = await userApi.getFavorites(key);
     return favorite !== null;
   }
 
@@ -202,7 +202,7 @@ export class FavoriteManager {
       await AsyncStorage.removeItem(STORAGE_KEYS.FAVORITES);
       return;
     }
-    await api.deleteFavorite();
+    await userApi.deleteFavorite();
   }
 }
 
@@ -232,7 +232,7 @@ export class PlayRecordManager {
       });
     } else {
       // For API, we probably shouldn't cache indefinitely, but maybe for a short session
-      apiRecords = await api.getPlayRecords();
+      apiRecords = await userApi.getPlayRecords();
     }
 
     // Merge with settings (which is cached now)
@@ -304,7 +304,7 @@ export class PlayRecordManager {
       if (description && !existingRecord?.description) {
         recordToSave.description = description;
       }
-      await api.savePlayRecord(key, recordToSave);
+      await userApi.savePlayRecord(key, recordToSave);
     }
   }
 
@@ -324,7 +324,7 @@ export class PlayRecordManager {
       localPlayRecordsCache.set(allRecords);
       await AsyncStorage.setItem(STORAGE_KEYS.PLAY_RECORDS, JSON.stringify(allRecords));
     } else {
-      await api.deletePlayRecord(key);
+      await userApi.deletePlayRecord(key);
     }
   }
 
@@ -335,7 +335,7 @@ export class PlayRecordManager {
       localPlayRecordsCache.set({});
       await AsyncStorage.removeItem(STORAGE_KEYS.PLAY_RECORDS);
     } else {
-      await api.deletePlayRecord();
+      await userApi.deletePlayRecord();
     }
   }
 }
@@ -356,7 +356,7 @@ export class SearchHistoryManager {
         return [];
       }
     }
-    return api.getSearchHistory();
+    return userApi.getSearchHistory();
   }
 
   static async add(keyword: string): Promise<void> {
@@ -369,7 +369,7 @@ export class SearchHistoryManager {
       await AsyncStorage.setItem(STORAGE_KEYS.SEARCH_HISTORY, JSON.stringify(history));
       return;
     }
-    await api.addSearchHistory(trimmed);
+    await userApi.addSearchHistory(trimmed);
   }
 
   static async clear(): Promise<void> {
@@ -377,7 +377,7 @@ export class SearchHistoryManager {
       await AsyncStorage.removeItem(STORAGE_KEYS.SEARCH_HISTORY);
       return;
     }
-    await api.deleteSearchHistory();
+    await userApi.deleteSearchHistory();
   }
 }
 

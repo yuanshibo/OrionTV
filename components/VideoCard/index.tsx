@@ -1,7 +1,7 @@
 import React from 'react';
 import { GestureResponderEvent, TouchableOpacity, View } from 'react-native';
 import { useResponsiveLayout } from '@/hooks/useResponsiveLayout';
-import { API } from '@/services/api';
+import { ContentApi } from '@/services/api';
 
 // Import platform specific components
 import VideoCardMobile from './VideoCard.mobile';
@@ -24,7 +24,7 @@ interface VideoCardBaseProps extends Omit<React.ComponentProps<typeof TouchableO
   onFocus?: () => void;
   onRecordDeleted?: () => void;
   onFavoriteDeleted?: () => void;
-  api: API;
+  api: ContentApi;
   type?: 'record' | 'favorite';
 }
 

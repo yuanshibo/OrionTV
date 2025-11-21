@@ -9,7 +9,7 @@ import {
   DoubanItem,
   DoubanRecommendationItem,
   PlayRecord,
-  api
+  contentApi
 } from "@/services/api";
 import { DOUBAN_ALL_FILTER_GROUPS } from "@/constants/doubanFilters";
 
@@ -183,7 +183,7 @@ export const fetchDoubanCategoryContent = async (
     const limit = DOUBAN_RECOMMENDATION_PAGE_SIZE;
     const activeFilters = category.activeFilters ?? buildDefaultFilters(category.filterConfig);
 
-    const result = await api.getDoubanRecommendations(
+    const result = await contentApi.getDoubanRecommendations(
       category.filterConfig.kind,
       {
         ...activeFilters,
@@ -200,7 +200,7 @@ export const fetchDoubanCategoryContent = async (
     };
   }
 
-  const result = await api.getDoubanData(category.type, category.tag, 20, pageStart, signal);
+  const result = await contentApi.getDoubanData(category.type, category.tag, 20, pageStart, signal);
   const items = mapDoubanItemsToRows(result.list);
   return {
     items,

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { api, SearchResult, SearchResultWithResolution } from "@/services/api";
+import { contentApi, SearchResult, SearchResultWithResolution } from "@/services/api";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { FavoriteManager } from "@/services/storage";
 import Logger from "@/utils/Logger";
@@ -379,7 +379,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
         let preferredSearchError: any = null;
         
         try {
-          const response = await api.searchVideo(q, preferredSource, signal);
+          const response = await contentApi.searchVideo(q, preferredSource, signal);
           preferredResult = response.results;
         } catch (error) {
           preferredSearchError = error;
@@ -431,7 +431,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
           logger.info(`[PERF] FALLBACK search (all sources) START - query: "${q}"`);
 
           try {
-            const { results: allResults } = await api.searchVideos(q);
+            const { results: allResults } = await contentApi.searchVideos(q);
             const fallbackEnd = performance.now();
             logger.info(
               `[PERF] FALLBACK search END - took ${(fallbackEnd - fallbackStart).toFixed(2)}ms, total results: ${allResults.length}`
@@ -481,7 +481,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
             logger.info(`[PERF] API searchVideos (background) START`);
 
             try {
-              const { results: allResults } = await api.searchVideos(q);
+              const { results: allResults } = await contentApi.searchVideos(q);
 
               const searchAllEnd = performance.now();
               logger.info(
@@ -511,7 +511,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
         logger.info(`[PERF] API getResources START - query: "${q}"`);
         
         try {
-          const allResources = await api.getResources(signal);
+          const allResources = await contentApi.getResources(signal);
           
           const resourcesEnd = performance.now();
           logger.info(`[PERF] API getResources END - took ${(resourcesEnd - resourcesStart).toFixed(2)}ms, resources: ${allResources.length}`);
@@ -550,7 +550,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
 
             try {
               const searchStart = performance.now();
-              const { results } = await api.searchVideo(q, resource.key, signal);
+              const { results } = await contentApi.searchVideo(q, resource.key, signal);
               const searchEnd = performance.now();
               logger.info(
                 `[PERF] API searchVideo (${resource.name}) took ${(searchEnd - searchStart).toFixed(2)}ms, results: ${results.length}`

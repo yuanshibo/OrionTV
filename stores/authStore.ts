@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { api } from "@/services/api";
+import { authApi } from "@/services/api";
 import { useSettingsStore } from "./settingsStore";
 import Toast from "react-native-toast-message";
 import Logger from "@/utils/Logger";
@@ -60,7 +60,7 @@ const useAuthStore = create<AuthState>((set) => ({
       const authToken = await AsyncStorage.getItem('authCookies');
       if (!authToken) {
         if (serverConfig && serverConfig.StorageType === "localstorage") {
-          const loginResult = await api.login().catch(() => {
+          const loginResult = await authApi.login().catch(() => {
             set({ isLoggedIn: false, isLoginModalVisible: true });
           });
           if (loginResult && loginResult.ok) {
@@ -83,7 +83,7 @@ const useAuthStore = create<AuthState>((set) => ({
   },
   logout: async () => {
     try {
-      await api.logout();
+      await authApi.logout();
       set({ isLoggedIn: false, isLoginModalVisible: true });
     } catch (error) {
       logger.error("Failed to logout:", error);

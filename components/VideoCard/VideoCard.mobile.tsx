@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Alert, Animated, useColorSche
 import { Image } from 'expo-image';
 import { useRouter } from "expo-router";
 import { Star, Play } from "lucide-react-native";
-import { API } from "@/services/api";
+import { ContentApi } from "@/services/api";
 import { ThemedText } from "@/components/ThemedText";
 import { Colors } from "@/constants/Colors";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
@@ -25,7 +25,7 @@ interface VideoCardMobileProps extends React.ComponentProps<typeof TouchableOpac
   onFocus?: () => void;
   onRecordDeleted?: () => void;
   onFavoriteDeleted?: () => void;
-  api: API;
+  api: ContentApi;
   type?: 'record' | 'favorite';
 }
 
