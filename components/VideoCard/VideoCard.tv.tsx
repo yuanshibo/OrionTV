@@ -8,6 +8,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { Colors } from "@/constants/Colors";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { useVideoCardLogic } from "./useVideoCardLogic";
+import useAuthStore from "@/stores/authStore";
 import Logger from '@/utils/Logger';
 
 const logger = Logger.withTag('VideoCardTV');
@@ -56,6 +57,7 @@ const VideoCard = forwardRef<View, VideoCardProps>(
     ref
   ) => {
     const router = useRouter();
+    const authCookie = useAuthStore((state) => state.authCookie);
     const colorScheme = useColorScheme() ?? 'dark';
     const colors = Colors[colorScheme];
     const [isFocused, setIsFocused] = useState(false);
@@ -187,7 +189,10 @@ const VideoCard = forwardRef<View, VideoCardProps>(
         >
           <View style={styles.card}>
             <Image
-              source={{ uri: api.getImageProxyUrl(poster) }}
+              source={{
+                uri: api.getImageProxyUrl(poster),
+                headers: authCookie ? { Cookie: authCookie } : undefined
+              }}
               style={styles.poster}
               contentFit="cover"
               transition={200}

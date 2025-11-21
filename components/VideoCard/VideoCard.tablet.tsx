@@ -9,6 +9,7 @@ import { Colors } from "@/constants/Colors";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { DeviceUtils } from "@/utils/DeviceUtils";
 import { useVideoCardLogic } from "./useVideoCardLogic";
+import useAuthStore from "@/stores/authStore";
 import Logger from '@/utils/Logger';
 
 const logger = Logger.withTag('VideoCardTablet');
@@ -50,6 +51,7 @@ const VideoCardTablet = forwardRef<View, VideoCardTabletProps>(
     ref
   ) => {
     const router = useRouter();
+    const authCookie = useAuthStore((state) => state.authCookie);
     const colorScheme = useColorScheme() ?? 'dark';
     const colors = Colors[colorScheme];
     const { cardWidth, cardHeight, spacing } = useResponsiveLayout();
@@ -167,7 +169,10 @@ const VideoCardTablet = forwardRef<View, VideoCardTabletProps>(
         >
           <View style={[styles.card, isPressed && styles.cardPressed]}>
             <Image
-              source={{ uri: api.getImageProxyUrl(poster) }}
+              source={{
+                uri: api.getImageProxyUrl(poster),
+                headers: authCookie ? { Cookie: authCookie } : undefined
+              }}
               style={styles.poster}
               contentFit="cover"
               transition={200}

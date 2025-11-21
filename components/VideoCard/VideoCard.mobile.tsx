@@ -9,6 +9,7 @@ import { Colors } from "@/constants/Colors";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { DeviceUtils } from "@/utils/DeviceUtils";
 import { useVideoCardLogic } from "./useVideoCardLogic";
+import useAuthStore from "@/stores/authStore";
 import Logger from '@/utils/Logger';
 
 const logger = Logger.withTag('VideoCardMobile');
@@ -54,6 +55,7 @@ const VideoCardMobile = forwardRef<View, VideoCardMobileProps>(
     ref
   ) => {
     const router = useRouter();
+    const authCookie = useAuthStore((state) => state.authCookie);
     const colorScheme = useColorScheme() ?? 'dark';
     const colors = Colors[colorScheme];
     const { cardWidth, cardHeight, spacing } = useResponsiveLayout();
@@ -132,7 +134,10 @@ const VideoCardMobile = forwardRef<View, VideoCardMobileProps>(
         >
           <View style={styles.card}>
             <Image
-              source={{ uri: api.getImageProxyUrl(poster) }}
+              source={{
+                uri: api.getImageProxyUrl(poster),
+                headers: authCookie ? { Cookie: authCookie } : undefined
+              }}
               style={styles.poster}
               contentFit="cover"
               transition={200}
