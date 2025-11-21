@@ -1,5 +1,5 @@
-import React, { useMemo } from "react";
-import { View, Text, StyleSheet, Pressable, useColorScheme } from "react-native";
+import React, { useMemo, useState } from "react";
+import { View, Text, StyleSheet, Pressable, useColorScheme, GestureResponderEvent } from "react-native";
 import { Pause, Play, SkipForward, List, Tv, ArrowDownToDot, ArrowUpFromDot, Gauge } from "lucide-react-native";
 import { ThemedText } from "@/components/ThemedText";
 import { MediaButton } from "@/components/MediaButton";
@@ -9,6 +9,7 @@ import usePlayerUIStore from "@/stores/playerUIStore";
 import useDetailStore from "@/stores/detailStore";
 import { useSources } from "@/stores/sourceStore";
 import { Colors } from "@/constants/Colors";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 
 interface PlayerControlsProps {
   showControls: boolean;
@@ -27,6 +28,7 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
   const seekPosition = usePlayerStore((state) => state.seekPosition);
   const progressPosition = usePlayerStore((state) => state.progressPosition);
   const playbackRate = usePlayerStore((state) => state.playbackRate);
+  const seek = usePlayerStore((state) => state.seek);
   const togglePlayPause = usePlayerStore((state) => state.togglePlayPause);
   const playEpisode = usePlayerStore((state) => state.playEpisode);
   const setIntroEndTime = usePlayerStore((state) => state.setIntroEndTime);
@@ -41,6 +43,8 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
 
   const { detail } = useDetailStore();
   const resources = useSources();
+  const { deviceType } = useResponsiveLayout();
+  const [progressBarWidth, setProgressBarWidth] = useState(0);
 
   const videoTitle = detail?.title || "";
   const currentEpisode = episodes[currentEpisodeIndex];
@@ -61,6 +65,27 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
     if (hasNextEpisode) {
       playEpisode(currentEpisodeIndex + 1);
     }
+  };
+
+  const handleProgressBarPress = (e: GestureResponderEvent) => {
+    if (deviceType === 'tv' || !status?.durationMillis || progressBarWidth === 0) return;
+
+    const tapX = e.nativeEvent.locationX;
+    const percentage = tapX / progressBarWidth;
+    const targetTime = percentage * status.durationMillis;
+
+    // Calculate difference to seek
+    const current = status.positionMillis;
+    const diff = targetTime - current;
+
+    // Use seek method which expects duration difference in milliseconds (Wait, verify seek method)
+    // Checking playerStore: seek(duration: number) where duration is in ms?
+    // seek(duration) implementation: const newPosition = current + duration;
+    // So yes, diff is correct.
+    // Wait, seek(duration) takes ms or seconds?
+    // playerStore.ts: set seekPosition: newPosition / durationMillis.
+    // It expects milliseconds.
+    seek(diff);
   };
   
   const durationMillis = status?.durationMillis || 0;
@@ -149,7 +174,10 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
       </View>
 
       <View style={styles.bottomControlsContainer}>
-        <View style={styles.progressBarContainer}>
+        <View
+          style={styles.progressBarContainer}
+          onLayout={(e) => setProgressBarWidth(e.nativeEvent.layout.width)}
+        >
           <View style={styles.progressBarBackground} />
           <View
             style={[
@@ -167,7 +195,11 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
               },
             ]}
           />
-          <Pressable style={styles.progressBarTouchable} />
+          <Pressable
+            style={styles.progressBarTouchable}
+            onPress={handleProgressBarPress}
+            focusable={false} // Disable focus on TV to prevent accidental interaction
+          />
         </View>
 
         <ThemedText style={{ color: colors.text, marginTop: 5 }}>
