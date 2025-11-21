@@ -2,10 +2,11 @@ import React, { useEffect, useCallback, useMemo, useRef, useState } from "react"
 import { StyleSheet, ActivityIndicator, FlatList, Animated, StatusBar, Platform, BackHandler, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ThemedView } from "@/components/ThemedView";
-import { api } from "@/services/api";
-import VideoCard from "@/components/VideoCard";
+import { contentApi } from "@/services/api";
 import { useFocusEffect } from "expo-router";
-import useHomeStore, { RowItem, Category, DoubanFilterKey } from "@/stores/homeStore";
+import { useShallow } from "zustand/react/shallow";
+import useHomeStore from "@/stores/homeStore";
+import type { RowItem, Category, DoubanFilterKey } from "@/types/home";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { getCommonResponsiveStyles } from "@/utils/ResponsiveStyles";
 import ResponsiveNavigation from "@/components/navigation/ResponsiveNavigation";
@@ -15,6 +16,7 @@ import { CategoryNavigation } from "@/components/navigation/CategoryNavigation";
 import { ContentDisplay } from "@/components/home/ContentDisplay";
 import FilterPanel from "@/components/home/FilterPanel";
 import { requestTVFocus } from "@/utils/tvUtils";
+import HomeContentItem from "@/components/home/HomeContentItem";
 
 export default function HomeScreen() {
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -23,10 +25,11 @@ export default function HomeScreen() {
   const firstItemRef = useRef<View>(null);
   const lastCheckedPlayRecords = useRef<number>(0);
 
-  // 响应式布局配置
+  // Responsive Layout
   const responsiveConfig = useResponsiveLayout();
   const commonStyles = useMemo(() => getCommonResponsiveStyles(responsiveConfig), [responsiveConfig]);
   const { deviceType, spacing } = responsiveConfig;
+
   const {
     categories,
     selectedCategory,
@@ -41,7 +44,24 @@ export default function HomeScreen() {
     refreshPlayRecords,
     clearError,
     hydrateFromStorage,
-  } = useHomeStore();
+  } = useHomeStore(
+    useShallow((state) => ({
+      categories: state.categories,
+      selectedCategory: state.selectedCategory,
+      contentData: state.contentData,
+      loading: state.loading,
+      loadingMore: state.loadingMore,
+      error: state.error,
+      fetchInitialData: state.fetchInitialData,
+      loadMoreData: state.loadMoreData,
+      selectCategory: state.selectCategory,
+      updateFilterOption: state.updateFilterOption,
+      refreshPlayRecords: state.refreshPlayRecords,
+      clearError: state.clearError,
+      hydrateFromStorage: state.hydrateFromStorage,
+    }))
+  );
+
   const hasRecordCategory = useMemo(() => categories.some((category) => category.type === "record"), [categories]);
   const hasContent = contentData.length > 0;
   const hadContentRef = useRef(hasContent);
@@ -54,6 +74,7 @@ export default function HomeScreen() {
     void hydrateFromStorage();
   }, [hydrateFromStorage]);
 
+  // Auto refresh records logic
   useFocusEffect(
     useCallback(() => {
       if (selectedCategoryType === "record") {
@@ -72,6 +93,7 @@ export default function HomeScreen() {
 
   const backPressTimeRef = useRef<number | null>(null);
 
+  // Back Handler
   useFocusEffect(
     useCallback(() => {
       const handleBackPress = () => {
@@ -81,14 +103,17 @@ export default function HomeScreen() {
         }
         const now = Date.now();
 
+        // Double back to exit logic
         if (!backPressTimeRef.current || now - backPressTimeRef.current > 2000) {
           listRef.current?.scrollToOffset({ offset: 0, animated: true });
 
+          // Use a slight delay to ensure scroll happens before focus request
           setTimeout(() => {
             requestTVFocus(firstItemRef);
           }, 300);
 
           backPressTimeRef.current = now;
+          // Toast could be added here: "Press back again to exit"
           return true;
         }
 
@@ -106,7 +131,7 @@ export default function HomeScreen() {
     }, [isFilterPanelVisible])
   );
 
-  // 数据获取逻辑
+  // Data fetching
   useEffect(() => {
     if (!selectedCategory || (selectedCategory.tags && !selectedCategory.tag) || !apiConfigStatus.isConfigured || apiConfigStatus.needsConfiguration) {
       return;
@@ -114,14 +139,14 @@ export default function HomeScreen() {
     fetchInitialData();
   }, [selectedCategory, selectedCategory?.tag, apiConfigStatus.isConfigured, apiConfigStatus.needsConfiguration, fetchInitialData]);
 
-  // 错误状态清理
+  // Error clearing
   useEffect(() => {
     if (apiConfigStatus.needsConfiguration && error) {
       clearError();
     }
   }, [apiConfigStatus.needsConfiguration, error, clearError]);
 
-  // 内容淡入动画
+  // Fade animation
   useEffect(() => {
     if (loading && !hasContent) {
       fadeAnim.setValue(0);
@@ -149,6 +174,10 @@ export default function HomeScreen() {
     },
     [selectCategory]
   );
+
+  const handleOpenFilterPanel = useCallback(() => {
+    setFilterPanelVisible(true);
+  }, []);
 
   const handleCategoryLongPress = useCallback(
     (category: Category) => {
@@ -187,7 +216,7 @@ export default function HomeScreen() {
     [selectedCategory, selectCategory, updateFilterOption]
   );
 
-  // 动态样式
+  // Dynamic Styles
   const dynamicContainerStyle = useMemo(() => ({ paddingTop: deviceType === "mobile" ? insets.top : deviceType === "tablet" ? insets.top + 20 : 40 }), [deviceType, insets.top]);
 
   const headerStyles = useMemo(() => StyleSheet.create({
@@ -207,42 +236,26 @@ export default function HomeScreen() {
   const renderContentItem = useCallback(
     ({ item, index }: { item: RowItem; index: number }) => {
       const isFilterableCategory = selectedCategory?.title === "所有";
-      const isRecordCategory = selectedCategory?.type === "record";
 
       let longPressAction;
       if (deviceType === "tv") {
         if (isFilterableCategory) {
-          longPressAction = () => setFilterPanelVisible(true);
-        } else if (isRecordCategory) {
-          // Let VideoCard handle it internally for deletion.
-          longPressAction = undefined;
-        } else {
-          // For any other category, long-press should do nothing.
-          longPressAction = () => {};
+          longPressAction = handleOpenFilterPanel;
         }
       }
 
       return (
-        <VideoCard
-          ref={index === 0 ? firstItemRef : undefined}
-          id={item.id}
-          source={item.source}
-          title={item.title}
-          poster={item.poster}
-          year={item.year}
-          rate={item.rate}
-          progress={item.progress}
-          playTime={item.play_time}
-          episodeIndex={item.episodeIndex}
-          sourceName={item.sourceName}
-          totalEpisodes={item.totalEpisodes}
-          api={api}
+        <HomeContentItem
+          item={item}
+          index={index}
+          api={contentApi}
           onRecordDeleted={fetchInitialData}
           onLongPress={longPressAction}
+          firstItemRef={firstItemRef}
         />
       );
     },
-    [fetchInitialData, deviceType, selectedCategory]
+    [fetchInitialData, deviceType, selectedCategory, handleOpenFilterPanel]
   );
 
   const footerComponent = useMemo(() => {

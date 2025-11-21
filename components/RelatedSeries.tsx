@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { View, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
 import { ThemedText } from './ThemedText';
-import { api, DoubanRecommendationItem, SearchResult } from '@/services/api';
+import { contentApi, DoubanRecommendationItem, SearchResult, DiscoverResponse } from '@/services/api';
 import { fetchSearchResults } from '@/services/searchService';
 import VideoCard from './VideoCard';
 import { useResponsiveLayout } from '@/hooks/useResponsiveLayout';
@@ -66,9 +66,9 @@ const RelatedSeries: React.FC<RelatedSeriesProps> = ({ title, autoFocus = false 
             setLoading(false);
           } else {
             setListTitle('猜你喜欢');
-            api.discover(1, 25)
-              .then(discoverResponse => {
-                const discoverResults: SearchResult[] = discoverResponse.list.map((item: DoubanRecommendationItem, index) => ({
+            contentApi.discover(1, 25)
+              .then((discoverResponse: DiscoverResponse) => {
+                const discoverResults: SearchResult[] = discoverResponse.list.map((item: DoubanRecommendationItem, index: number) => ({
                   id: index, // Use index as a fallback ID
                   title: item.title,
                   poster: item.poster,
@@ -77,7 +77,7 @@ const RelatedSeries: React.FC<RelatedSeriesProps> = ({ title, autoFocus = false 
                   source_name: '推荐',
                   episodes: [],
                   class: item.type || '',
-                } as SearchResult));
+                } as unknown as SearchResult));
                 setRelated(discoverResults);
               })
               .catch(console.error)
@@ -101,7 +101,7 @@ const RelatedSeries: React.FC<RelatedSeriesProps> = ({ title, autoFocus = false 
         poster={item.poster}
         year={item.year}
         sourceName={item.source_name}
-        api={api}
+        api={contentApi}
       />
     </View>
   );

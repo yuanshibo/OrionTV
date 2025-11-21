@@ -1,26 +1,47 @@
-import React from "react";
+import React, { useCallback, memo } from "react";
 import { View, Text, StyleSheet, Modal, FlatList } from "react-native";
+import { useShallow } from "zustand/react/shallow";
 import { StyledButton } from "./StyledButton";
 import useDetailStore from "@/stores/detailStore";
 import usePlayerStore from "@/stores/playerStore";
+import usePlayerUIStore from "@/stores/playerUIStore";
 import Logger from '@/utils/Logger';
 import { useRouter } from "expo-router";
 
 const logger = Logger.withTag('SourceSelectionModal');
 
-export const SourceSelectionModal: React.FC = () => {
-    const router = useRouter();
-  const { showSourceModal, setShowSourceModal, loadVideo, currentEpisodeIndex, status } = usePlayerStore();
-  const { searchResults, detail, setDetail } = useDetailStore();
+export const SourceSelectionModal = memo(() => {
+  const router = useRouter();
+  const { loadVideo, currentEpisodeIndex } = usePlayerStore(
+    useShallow((state) => ({
+      loadVideo: state.loadVideo,
+      currentEpisodeIndex: state.currentEpisodeIndex,
+    }))
+  );
+  const { showSourceModal, setShowSourceModal } = usePlayerUIStore(
+    useShallow((state) => ({
+      showSourceModal: state.showSourceModal,
+      setShowSourceModal: state.setShowSourceModal,
+    }))
+  );
+  const { searchResults, detail, setDetail } = useDetailStore(
+    useShallow((state) => ({
+      searchResults: state.searchResults,
+      detail: state.detail,
+      setDetail: state.setDetail,
+    }))
+  );
 
-  const onSelectSource = (index: number) => {
+  const onSelectSource = useCallback((index: number) => {
     logger.debug("onSelectSource", index, searchResults[index].source, detail?.source);
     if (searchResults[index].source !== detail?.source) {
       const newDetail = searchResults[index];
       setDetail(newDetail);
       
       // Reload the video with the new source, preserving current position
-      const currentPosition = status?.isLoaded ? status.positionMillis : undefined;
+      // Use getState() to access latest status without triggering re-renders
+      const currentStatus = usePlayerStore.getState().status;
+      const currentPosition = currentStatus?.isLoaded ? currentStatus.positionMillis : undefined;
       loadVideo({
         detail: newDetail,
         episodeIndex: currentEpisodeIndex,
@@ -29,11 +50,11 @@ export const SourceSelectionModal: React.FC = () => {
       });
     }
     setShowSourceModal(false);
-  };
+  }, [searchResults, detail, setDetail, loadVideo, currentEpisodeIndex, router, setShowSourceModal]);
 
-  const onClose = () => {
+  const onClose = useCallback(() => {
     setShowSourceModal(false);
-  };
+  }, [setShowSourceModal]);
 
   return (
     <Modal visible={showSourceModal} transparent={true} animationType="slide" onRequestClose={onClose}>
@@ -55,12 +76,15 @@ export const SourceSelectionModal: React.FC = () => {
                 textStyle={styles.sourceItemText}
               />
             )}
+            initialNumToRender={20}
+            maxToRenderPerBatch={20}
+            windowSize={5}
           />
         </View>
       </View>
     </Modal>
   );
-};
+});
 
 const styles = StyleSheet.create({
   modalContainer: {

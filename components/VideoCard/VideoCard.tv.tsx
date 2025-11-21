@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useCallback, useRef, forwardRef, useMemo } from "react";
-import { View, Text, Image, StyleSheet, Pressable, TouchableOpacity, Alert, Animated, Platform, useColorScheme } from "react-native";
+import { View, Text, StyleSheet, Pressable, TouchableOpacity, Alert, Animated, Platform, useColorScheme } from "react-native";
+import { Image } from 'expo-image';
 import { useRouter } from "expo-router";
 import { Star, Play } from "lucide-react-native";
-import { PlayRecordManager, FavoriteManager } from "@/services/storage";
-import { API } from "@/services/api";
+import { ContentApi } from "@/services/api";
 import { ThemedText } from "@/components/ThemedText";
 import { Colors } from "@/constants/Colors";
-import Logger from '@/utils/Logger';
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { useVideoCardLogic } from "./useVideoCardLogic";
+import useAuthStore from "@/stores/authStore";
+import Logger from '@/utils/Logger';
 
 const logger = Logger.withTag('VideoCardTV');
 
@@ -27,7 +29,7 @@ interface VideoCardProps extends React.ComponentProps<typeof TouchableOpacity> {
   onLongPress?: () => void;
   onRecordDeleted?: () => void;
   onFavoriteDeleted?: () => void;
-  api: API;
+  api: ContentApi;
   type?: 'record' | 'favorite';
 }
 
@@ -55,14 +57,17 @@ const VideoCard = forwardRef<View, VideoCardProps>(
     ref
   ) => {
     const router = useRouter();
+    const authCookie = useAuthStore((state) => state.authCookie);
     const colorScheme = useColorScheme() ?? 'dark';
     const colors = Colors[colorScheme];
     const [isFocused, setIsFocused] = useState(false);
-    const [fadeAnim] = useState(new Animated.Value(0));
+
+    // Optimization: Use useRef for Animated Values to ensure stability and avoid recreation
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+    const scale = useRef(new Animated.Value(1)).current;
 
     const longPressTriggered = useRef(false);
 
-    const scale = useRef(new Animated.Value(1)).current;
     const fadeInAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
     const scaleAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
 
@@ -72,22 +77,24 @@ const VideoCard = forwardRef<View, VideoCardProps>(
       transform: [{ scale }],
     };
 
+    const { handlePress: performNavigation, showDeleteAlert } = useVideoCardLogic({
+      id,
+      source,
+      title,
+      progress,
+      playTime,
+      episodeIndex,
+      type,
+      onRecordDeleted,
+      onFavoriteDeleted,
+    });
+
     const handlePress = () => {
       if (longPressTriggered.current) {
         longPressTriggered.current = false;
         return;
       }
-      if (progress !== undefined && episodeIndex !== undefined) {
-        router.push({
-          pathname: "/play",
-          params: { source, id, episodeIndex: episodeIndex - 1, title, position: playTime * 1000 },
-        });
-      } else {
-        router.push({
-          pathname: "/detail",
-          params: { source, q: title },
-        });
-      }
+      performNavigation();
     };
 
     const runScaleAnimation = useCallback(
@@ -154,43 +161,9 @@ const VideoCard = forwardRef<View, VideoCardProps>(
       if (type === 'record' && progress === undefined) return;
 
       longPressTriggered.current = true;
-
-      const isFavorite = type === 'favorite';
-      const titleText = isFavorite ? "删除收藏" : "删除观看记录";
-      const messageText = isFavorite ? `确定要删除"${title}"的收藏吗？` : `确定要删除"${title}"的观看记录吗？`;
-
-      Alert.alert(titleText, messageText, [
-        {
-          text: "删除",
-          style: "destructive",
-          isPreferred: true,
-          onPress: async () => {
-            try {
-              if (isFavorite) {
-                await FavoriteManager.remove(source, id);
-                onFavoriteDeleted?.();
-              } else {
-                await PlayRecordManager.remove(source, id);
-                if (onRecordDeleted) {
-                  onRecordDeleted();
-                } else if (router.canGoBack()) {
-                  router.replace("/");
-                }
-              }
-            } catch (error) {
-              logger.info(`Failed to delete ${type}:`, error);
-              Alert.alert("错误", `删除${isFavorite ? '收藏' : '观看记录'}失败，请重试`);
-            } finally {
-              longPressTriggered.current = false;
-            }
-          },
-        },
-        {
-          text: "取消",
-          style: "cancel",
-          onPress: () => { longPressTriggered.current = false; }
-        },
-      ]);
+      showDeleteAlert(() => {
+        longPressTriggered.current = false;
+      });
     };
 
     const isContinueWatching = progress !== undefined && progress > 0 && progress < 1;
@@ -208,14 +181,23 @@ const VideoCard = forwardRef<View, VideoCardProps>(
           style={({ pressed }) => [
             styles.pressable,
             {
-              zIndex: pressed ? 999 : 1,
+              zIndex: pressed || isFocused ? 999 : 1,
             },
           ]}
           delayLongPress={1000}
           {...rest}
         >
           <View style={styles.card}>
-            <Image source={{ uri: api.getImageProxyUrl(poster) }} style={styles.poster} />
+            <Image
+              source={{
+                uri: api.getImageProxyUrl(poster),
+                headers: authCookie ? { Cookie: authCookie } : undefined
+              }}
+              style={styles.poster}
+              contentFit="cover"
+              transition={200}
+              onError={(e) => logger.warn(`Image load failed for ${title} (TV):`, e.error, "URL:", api.getImageProxyUrl(poster))}
+            />
             {isFocused && (
               <View style={styles.overlay}>
                 {isContinueWatching && (

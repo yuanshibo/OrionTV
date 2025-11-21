@@ -1,4 +1,4 @@
-import { api, SearchResult } from './api';
+import { contentApi, SearchResult } from './api';
 import { cacheService } from './cacheService';
 
 const groupSearchResults = (items: SearchResult[]): SearchResult[] => {
@@ -28,7 +28,7 @@ export const fetchSearchResults = async (term: string): Promise<SearchResult[]> 
     return cachedResults;
   }
 
-  const response = await api.searchVideos(term);
+  const response = await contentApi.searchVideos(term);
   const groupedResults = groupSearchResults(response.results);
   
   if (groupedResults.length > 0) {

@@ -1,11 +1,11 @@
 import React, { useCallback, useMemo, useRef, useState, forwardRef, useImperativeHandle } from "react";
 import {
   ActivityIndicator,
-  FlatList,
   StyleSheet,
   TouchableOpacity,
   View,
 } from "react-native";
+import { FlashList } from "@shopify/flash-list";
 import { ThemedText } from "@/components/ThemedText";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { getCommonResponsiveStyles } from "@/utils/ResponsiveStyles";
@@ -23,7 +23,8 @@ interface CustomScrollViewProps {
   ListFooterComponent?: React.ComponentType<any> | React.ReactElement | null;
 }
 
-const CustomScrollView = forwardRef<FlatList<any>, CustomScrollViewProps>((
+// Use React.ElementRef to correctly infer the instance type of FlashList
+const CustomScrollView = forwardRef<React.ElementRef<typeof FlashList>, CustomScrollViewProps>((
   {
     data,
     renderItem,
@@ -38,13 +39,14 @@ const CustomScrollView = forwardRef<FlatList<any>, CustomScrollViewProps>((
   },
   ref
 ) => {
-  const listRef = useRef<FlatList<any>>(null);
-  useImperativeHandle(ref, () => listRef.current as FlatList<any>);
+  const listRef = useRef<React.ElementRef<typeof FlashList>>(null);
+  // @ts-ignore: complex ref forwarding types with FlashList
+  useImperativeHandle(ref, () => listRef.current);
 
   const [showScrollToTop, setShowScrollToTop] = useState(false);
   const responsiveConfig = useResponsiveLayout();
   const commonStyles = getCommonResponsiveStyles(responsiveConfig);
-  const { deviceType } = responsiveConfig;
+  const { deviceType, spacing, cardHeight, cardWidth } = responsiveConfig;
 
   const scrollToTop = useCallback(() => {
     listRef.current?.scrollToOffset({ offset: 0, animated: true });
@@ -54,18 +56,11 @@ const CustomScrollView = forwardRef<FlatList<any>, CustomScrollViewProps>((
   const effectiveColumns = numColumns || responsiveConfig.columns;
 
   const handleScroll = useCallback(
-    ({ nativeEvent }: { nativeEvent: any }) => {
-      const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
-      const isCloseToBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - loadMoreThreshold;
-
-      // 显示/隐藏返回顶部按钮
+    (event: any) => {
+      const { contentOffset } = event.nativeEvent;
       setShowScrollToTop(contentOffset.y > 200);
-
-      if (isCloseToBottom && !loadingMore && onEndReached) {
-        onEndReached();
-      }
     },
-    [onEndReached, loadingMore, loadMoreThreshold]
+    []
   );
 
   const renderFooter = useMemo(() => {
@@ -91,69 +86,56 @@ const CustomScrollView = forwardRef<FlatList<any>, CustomScrollViewProps>((
     () =>
       StyleSheet.create({
         listContent: {
-          paddingBottom: responsiveConfig.spacing * 2,
-          paddingHorizontal: responsiveConfig.spacing / 2,
-        },
-        columnWrapper: {
-          flexDirection: "row",
-          alignItems: "flex-start",
-          marginBottom: responsiveConfig.spacing,
-        },
-        cardContainer: {
-          width: responsiveConfig.cardWidth,
-        },
-        cardContainerWithSpacing: {
-          width: responsiveConfig.cardWidth,
-          marginRight: responsiveConfig.spacing,
+          paddingBottom: spacing * 2,
+          paddingHorizontal: spacing / 2,
         },
         scrollToTopButton: {
           position: "absolute",
-          right: responsiveConfig.spacing,
-          bottom: responsiveConfig.spacing * 2,
+          right: spacing,
+          bottom: spacing * 2,
           backgroundColor: "rgba(0, 0, 0, 0.6)",
-          padding: responsiveConfig.spacing,
-          borderRadius: responsiveConfig.spacing,
+          padding: spacing,
+          borderRadius: spacing,
         },
+        itemContainer: {
+          padding: spacing / 2,
+        }
       }),
-    [responsiveConfig]
+    [spacing]
   );
 
   const getItemKey = useCallback((item: any, index: number) => {
     if (item?.id != null) {
       return String(item.id);
     }
-
     if (item?.key != null) {
       return String(item.key);
     }
-
     if (item?.title != null) {
-      return `${item.title}-`;
+      return `${item.title}-${index}`;
     }
-
     return `${index}`;
   }, []);
 
-  const dataLength = data.length;
-
-  const renderGridItem = useCallback(
+  const renderFlashListItem = useCallback(
     ({ item, index }: { item: any; index: number }) => {
-      const isLastColumn = ((index + 1) % effectiveColumns === 0) || index === dataLength - 1;
-      const containerStyle = isLastColumn ? dynamicStyles.cardContainer : dynamicStyles.cardContainerWithSpacing;
-
       return (
-        <View style={containerStyle}>
+        <View style={{
+          flex: 1,
+          margin: spacing / 2,
+          maxWidth: cardWidth,
+        }}>
           {renderItem({ item, index })}
         </View>
       );
     },
-    [dataLength, dynamicStyles, effectiveColumns, renderItem]
+    [renderItem, spacing, cardWidth]
   );
 
-  const initialItemCount = useMemo(() => {
-    const rowsToRender = Math.ceil(responsiveConfig.screenHeight / responsiveConfig.cardHeight) + 2;
-    return Math.max(rowsToRender * effectiveColumns, effectiveColumns);
-  }, [effectiveColumns, responsiveConfig.cardHeight, responsiveConfig.screenHeight]);
+  const estimatedItemSize = cardHeight + spacing;
+
+  // Workaround for TypeScript definition mismatch in current environment where estimatedItemSize is missing from types
+  const FlashListAny = FlashList as any;
 
   if (loading) {
     return (
@@ -166,7 +148,7 @@ const CustomScrollView = forwardRef<FlatList<any>, CustomScrollViewProps>((
   if (error) {
     return (
       <View style={commonStyles.center}>
-        <ThemedText type="subtitle" style={{ padding: responsiveConfig.spacing }}>
+        <ThemedText type="subtitle" style={{ padding: spacing }}>
           {error}
         </ThemedText>
       </View>
@@ -183,26 +165,25 @@ const CustomScrollView = forwardRef<FlatList<any>, CustomScrollViewProps>((
 
   return (
     <View style={{ flex: 1 }}>
-      <FlatList
+      <FlashListAny
         ref={listRef}
         data={data}
-        keyExtractor={getItemKey}
-        renderItem={renderGridItem}
+        renderItem={renderFlashListItem}
+        estimatedItemSize={estimatedItemSize}
         numColumns={effectiveColumns}
-        columnWrapperStyle={effectiveColumns > 1 ? dynamicStyles.columnWrapper : undefined}
+        keyExtractor={getItemKey}
         contentContainerStyle={dynamicStyles.listContent}
         onScroll={handleScroll}
         scrollEventThrottle={16}
-        showsVerticalScrollIndicator={responsiveConfig.deviceType !== "tv"}
+        showsVerticalScrollIndicator={deviceType !== "tv"}
+        onEndReached={onEndReached}
+        onEndReachedThreshold={loadMoreThreshold ? 0.5 : undefined}
         ListEmptyComponent={() => (
           <View style={commonStyles.center}>
             <ThemedText>{emptyMessage}</ThemedText>
           </View>
         )}
         ListFooterComponent={renderFooter}
-        initialNumToRender={initialItemCount}
-        windowSize={5}
-        removeClippedSubviews={deviceType !== "tv"}
       />
       {deviceType !== 'tv' && (
         <TouchableOpacity

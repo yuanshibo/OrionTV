@@ -6,6 +6,7 @@ import useDetailStore, { episodesSelectorBySource } from "./detailStore";
 import Logger from '@/utils/Logger';
 import { SearchResultWithResolution } from "@/services/api";
 import { useRouter } from "expo-router";
+import usePlayerUIStore from "./playerUIStore";
 
 const logger = Logger.withTag('PlayerStore');
 
@@ -48,13 +49,6 @@ interface PlayerState {
   status: PlaybackState | null;
   isLoading: boolean;
   error?: string;
-  showControls: boolean;
-  showDetails: boolean;
-  showEpisodeModal: boolean;
-  showSourceModal: boolean;
-  showSpeedModal: boolean;
-  showNextEpisodeOverlay: boolean;
-  showRelatedVideos: boolean;
   isSeeking: boolean;
   isSeekBuffering: boolean;
   seekPosition: number;
@@ -77,13 +71,6 @@ interface PlayerState {
   handlePlaybackStatusUpdate: (newStatus: PlaybackState) => void;
   setLoading: (loading: boolean) => void;
   setError: (error?: string) => void;
-  setShowControls: (show: boolean) => void;
-  setShowDetails: (show: boolean) => void;
-  setShowEpisodeModal: (show: boolean) => void;
-  setShowSourceModal: (show: boolean) => void;
-  setShowSpeedModal: (show: boolean) => void;
-  setShowRelatedVideos: (show: boolean) => void;
-  setShowNextEpisodeOverlay: (show: boolean) => void;
   setPlaybackRate: (rate: number) => void;
   setIntroEndTime: () => void;
   setOutroStartTime: () => void;
@@ -119,13 +106,6 @@ const usePlayerStore = create<PlayerState>((set, get) => {
     status: null,
     isLoading: true,
     error: undefined,
-    showControls: false,
-    showDetails: false,
-    showEpisodeModal: false,
-    showSourceModal: false,
-    showSpeedModal: false,
-    showNextEpisodeOverlay: false,
-    showRelatedVideos: false,
     isSeeking: false,
     isSeekBuffering: false,
     seekPosition: 0,
@@ -139,7 +119,10 @@ const usePlayerStore = create<PlayerState>((set, get) => {
     setVideoPlayer: (player) => set({ videoPlayer: player }),
 
     loadVideo: async ({ detail, episodeIndex, position, router }) => {
-      set({ status: null, isLoading: true, error: undefined, router, showRelatedVideos: false });
+      // Reset UI state
+      usePlayerUIStore.getState().resetUI();
+
+      set({ status: null, isLoading: true, error: undefined, router });
 
       const episodes = episodesSelectorBySource(detail.source)(useDetailStore.getState());
       if (!episodes || episodes.length === 0) {
@@ -155,7 +138,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
 
       const mappedEpisodes = episodes.map((ep, index) => ({ url: ep, title: `第 ${index + 1} 集` }));
       set({
-        isLoading: false, // Correctly set isLoading to false after loading
+        isLoading: false,
         currentEpisodeIndex: episodeIndex,
         episodes: mappedEpisodes,
         ...playbackDataResult.data,
@@ -166,11 +149,13 @@ const usePlayerStore = create<PlayerState>((set, get) => {
     playEpisode: (index) => {
       const { episodes, videoPlayer } = get();
       if (index >= 0 && index < episodes.length) {
+        // Hide overlays
+        usePlayerUIStore.getState().setShowNextEpisodeOverlay(false);
+
         set({
           status: null,
           isLoading: true,
           currentEpisodeIndex: index,
-          showNextEpisodeOverlay: false,
           initialPosition: 0,
           progressPosition: 0,
           seekPosition: 0,
@@ -203,7 +188,8 @@ const usePlayerStore = create<PlayerState>((set, get) => {
     },
 
     handlePlaybackStatusUpdate: (newStatus) => {
-      const { isSeekBuffering, seekPosition, status: oldStatus, router, currentEpisodeIndex, episodes, outroStartTime, playEpisode, _savePlayRecord, setShowRelatedVideos } = get();
+      const { isSeekBuffering, seekPosition, status: oldStatus, router, currentEpisodeIndex, episodes, outroStartTime, playEpisode, _savePlayRecord } = get();
+      const { setShowNextEpisodeOverlay } = usePlayerUIStore.getState();
 
       const nextState: Partial<PlayerState> = { status: newStatus };
       
@@ -219,6 +205,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
         return;
       }
 
+      // Handle seeking buffering logic
       if (isSeekBuffering && newStatus.isPlaying && !newStatus.isBuffering) {
         const durationMillis = oldStatus?.durationMillis;
         if (durationMillis && Math.abs(newStatus.positionMillis - seekPosition * durationMillis) < 1000) {
@@ -228,13 +215,40 @@ const usePlayerStore = create<PlayerState>((set, get) => {
         }
       }
 
-      if (outroStartTime && newStatus.durationMillis && newStatus.positionMillis >= newStatus.durationMillis - outroStartTime) {
-        if (currentEpisodeIndex < episodes.length - 1) {
-          playEpisode(currentEpisodeIndex + 1);
-          return;
+      // --- Low Frequency Logic Throttling ---
+      // Check if we progressed at least 1 second or if state changed significantly (like loading/finishing)
+      const oldSeconds = oldStatus ? Math.floor(oldStatus.positionMillis / 1000) : -1;
+      const newSeconds = Math.floor(newStatus.positionMillis / 1000);
+      const hasSignificantTimeChange = oldSeconds !== newSeconds;
+
+      if (hasSignificantTimeChange) {
+        // 1. Check Outro / Auto-play
+        if (outroStartTime && newStatus.durationMillis && newStatus.positionMillis >= newStatus.durationMillis - outroStartTime) {
+          if (currentEpisodeIndex < episodes.length - 1) {
+            playEpisode(currentEpisodeIndex + 1);
+            return; // Early return to avoid setting state if we are switching episodes
+          }
+        }
+
+        // 2. Show Next Episode Overlay
+        const detail = useDetailStore.getState().detail;
+        if (detail && newStatus.durationMillis) {
+          const isNearEnd = newStatus.positionMillis / newStatus.durationMillis > 0.95;
+          // Update UI Store directly
+          const shouldShow = isNearEnd && currentEpisodeIndex < episodes.length - 1 && !outroStartTime;
+          // Only update if changed to avoid unnecessary renders (though zustand handles this, good to be explicit)
+          if (usePlayerUIStore.getState().showNextEpisodeOverlay !== shouldShow) {
+            setShowNextEpisodeOverlay(shouldShow);
+          }
+        }
+
+        // 3. Save Play Record (Throttled inside the function)
+        if (detail) {
+           _savePlayRecord();
         }
       }
 
+      // Handle Play To End
       if (newStatus.didJustFinish) {
         if (currentEpisodeIndex < episodes.length - 1) {
           playEpisode(currentEpisodeIndex + 1);
@@ -248,13 +262,6 @@ const usePlayerStore = create<PlayerState>((set, get) => {
           }
         }
         return;
-      }
-
-      const detail = useDetailStore.getState().detail;
-      if (detail && newStatus.durationMillis) {
-        _savePlayRecord();
-        const isNearEnd = newStatus.positionMillis / newStatus.durationMillis > 0.95;
-        nextState.showNextEpisodeOverlay = isNearEnd && currentEpisodeIndex < episodes.length - 1 && !outroStartTime;
       }
 
       if (newStatus.durationMillis) {
@@ -329,13 +336,6 @@ const usePlayerStore = create<PlayerState>((set, get) => {
 
     setLoading: (loading) => set({ isLoading: loading }),
     setError: (error) => set({ error, isLoading: false, status: null }),
-    setShowControls: (show) => set({ showControls: show }),
-    setShowDetails: (show) => set({ showDetails: show }),
-    setShowEpisodeModal: (show) => set({ showEpisodeModal: show }),
-    setShowSourceModal: (show) => set({ showSourceModal: show }),
-    setShowSpeedModal: (show) => set({ showSpeedModal: show }),
-    setShowRelatedVideos: (show) => set({ showRelatedVideos: show }),
-    setShowNextEpisodeOverlay: (show) => set({ showNextEpisodeOverlay: show }),
 
     setPlaybackRate: async (rate) => {
       const { videoPlayer } = get();
@@ -349,10 +349,11 @@ const usePlayerStore = create<PlayerState>((set, get) => {
 
     reset: () => {
       if (seekTimeoutId) clearTimeout(seekTimeoutId);
+      // Also reset UI
+      usePlayerUIStore.getState().resetUI();
+
       set({
-        videoPlayer: null, episodes: [], currentEpisodeIndex: 0, status: null, isLoading: true, showControls: false,
-        showDetails: false,
-        showEpisodeModal: false, showSourceModal: false, showSpeedModal: false, showNextEpisodeOverlay: false,
+        videoPlayer: null, episodes: [], currentEpisodeIndex: 0, status: null, isLoading: true,
         initialPosition: 0, playbackRate: 1.0, introEndTime: undefined, outroStartTime: undefined, error: undefined,
         isSeeking: false, isSeekBuffering: false,
       });

@@ -5,7 +5,7 @@ import Toast from "react-native-toast-message";
 import useAuthStore from "@/stores/authStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 import useHomeStore from "@/stores/homeStore";
-import { api } from "@/services/api";
+import { authApi } from "@/services/api";
 import { LoginCredentialsManager } from "@/services/storage";
 import { ThemedView } from "./ThemedView";
 import { ThemedText } from "./ThemedText";
@@ -87,7 +87,7 @@ const LoginModal = () => {
     }
     setIsLoading(true);
     try {
-      await api.login(isLocalStorage ? undefined : username, password);
+      await authApi.login(isLocalStorage ? undefined : username, password);
       await checkLoginStatus(apiBaseUrl);
       await refreshPlayRecords();
       await LoginCredentialsManager.save({ username, password });

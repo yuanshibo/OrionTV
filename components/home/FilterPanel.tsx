@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView, FlatList } from "react-native";
-import { Category, DoubanFilterKey } from "@/stores/homeStore";
+import { Category, DoubanFilterKey } from "@/types/home";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StyledButton } from "@/components/StyledButton";
 import { Colors } from "@/constants/Colors";

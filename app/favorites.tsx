@@ -5,7 +5,7 @@ import { ThemedText } from "@/components/ThemedText";
 import useFavoritesStore from "@/stores/favoritesStore";
 import { Favorite } from "@/services/storage";
 import VideoCard from "@/components/VideoCard";
-import { api } from "@/services/api";
+import { contentApi } from "@/services/api";
 import CustomScrollView from "@/components/CustomScrollView";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { getCommonResponsiveStyles } from "@/utils/ResponsiveStyles";
@@ -35,7 +35,7 @@ export default function FavoritesScreen() {
         sourceName={item.source_name}
         poster={item.cover}
         year={item.year}
-        api={api}
+        api={contentApi}
         episodeIndex={1}
         progress={0}
         onFavoriteDeleted={fetchFavorites}

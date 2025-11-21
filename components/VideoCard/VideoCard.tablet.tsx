@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useCallback, useRef, forwardRef, useMemo } from "react";
-import { View, Text, Image, StyleSheet, TouchableOpacity, Alert, Animated, useColorScheme } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Animated, useColorScheme } from "react-native";
+import { Image } from 'expo-image';
 import { useRouter } from "expo-router";
 import { Star, Play } from "lucide-react-native";
-import { PlayRecordManager } from "@/services/storage";
-import { API } from "@/services/api";
+import { ContentApi } from "@/services/api";
 import { ThemedText } from "@/components/ThemedText";
 import { Colors } from "@/constants/Colors";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { DeviceUtils } from "@/utils/DeviceUtils";
+import { useVideoCardLogic } from "./useVideoCardLogic";
+import useAuthStore from "@/stores/authStore";
 import Logger from '@/utils/Logger';
 
 const logger = Logger.withTag('VideoCardTablet');
@@ -26,7 +28,7 @@ interface VideoCardTabletProps extends React.ComponentProps<typeof TouchableOpac
   totalEpisodes?: number;
   onFocus?: () => void;
   onRecordDeleted?: () => void;
-  api: API;
+  api: ContentApi;
 }
 
 const VideoCardTablet = forwardRef<View, VideoCardTabletProps>(
@@ -49,6 +51,7 @@ const VideoCardTablet = forwardRef<View, VideoCardTabletProps>(
     ref
   ) => {
     const router = useRouter();
+    const authCookie = useAuthStore((state) => state.authCookie);
     const colorScheme = useColorScheme() ?? 'dark';
     const colors = Colors[colorScheme];
     const { cardWidth, cardHeight, spacing } = useResponsiveLayout();
@@ -60,23 +63,24 @@ const VideoCardTablet = forwardRef<View, VideoCardTabletProps>(
     const fadeInAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
     const scaleAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
 
+    const { handlePress: performNavigation, showDeleteAlert } = useVideoCardLogic({
+      id,
+      source,
+      title,
+      progress,
+      playTime,
+      episodeIndex,
+      type: 'record', // Tablet prop missing type, defaults to record
+      onRecordDeleted,
+      api, // logic hook doesn't use api
+    } as any);
+
     const handlePress = () => {
       if (longPressTriggered.current) {
         longPressTriggered.current = false;
         return;
       }
-      
-      if (progress !== undefined && episodeIndex !== undefined) {
-        router.push({
-          pathname: "/play",
-          params: { source, id, episodeIndex: episodeIndex - 1, title, position: playTime * 1000 },
-        });
-      } else {
-        router.push({
-          pathname: "/detail",
-          params: { source, q: title },
-        });
-      }
+      performNavigation();
     };
 
     const runScaleAnimation = useCallback(
@@ -139,26 +143,9 @@ const VideoCardTablet = forwardRef<View, VideoCardTabletProps>(
       if (progress === undefined) return;
 
       longPressTriggered.current = true;
-
-      Alert.alert("删除观看记录", `确定要删除"${title}"的观看记录吗？`, [
-        {
-          text: "取消",
-          style: "cancel",
-        },
-        {
-          text: "删除",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await PlayRecordManager.remove(source, id);
-              onRecordDeleted?.();
-            } catch (error) {
-              logger.info("Failed to delete play record:", error);
-              Alert.alert("错误", "删除观看记录失败，请重试");
-            }
-          },
-        },
-      ]);
+      showDeleteAlert(() => {
+        longPressTriggered.current = false; // Simplified cleanup
+      });
     };
 
     const isContinueWatching = progress !== undefined && progress > 0 && progress < 1;
@@ -181,7 +168,16 @@ const VideoCardTablet = forwardRef<View, VideoCardTabletProps>(
           delayLongPress={900}
         >
           <View style={[styles.card, isPressed && styles.cardPressed]}>
-            <Image source={{ uri: api.getImageProxyUrl(poster) }} style={styles.poster} />
+            <Image
+              source={{
+                uri: api.getImageProxyUrl(poster),
+                headers: authCookie ? { Cookie: authCookie } : undefined
+              }}
+              style={styles.poster}
+              contentFit="cover"
+              transition={200}
+              onError={(e) => logger.warn(`Image load failed for ${title} (Tablet):`, e.error, "URL:", api.getImageProxyUrl(poster))}
+            />
             
             {/* 悬停效果遮罩 */}
             {isPressed && (
@@ -267,7 +263,6 @@ const createTabletStyles = (cardWidth: number, cardHeight: number, spacing: numb
     poster: {
       width: "100%",
       height: "100%",
-      resizeMode: 'cover',
     },
     pressOverlay: {
       ...StyleSheet.absoluteFillObject,
@@ -365,4 +360,4 @@ const createTabletStyles = (cardWidth: number, cardHeight: number, spacing: numb
   });
 };
 
-export default VideoCardTablet;
+export default React.memo(VideoCardTablet);

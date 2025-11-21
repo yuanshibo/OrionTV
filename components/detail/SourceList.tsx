@@ -15,7 +15,7 @@ interface SourceListProps {
   colors: typeof Colors.dark;
 }
 
-export const SourceList: React.FC<SourceListProps> = ({
+export const SourceList: React.FC<SourceListProps> = React.memo(({
   searchResults,
   currentSource,
   onSelect,
@@ -105,4 +105,6 @@ export const SourceList: React.FC<SourceListProps> = ({
       {content}
     </View>
   );
-};
+});
+
+SourceList.displayName = 'SourceList';

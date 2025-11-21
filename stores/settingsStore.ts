@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { SettingsManager } from "@/services/storage";
-import { api, ServerConfig } from "@/services/api";
+import { authApi, setApiBaseUrl, ServerConfig } from "@/services/api";
 import { storageConfig } from "@/services/storageConfig";
 import Logger from "@/utils/Logger";
 
@@ -54,14 +54,14 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       },
     });
     if (settings.apiBaseUrl) {
-      api.setBaseUrl(settings.apiBaseUrl);
+      setApiBaseUrl(settings.apiBaseUrl);
       await get().fetchServerConfig();
     }
   },
   fetchServerConfig: async () => {
     set({ isLoadingServerConfig: true });
     try {
-      const config = await api.getServerConfig();
+      const config = await authApi.getServerConfig();
       if (config) {
         storageConfig.setStorageType(config.StorageType);
         set({ serverConfig: config });
@@ -105,7 +105,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       remoteInputEnabled,
       videoSource,
     });
-    api.setBaseUrl(processedApiBaseUrl);
+    setApiBaseUrl(processedApiBaseUrl);
     // Also update the URL in the state so the input field shows the processed URL
     set({ isModalVisible: false, apiBaseUrl: processedApiBaseUrl });
     await get().fetchServerConfig();

@@ -2,21 +2,28 @@ import { useEffect } from 'react';
 import { AppState, AppStateStatus, BackHandler } from 'react-native';
 import { useRouter } from 'expo-router';
 import { VideoPlayer } from 'expo-video';
+import usePlayerUIStore from '@/stores/playerUIStore';
 
 interface PlayerLifecycleProps {
   player: VideoPlayer | null;
-  showControls: boolean;
   flushPlaybackRecord: () => void;
-  setShowControls: (show: boolean) => void;
 }
 
 export function usePlayerLifecycle({
   player,
-  showControls,
   flushPlaybackRecord,
-  setShowControls,
 }: PlayerLifecycleProps) {
   const router = useRouter();
+
+  // Subscribe to UI state
+  const showControls = usePlayerUIStore(s => s.showControls);
+  const showDetails = usePlayerUIStore(s => s.showDetails);
+  const showRelatedVideos = usePlayerUIStore(s => s.showRelatedVideos);
+
+  // Actions
+  const setShowControls = usePlayerUIStore.getState().setShowControls;
+  const setShowDetails = usePlayerUIStore.getState().setShowDetails;
+  const setShowRelatedVideos = usePlayerUIStore.getState().setShowRelatedVideos;
 
   useEffect(() => {
     const handleAppStateChange = (nextAppState: AppStateStatus) => {
@@ -25,7 +32,6 @@ export function usePlayerLifecycle({
         player.pause();
         flushPlaybackRecord();
       } else if (nextAppState === 'active') {
-        // Depending on the desired UX, you might want to resume playback automatically.
          player.play();
       }
     };
@@ -36,18 +42,49 @@ export function usePlayerLifecycle({
 
   useEffect(() => {
     const backAction = () => {
+      // Priority 1: Close Related Videos Overlay
+      if (showRelatedVideos) {
+        setShowRelatedVideos(false);
+        // Logic from original play.tsx: go back if related was open?
+        // "if (showRelatedVideos) { setShowRelatedVideos(false); router.back(); return true; }"
+        // It seems originally it navigated back? Let's double check the logic.
+        // In play.tsx: "setShowRelatedVideos(false); router.back();"
+        // This implies related videos is treated like a separate screen on top stack.
+        router.back();
+        return true;
+      }
+
+      // Priority 2: Close Details Overlay
+      if (showDetails) {
+        setShowDetails(false);
+        return true;
+      }
+
+      // Priority 3: Hide Player Controls
       if (showControls) {
         setShowControls(false);
-        return true; // Prevent default behavior (exiting the app)
+        return true;
       }
+
+      // Priority 4: Flush record and Navigate Back
       flushPlaybackRecord();
       if (router.canGoBack()) {
         router.back();
       }
+
       return true; // Prevent default behavior
     };
 
     const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
     return () => backHandler.remove();
-  }, [showControls, setShowControls, router, flushPlaybackRecord]); // `player` has been removed as it's not a dependency
+  }, [
+    showControls,
+    showDetails,
+    showRelatedVideos,
+    setShowControls,
+    setShowDetails,
+    setShowRelatedVideos,
+    router,
+    flushPlaybackRecord
+  ]);
 }

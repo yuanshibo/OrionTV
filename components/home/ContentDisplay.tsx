@@ -3,7 +3,7 @@ import { View, ActivityIndicator, Animated, StyleSheet } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import CustomScrollView from '@/components/CustomScrollView';
 import { getApiConfigErrorMessage } from '@/hooks/useApiConfig';
-import { Category, RowItem } from '@/stores/homeStore';
+import { Category, RowItem } from '@/types/home';
 
 const LOAD_MORE_THRESHOLD = 200;
 

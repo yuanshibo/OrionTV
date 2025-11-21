@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
-import { View, TextInput, StyleSheet, Alert, Keyboard, TouchableOpacity, useColorScheme, ActivityIndicator } from "react-native";
+import { View, TextInput, StyleSheet, Alert, Keyboard, TouchableOpacity, useColorScheme, ActivityIndicator, Platform } from "react-native";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
 import VideoCard from "@/components/VideoCard";
 import VideoLoadingAnimation from "@/components/VideoLoadingAnimation";
-import { api, SearchResult, DoubanRecommendationItem } from "@/services/api";
+import { contentApi, SearchResult, DoubanRecommendationItem } from "@/services/api";
 import { Search, QrCode } from "lucide-react-native";
 import { StyledButton } from "@/components/StyledButton";
 import { useRemoteControlStore } from "@/stores/remoteControlStore";
@@ -19,19 +19,13 @@ import ResponsiveNavigation from "@/components/navigation/ResponsiveNavigation";
 import ResponsiveHeader from "@/components/navigation/ResponsiveHeader";
 import { DeviceUtils } from "@/utils/DeviceUtils";
 import Logger from "@/utils/Logger";
+import { useSearchLogic, UnifiedResult } from "@/hooks/useSearchLogic";
 
 const logger = Logger.withTag("SearchScreen");
 
-type UnifiedResult = SearchResult | DoubanRecommendationItem;
-
 export default function SearchScreen() {
   const params = useLocalSearchParams();
-  const [keyword, setKeyword] = useState((params.q as string) || "");
-  const [results, setResults] = useState<UnifiedResult[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const textInputRef = useRef<TextInput>(null);
-  const loadingRef = useRef(false);
   const [isInputFocused, setIsInputFocused] = useState(false);
   const { showModal: showRemoteModal, lastMessage, targetPage, clearMessage } = useRemoteControlStore();
   const { remoteInputEnabled } = useSettingsStore();
@@ -39,81 +33,22 @@ export default function SearchScreen() {
   const colorScheme = useColorScheme() ?? 'dark';
   const colors = Colors[colorScheme];
 
-  const [discoverPage, setDiscoverPage] = useState(1);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
+  const {
+    keyword,
+    setKeyword,
+    results,
+    loading,
+    loadingMore,
+    error,
+    doSearch,
+    loadDiscoverData,
+    handleLoadMore,
+  } = useSearchLogic((params.q as string) || "");
 
   // 响应式布局配置
   const responsiveConfig = useResponsiveLayout();
   const commonStyles = getCommonResponsiveStyles(responsiveConfig);
   const { deviceType, spacing } = responsiveConfig;
-
-  const loadDiscoverData = useCallback(async (page: number) => {
-    if (loadingRef.current) return;
-    loadingRef.current = true;
-
-    if (page === 1) {
-      setLoading(true);
-    } else {
-      setLoadingMore(true);
-    }
-    setError(null);
-
-    try {
-      const response = await api.discover(page, 25);
-      if (response && response.list && response.list.length > 0) {
-        setResults(prev => page === 1 ? response.list : [...prev, ...response.list]);
-        setDiscoverPage(page + 1);
-        setHasMore(response.list.length === 25);
-      } else {
-        setHasMore(false);
-        if (page === 1) {
-          setResults([]);
-        }
-      }
-    } catch (err) {
-      logger.info("Discover data loading failed:", err);
-      setHasMore(false);
-      if (page === 1) {
-        setResults([]);
-      }
-    } finally {
-      loadingRef.current = false;
-      setLoading(false);
-      setLoadingMore(false);
-    }
-  }, []);
-
-  const doSearch = useCallback(async (term: string) => {
-    if (!term.trim()) {
-      Keyboard.dismiss();
-      setResults([]); // Clear previous search results
-      setDiscoverPage(1); // Reset discover page
-      setHasMore(true); // Allow discover to load more
-      loadDiscoverData(1);
-      return;
-    }
-    Keyboard.dismiss();
-    setLoading(true);
-    setError(null);
-    setResults([]);
-
-    try {
-      const { results: searchResults } = await api.aiAssistantSearch(term);
-      if (searchResults.length > 0) {
-        setResults(searchResults);
-        setHasMore(false);
-      } else {
-        setError("没有找到相关内容，为你推荐...");
-        loadDiscoverData(1);
-      }
-    } catch (err) {
-      setError("搜索失败，请稍后重试。");
-      logger.info("Search failed:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, [loadDiscoverData]);
 
   useEffect(() => {
     if (lastMessage && targetPage === 'search') {
@@ -123,20 +58,30 @@ export default function SearchScreen() {
       doSearch(realMessage);
       clearMessage(); // Clear the message after processing
     }
-  }, [lastMessage, targetPage, clearMessage, doSearch]);
+  }, [lastMessage, targetPage, clearMessage, doSearch, setKeyword]);
 
   useEffect(() => {
     if (params.q) {
       doSearch(params.q as string);
     } else {
       loadDiscoverData(1);
-      const timer = setTimeout(() => {
-        textInputRef.current?.focus();
-      }, 200);
-      return () => clearTimeout(timer);
+      // TV Focus Optimization
+      if (deviceType === 'tv' || Platform.isTV) {
+         const timer = setTimeout(() => {
+            if (textInputRef.current) {
+                textInputRef.current.focus();
+            }
+         }, 500);
+         return () => clearTimeout(timer);
+      } else {
+        const timer = setTimeout(() => {
+           textInputRef.current?.focus();
+        }, 200);
+        return () => clearTimeout(timer);
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.q]);
+  }, [params.q, deviceType]);
 
   const handleSearch = (searchText?: string) => {
     const term = typeof searchText === "string" ? searchText : keyword;
@@ -156,27 +101,22 @@ export default function SearchScreen() {
     showRemoteModal('search');
   };
 
-  const handleLoadMore = () => {
-    if (!loadingRef.current && hasMore && keyword.trim() === "") {
-        loadDiscoverData(discoverPage);
-    }
-  };
-
-  const renderItem = ({ item, index }: { item: UnifiedResult; index: number }) => {
+  // Optimization: Memoize renderItem to prevent re-creation on every render
+  const renderItem = useCallback(({ item, index }: { item: UnifiedResult; index: number }) => {
     const isSearchResult = 'source' in item;
     return (
         <VideoCard
-        id={item.id?.toString() || `${item.title}-${index}`}
-        source={isSearchResult ? (item as SearchResult).source : (item as DoubanRecommendationItem).url || ''}
-        title={item.title}
-        poster={item.poster}
-        year={item.year}
-        sourceName={isSearchResult ? (item as SearchResult).source_name : (item as DoubanRecommendationItem).platform || ''}
-        rate={!isSearchResult ? (item as DoubanRecommendationItem).rate : undefined}
-        api={api}
+          id={item.id?.toString() || `${item.title}-${index}`}
+          source={isSearchResult ? (item as SearchResult).source : (item as DoubanRecommendationItem).url || ''}
+          title={item.title}
+          poster={item.poster}
+          year={item.year}
+          sourceName={isSearchResult ? (item as SearchResult).source_name : (item as DoubanRecommendationItem).platform || ''}
+          rate={!isSearchResult ? (item as DoubanRecommendationItem).rate : undefined}
+          api={contentApi}
         />
     );
-  };
+  }, []);
 
   // 动态样式
   const dynamicStyles = useMemo(() => createResponsiveStyles(deviceType, spacing, colors), [deviceType, spacing, colors]);
@@ -210,6 +150,8 @@ export default function SearchScreen() {
             onFocus={() => setIsInputFocused(true)}
             onBlur={() => setIsInputFocused(false)}
             returnKeyType="search"
+            // TV specific props
+            importantForAccessibility="yes"
           />
         </TouchableOpacity>
         <StyledButton style={dynamicStyles.searchButton} onPress={onSearchPress}>
