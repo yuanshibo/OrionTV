@@ -9,6 +9,7 @@ const logger = Logger.withTag('AuthStore');
 
 interface AuthState {
   isLoggedIn: boolean;
+  authCookie: string | null;
   isLoginModalVisible: boolean;
   showLoginModal: () => void;
   hideLoginModal: () => void;
@@ -18,12 +19,13 @@ interface AuthState {
 
 const useAuthStore = create<AuthState>((set) => ({
   isLoggedIn: false,
+  authCookie: null,
   isLoginModalVisible: false,
   showLoginModal: () => set({ isLoginModalVisible: true }),
   hideLoginModal: () => set({ isLoginModalVisible: false }),
   checkLoginStatus: async (apiBaseUrl?: string) => {
     if (!apiBaseUrl) {
-      set({ isLoggedIn: false, isLoginModalVisible: false });
+      set({ isLoggedIn: false, isLoginModalVisible: false, authCookie: null });
       return;
     }
     try {
@@ -61,30 +63,31 @@ const useAuthStore = create<AuthState>((set) => ({
       if (!authToken) {
         if (serverConfig && serverConfig.StorageType === "localstorage") {
           const loginResult = await api.login().catch(() => {
-            set({ isLoggedIn: false, isLoginModalVisible: true });
+            set({ isLoggedIn: false, isLoginModalVisible: true, authCookie: null });
           });
           if (loginResult && loginResult.ok) {
-            set({ isLoggedIn: true });
+            const newCookie = await AsyncStorage.getItem('authCookies');
+            set({ isLoggedIn: true, authCookie: newCookie });
           }
         } else {
-          set({ isLoggedIn: false, isLoginModalVisible: true });
+          set({ isLoggedIn: false, isLoginModalVisible: true, authCookie: null });
         }
       } else {
-        set({ isLoggedIn: true, isLoginModalVisible: false });
+        set({ isLoggedIn: true, isLoginModalVisible: false, authCookie: authToken });
       }
     } catch (error) {
       logger.error("Failed to check login status:", error);
       if (error instanceof Error && error.message === "UNAUTHORIZED") {
-        set({ isLoggedIn: false, isLoginModalVisible: true });
+        set({ isLoggedIn: false, isLoginModalVisible: true, authCookie: null });
       } else {
-        set({ isLoggedIn: false });
+        set({ isLoggedIn: false, authCookie: null });
       }
     }
   },
   logout: async () => {
     try {
       await api.logout();
-      set({ isLoggedIn: false, isLoginModalVisible: true });
+      set({ isLoggedIn: false, isLoginModalVisible: true, authCookie: null });
     } catch (error) {
       logger.error("Failed to logout:", error);
     }

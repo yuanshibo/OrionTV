@@ -9,6 +9,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { Colors } from "@/constants/Colors";
 import Logger from '@/utils/Logger';
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import useAuthStore from "@/stores/authStore";
 
 const logger = Logger.withTag('VideoCardTV');
 
@@ -201,6 +202,14 @@ const VideoCard = forwardRef<View, VideoCardProps>(
 
     const isContinueWatching = progress !== undefined && progress > 0 && progress < 1;
     const styles = useMemo(() => createStyles(colors), [colors]);
+    const authCookie = useAuthStore((state) => state.authCookie);
+    const imageSource = useMemo(
+      () => ({
+        uri: api.getImageProxyUrl(poster),
+        headers: authCookie ? { Cookie: authCookie } : undefined,
+      }),
+      [poster, authCookie, api]
+    );
 
     return (
       <Animated.View style={[styles.wrapper, animatedStyle, { opacity: fadeAnim }]}>
@@ -221,7 +230,7 @@ const VideoCard = forwardRef<View, VideoCardProps>(
           {...rest}
         >
           <View style={styles.card}>
-            <Image source={{ uri: api.getImageProxyUrl(poster) }} style={styles.poster} contentFit="cover" transition={300} />
+            <Image source={imageSource} style={styles.poster} contentFit="cover" transition={300} />
             {isFocused && (
               <View style={styles.overlay}>
                 {isContinueWatching && (
