@@ -250,8 +250,9 @@ export class API {
     return response.json();
   }
 
-  async getPlayRecords(): Promise<Record<string, PlayRecord>> {
-    const response = await this._fetch("/api/playrecords");
+  async getPlayRecords(key?: string): Promise<Record<string, PlayRecord> | PlayRecord | null> {
+    const url = key ? `/api/playrecords?key=${encodeURIComponent(key)}` : "/api/playrecords";
+    const response = await this._fetch(url);
     return response.json();
   }
 
