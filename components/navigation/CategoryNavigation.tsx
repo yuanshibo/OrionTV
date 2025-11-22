@@ -69,8 +69,10 @@ export const CategoryNavigation: React.FC<CategoryNavigationProps> = ({ categori
     );
   };
 
+  const hasTags = selectedCategory?.type === "record";
+
   return (
-    <View style={categoryStyles.categoryContainer}>
+    <View style={[categoryStyles.categoryContainer, hasTags && { paddingBottom: spacing * 0.8}]}>
       <FlatList
         horizontal
         data={categories}
