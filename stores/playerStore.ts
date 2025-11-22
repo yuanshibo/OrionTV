@@ -96,8 +96,10 @@ interface PlayerState {
 const usePlayerStore = create<PlayerState>((set, get) => {
   const _loadPlaybackData = async (detail: SearchResultWithResolution): Promise<{ data?: Partial<PlayerState>; error?: string }> => {
     try {
-      const playRecord = await PlayRecordManager.get(detail.source, detail.id.toString());
-      const playerSettings = await PlayerSettingsManager.get(detail.source, detail.id.toString());
+      const [playRecord, playerSettings] = await Promise.all([
+        PlayRecordManager.get(detail.source, detail.id.toString()),
+        PlayerSettingsManager.get(detail.source, detail.id.toString()),
+      ]);
       return {
         data: {
           initialPosition: playRecord?.play_time ? playRecord.play_time * 1000 : 0,

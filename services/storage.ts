@@ -194,7 +194,10 @@ export class PlayRecordManager {
       const apiStart = performance.now();
       logger.info(`[PERF] API getPlayRecords START`);
       
-      apiRecords = await api.getPlayRecords();
+      const result = await api.getPlayRecords();
+      // When called without args, it returns the full map.
+      // We default to {} if null/undefined to satisfy the type.
+      apiRecords = (result as Record<string, PlayRecord>) || {};
       
       const apiEnd = performance.now();
       logger.info(`[PERF] API getPlayRecords END - took ${(apiEnd - apiStart).toFixed(2)}ms, records: ${Object.keys(apiRecords).length}`);
@@ -273,7 +276,11 @@ export class PlayRecordManager {
     } else {
       const recordToSave = { ...apiRecord } as Omit<ApiPlayRecord, "save_time"> & { description?: string };
       const existingRecord = await this.get(source, id);
-      if (description && !existingRecord?.description) {
+      // Preserve existing description if available, otherwise use the new one.
+      // This matches the local storage behavior and prevents overwriting with empty/undefined.
+      if (existingRecord?.description) {
+        recordToSave.description = existingRecord.description;
+      } else if (description) {
         recordToSave.description = description;
       }
       await api.savePlayRecord(key, recordToSave);
@@ -286,8 +293,28 @@ export class PlayRecordManager {
     const storageType = this.getStorageType();
     logger.info(`[PERF] PlayRecordManager.get START - source: ${source}, id: ${id}, storageType: ${storageType}`);
     
-    const records = await this.getAll();
-    const result = records[key] || null;
+    let result: PlayRecord | null = null;
+    if (storageType === "localstorage") {
+      const records = await this.getAll();
+      result = records[key] || null;
+    } else {
+      // For remote API, we can fetch just the single record
+      const apiResult = await api.getPlayRecords(key);
+      if (apiResult && !('title' in apiResult)) {
+        // If it returns a Record<string, PlayRecord> (should be rare with key, but handling just in case)
+         result = (apiResult as Record<string, PlayRecord>)[key] || null;
+      } else {
+         result = apiResult as PlayRecord | null;
+      }
+
+      if (result) {
+         // Merge with local settings
+         const localSettings = await PlayerSettingsManager.get(source, id);
+         if (localSettings) {
+            result = { ...result, ...localSettings };
+         }
+      }
+    }
     
     const perfEnd = performance.now();
     logger.info(`[PERF] PlayRecordManager.get END - took ${(perfEnd - perfStart).toFixed(2)}ms, found: ${!!result}`);

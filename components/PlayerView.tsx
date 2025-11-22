@@ -104,7 +104,24 @@ const PlayerView = memo((props: PlayerViewProps) => {
 
   const dynamicStyles = useMemo(() => createResponsiveStyles(deviceType), [deviceType]);
   const shouldShowPoster = Boolean(detail?.poster && !hasEverBeenLoaded && !error);
-  const shouldShowLoading = isLoading || isSeekBuffering || (status?.isLoaded && status?.isBuffering);
+  const rawShouldShowLoading = Boolean(isLoading || isSeekBuffering || (status?.isLoaded && status?.isBuffering));
+  const [showLoading, setShowLoading] = useState(false);
+
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+
+    if (rawShouldShowLoading) {
+      // Delay showing the loading indicator to prevent flicker on fast seeks/buffers
+      timeoutId = setTimeout(() => {
+        setShowLoading(true);
+      }, 200);
+    } else {
+      // Hide immediately when loading is done
+      setShowLoading(false);
+    }
+
+    return () => clearTimeout(timeoutId);
+  }, [rawShouldShowLoading]);
 
   return (
     <TouchableOpacity
@@ -125,7 +142,7 @@ const PlayerView = memo((props: PlayerViewProps) => {
         <>
           {currentEpisode?.url && player && <VideoView player={player} style={dynamicStyles.videoPlayer} {...videoViewProps} />}
 
-          {shouldShowLoading && (
+          {showLoading && (
             <View style={dynamicStyles.indicatorContainer} pointerEvents="none">
               <ActivityIndicator size="large" color="#fff" />
             </View>

@@ -64,7 +64,7 @@ export const useVideoHandlers = ({
 }: UseVideoHandlersProps): UseVideoHandlersResult => {
   const player = useVideoPlayer(currentEpisode?.url ?? null, (instance: VideoPlayer) => {
     instance.loop = false;
-    instance.timeUpdateEventInterval = 0.5; // Use the default, stable interval
+    instance.timeUpdateEventInterval = 0.25; // Smoother progress updates (4Hz)
     instance.keepScreenOnWhilePlaying = true;
   });
 
