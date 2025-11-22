@@ -20,7 +20,7 @@ interface DetailMobileViewProps {
   setDetail: (detail: any) => void;
   dynamicStyles: any;
   colors: any;
-  deviceType: string;
+  deviceType: 'mobile' | 'tablet' | 'tv';
 }
 
 export const DetailMobileView: React.FC<DetailMobileViewProps> = ({

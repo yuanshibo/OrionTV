@@ -108,7 +108,7 @@ const PlayerView = memo((props: PlayerViewProps) => {
   const [showLoading, setShowLoading] = useState(false);
 
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
+    let timeoutId: ReturnType<typeof setTimeout>;
 
     if (rawShouldShowLoading) {
       // Delay showing the loading indicator to prevent flicker on fast seeks/buffers
