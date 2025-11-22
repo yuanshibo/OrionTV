@@ -68,4 +68,4 @@ const VideoCard = React.forwardRef<any, VideoCardProps>((props, ref) => {
 
 VideoCard.displayName = 'VideoCard';
 
-export default VideoCard;
+export default React.memo(VideoCard);
