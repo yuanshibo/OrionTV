@@ -276,7 +276,11 @@ export class PlayRecordManager {
     } else {
       const recordToSave = { ...apiRecord } as Omit<ApiPlayRecord, "save_time"> & { description?: string };
       const existingRecord = await this.get(source, id);
-      if (description && !existingRecord?.description) {
+      // Preserve existing description if available, otherwise use the new one.
+      // This matches the local storage behavior and prevents overwriting with empty/undefined.
+      if (existingRecord?.description) {
+        recordToSave.description = existingRecord.description;
+      } else if (description) {
         recordToSave.description = description;
       }
       await api.savePlayRecord(key, recordToSave);
