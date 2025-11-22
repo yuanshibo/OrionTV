@@ -15,6 +15,7 @@ import { CategoryNavigation } from "@/components/navigation/CategoryNavigation";
 import { ContentDisplay } from "@/components/home/ContentDisplay";
 import FilterPanel from "@/components/home/FilterPanel";
 import { requestTVFocus } from "@/utils/tvUtils";
+import { useShallow } from "zustand/react/shallow";
 
 export default function HomeScreen() {
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -41,7 +42,22 @@ export default function HomeScreen() {
     refreshPlayRecords,
     clearError,
     hydrateFromStorage,
-  } = useHomeStore();
+  } = useHomeStore(useShallow((state) => ({
+    categories: state.categories,
+    selectedCategory: state.selectedCategory,
+    contentData: state.contentData,
+    loading: state.loading,
+    loadingMore: state.loadingMore,
+    error: state.error,
+    fetchInitialData: state.fetchInitialData,
+    loadMoreData: state.loadMoreData,
+    selectCategory: state.selectCategory,
+    updateFilterOption: state.updateFilterOption,
+    refreshPlayRecords: state.refreshPlayRecords,
+    clearError: state.clearError,
+    hydrateFromStorage: state.hydrateFromStorage,
+  })));
+
   const hasRecordCategory = useMemo(() => categories.some((category) => category.type === "record"), [categories]);
   const hasContent = contentData.length > 0;
   const hadContentRef = useRef(hasContent);
