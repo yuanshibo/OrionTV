@@ -25,8 +25,18 @@ type ResumeInfo = {
 };
 
 
+import { SearchResultWithResolution } from "@/services/api";
+
 export default function DetailScreen() {
-  const { q, source, id } = useLocalSearchParams<{ q: string; source?: string; id?: string }>();
+  const { q, source, id, poster, year, sourceName, desc } = useLocalSearchParams<{
+    q: string;
+    source?: string;
+    id?: string;
+    poster?: string;
+    year?: string;
+    sourceName?: string;
+    desc?: string;
+  }>();
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'dark';
   const colors = Colors[colorScheme];
@@ -50,6 +60,35 @@ export default function DetailScreen() {
     isFavorited,
     toggleFavorite,
   } = useDetailStore();
+
+  // Construct optimistic detail from params
+  const optimisticDetail = useMemo<SearchResultWithResolution | null>(() => {
+    if (!id || !poster || !q) return null;
+    return {
+      id: parseInt(id), // search result uses number id usually, but API defines string?
+                        // Wait, SearchResult id is number. VideoDetail id is string?
+                        // Let's check usage. detail.id usage.
+                        // In store: detail is SearchResultWithResolution.
+                        // SearchResult id is number.
+                        // In VideoCard, id is string.
+                        // We might need to parse int if possible, or handle type mismatch.
+                        // Most SearchResult ids are from API, usually numbers.
+                        // But some might be string hashes.
+      // Let's assume it's parsable or handle it.
+      // If parsing fails, use 0 or handle mismatch.
+      title: q,
+      poster: poster,
+      year: year || '',
+      source: source || '',
+      source_name: sourceName || '',
+      desc: desc || '',
+      episodes: [], // Empty initially
+      resolution: null,
+    } as unknown as SearchResultWithResolution; // Cast to satisfy type if needed
+  }, [id, poster, q, year, source, sourceName, desc]);
+
+  // Use store detail if available, otherwise optimistic
+  const computedDetail = detail || optimisticDetail;
 
   const [resumeInfo, setResumeInfo] = useState<ResumeInfo>(() => ({ 
     hasRecord: false,
@@ -81,13 +120,13 @@ export default function DetailScreen() {
   }, []);
 
   const loadResumeInfo = useCallback(async (): Promise<ResumeInfo> => {
-    if (!detail) {
+    if (!computedDetail) {
       return { hasRecord: false, episodeIndex: 0, position: undefined };
     }
 
     try {
-      const record = await PlayRecordManager.get(detail.source, detail.id.toString());
-      const totalEpisodes = detail.episodes?.length ?? 0;
+      const record = await PlayRecordManager.get(computedDetail.source, computedDetail.id.toString());
+      const totalEpisodes = computedDetail.episodes?.length ?? 0;
 
       if (record && totalEpisodes > 0) {
         const rawIndex = typeof record.index === "number" ? record.index - 1 : 0;
@@ -108,7 +147,7 @@ export default function DetailScreen() {
     }
 
     return { hasRecord: false, episodeIndex: 0, position: undefined };
-  }, [detail]);
+  }, [computedDetail]);
 
   useEffect(() => {
     let isActive = true;
@@ -162,12 +201,12 @@ export default function DetailScreen() {
   );
 
   const handlePlay = (episodeIndex: number, position?: number) => {
-    if (!detail) return;
+    if (!computedDetail) return;
     abort();
     const params: Record<string, string> = {
-      q: detail.title,
-      source: detail.source,
-      id: detail.id.toString(),
+      q: computedDetail.title,
+      source: computedDetail.source,
+      id: computedDetail.id.toString(),
       episodeIndex: episodeIndex.toString(),
     };
 
@@ -182,7 +221,7 @@ export default function DetailScreen() {
   };
 
   const handlePrimaryPlay = () => {
-    if (!detail || !detail.episodes || detail.episodes.length === 0) {
+    if (!computedDetail || !computedDetail.episodes || computedDetail.episodes.length === 0) {
       return;
     }
 
@@ -192,11 +231,11 @@ export default function DetailScreen() {
     handlePlay(targetEpisodeIndex, resumePosition);
   };
 
-  if (loading) {
+  if (loading && !computedDetail) {
     return <VideoLoadingAnimation showProgressBar={false} />;
   }
 
-  if (error && !detail) {
+  if (error && !computedDetail) {
     const content = (
       <ThemedView style={[commonStyles.safeContainer, commonStyles.center]}>
         <ThemedText type="subtitle" style={commonStyles.textMedium}>
@@ -217,7 +256,7 @@ export default function DetailScreen() {
     );
   }
 
-  if (!detail) {
+  if (!computedDetail) {
     const content = (
       <ThemedView style={[commonStyles.safeContainer, commonStyles.center]}>
         <ThemedText type="subtitle">未找到详情信息</ThemedText>
@@ -236,9 +275,11 @@ export default function DetailScreen() {
     );
   }
 
-  const totalEpisodes = detail.episodes?.length ?? 0;
+  const totalEpisodes = computedDetail.episodes?.length ?? 0;
   const isPlayDisabled = totalEpisodes === 0;
-  const playButtonLabel = (resumeInfo.hasRecord ? `继续播放 · 第${resumeInfo.episodeIndex + 1}集` : "立即播放 · 第1集") + `/全${totalEpisodes}集`;
+  const playButtonLabel = loading && isPlayDisabled
+    ? "正在加载..."
+    : (resumeInfo.hasRecord ? `继续播放 · 第${resumeInfo.episodeIndex + 1}集` : "立即播放 · 第1集") + `/全${totalEpisodes}集`;
 
 
   const renderDetailContent = () => {
@@ -249,11 +290,11 @@ export default function DetailScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={dynamicStyles.mobileTopContainer}>
-            <Image source={{ uri: detail.poster }} style={dynamicStyles.mobilePoster} />
+            <Image source={{ uri: computedDetail.poster }} style={dynamicStyles.mobilePoster} />
             <View style={dynamicStyles.mobileInfoContainer}>
               <View style={dynamicStyles.titleContainer}>
                 <ThemedText style={dynamicStyles.title} numberOfLines={2}>
-                  {detail.title}
+                  {computedDetail.title}
                 </ThemedText>
                 <StyledButton onPress={toggleFavorite} variant="ghost" style={dynamicStyles.favoriteButton}>
                   <FontAwesome
@@ -271,19 +312,19 @@ export default function DetailScreen() {
                 disabled={isPlayDisabled}
               />
               <View style={dynamicStyles.metaContainer}>
-                <ThemedText style={dynamicStyles.metaText}>{detail.year}</ThemedText>
-                <ThemedText style={dynamicStyles.metaText}>{detail.type_name}</ThemedText>
+                <ThemedText style={dynamicStyles.metaText}>{computedDetail.year}</ThemedText>
+                <ThemedText style={dynamicStyles.metaText}>{computedDetail.type_name}</ThemedText>
               </View>
             </View>
           </View>
 
           <View style={dynamicStyles.descriptionContainer}>
-            <ThemedText style={dynamicStyles.description}>{detail.desc}</ThemedText>
+            <ThemedText style={dynamicStyles.description}>{computedDetail.desc}</ThemedText>
           </View>
 
           <SourceList
             searchResults={searchResults}
-            currentSource={detail.source}
+            currentSource={computedDetail.source}
             onSelect={setDetail}
             loading={!allSourcesLoaded}
             deviceType={deviceType}
@@ -292,11 +333,11 @@ export default function DetailScreen() {
           />
 
           <EpisodeList
-            episodes={detail.episodes}
+            episodes={computedDetail.episodes}
             onPlay={handlePlay}
             styles={dynamicStyles}
           />
-          <RelatedSeries title={detail.title} />
+          <RelatedSeries title={computedDetail.title} />
         </ScrollView>
       );
     } else {
@@ -306,11 +347,11 @@ export default function DetailScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={dynamicStyles.topContainer}>
-            <Image source={{ uri: detail.poster }} style={dynamicStyles.poster} />
+            <Image source={{ uri: computedDetail.poster }} style={dynamicStyles.poster} />
             <View style={dynamicStyles.infoContainer}>
               <View style={dynamicStyles.titleContainer}>
                 <ThemedText style={dynamicStyles.title} numberOfLines={1} ellipsizeMode="tail">
-                  {detail.title}
+                  {computedDetail.title}
                 </ThemedText>
                 <StyledButton onPress={toggleFavorite} variant="ghost" style={dynamicStyles.favoriteButton}>
                   <FontAwesome
@@ -329,15 +370,15 @@ export default function DetailScreen() {
                  hasTVPreferredFocus={isTvExperience}
                />
               <View style={dynamicStyles.metaContainer}>
-                <ThemedText style={dynamicStyles.metaText}>{detail.year}</ThemedText>
-                <ThemedText style={dynamicStyles.metaText}>{detail.type_name}</ThemedText>
+                <ThemedText style={dynamicStyles.metaText}>{computedDetail.year}</ThemedText>
+                <ThemedText style={dynamicStyles.metaText}>{computedDetail.type_name}</ThemedText>
               </View>
 
               <ScrollView
                 style={dynamicStyles.descriptionScrollView}
                 showsVerticalScrollIndicator={false}
               >
-                <ThemedText style={dynamicStyles.description}>{detail.desc}</ThemedText>
+                <ThemedText style={dynamicStyles.description}>{computedDetail.desc}</ThemedText>
               </ScrollView>
             </View>
           </View>
@@ -345,7 +386,7 @@ export default function DetailScreen() {
           <View style={dynamicStyles.bottomContainer}>
             <SourceList
               searchResults={searchResults}
-              currentSource={detail.source}
+              currentSource={computedDetail.source}
               onSelect={setDetail}
               loading={!allSourcesLoaded}
               deviceType={deviceType}
@@ -353,11 +394,11 @@ export default function DetailScreen() {
               colors={colors}
             />
             <EpisodeList
-              episodes={detail.episodes}
+              episodes={computedDetail.episodes}
               onPlay={handlePlay}
               styles={dynamicStyles}
             />
-            <RelatedSeries title={detail.title} />
+            <RelatedSeries title={computedDetail.title} />
           </View>
         </ScrollView>
       );
@@ -376,7 +417,7 @@ export default function DetailScreen() {
 
   return (
     <ResponsiveNavigation>
-      <ResponsiveHeader title={detail?.title || "详情"} showBackButton showBottomBorder={false} />
+      <ResponsiveHeader title={computedDetail?.title || "详情"} showBackButton showBottomBorder={false} />
       {content}
     </ResponsiveNavigation>
   );
