@@ -330,4 +330,4 @@ const createMobileStyles = (cardWidth: number, cardHeight: number, spacing: numb
   });
 };
 
-export default VideoCardMobile;
+export default React.memo(VideoCardMobile);
