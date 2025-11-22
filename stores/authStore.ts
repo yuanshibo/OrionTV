@@ -51,6 +51,12 @@ const useAuthStore = create<AuthState>((set) => ({
         }
       }
 
+      const finalSettingsState = useSettingsStore.getState();
+      if (finalSettingsState.serverConfigError?.message === "UNAUTHORIZED") {
+        set({ isLoggedIn: false, isLoginModalVisible: true, authCookie: null });
+        return;
+      }
+
       if (!serverConfig?.StorageType) {
         // Only show error if we're not loading and have tried to fetch the config
         if (!settingsState.isLoadingServerConfig) {
