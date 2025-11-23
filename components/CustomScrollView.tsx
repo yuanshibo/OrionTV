@@ -6,14 +6,23 @@ import {
   View,
 } from "react-native";
 import { FlashList } from "@shopify/flash-list";
+import Animated, {
+  useSharedValue,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  withTiming,
+  runOnJS
+} from "react-native-reanimated";
 import { ThemedText } from "@/components/ThemedText";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { getCommonResponsiveStyles } from "@/utils/ResponsiveStyles";
 
+const AnimatedFlashList = Animated.createAnimatedComponent(FlashList);
+
 interface CustomScrollViewProps {
   data: any[];
   renderItem: ({ item, index }: { item: any; index: number }) => React.ReactNode;
-  numColumns?: number; // 如果不提供，将使用响应式默认值
+  numColumns?: number;
   loading?: boolean;
   loadingMore?: boolean;
   error?: string | null;
@@ -46,27 +55,51 @@ const CustomScrollView = forwardRef<React.ElementRef<typeof FlashList>, CustomSc
   const commonStyles = getCommonResponsiveStyles(responsiveConfig);
   const { deviceType } = responsiveConfig;
 
+  // Reanimated Shared Value for opacity
+  const opacity = useSharedValue(0);
+
   const scrollToTop = useCallback(() => {
     listRef.current?.scrollToOffset({ offset: 0, animated: true });
   }, []);
 
-  // 使用响应式列数，如果没有明确指定的话
   const effectiveColumns = numColumns || responsiveConfig.columns;
 
-  const handleScroll = useCallback(
-    ({ nativeEvent }: { nativeEvent: any }) => {
-      const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+  const handleEndReached = useCallback(() => {
+    if (!loadingMore && onEndReached) {
+      onEndReached();
+    }
+  }, [loadingMore, onEndReached]);
+
+  const updateShowScrollToTop = useCallback((show: boolean) => {
+    setShowScrollToTop(show);
+  }, []);
+
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      const { contentOffset, layoutMeasurement, contentSize } = event;
+
+      // Scroll To Top Logic
+      if (contentOffset.y > 200 && opacity.value === 0) {
+        opacity.value = withTiming(1);
+        runOnJS(updateShowScrollToTop)(true);
+      } else if (contentOffset.y <= 200 && opacity.value === 1) {
+        opacity.value = withTiming(0);
+        runOnJS(updateShowScrollToTop)(false);
+      }
+
+      // End Reached Logic
       const isCloseToBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - loadMoreThreshold;
-
-      // 显示/隐藏返回顶部按钮
-      setShowScrollToTop(contentOffset.y > 200);
-
-      if (isCloseToBottom && !loadingMore && onEndReached) {
-        onEndReached();
+      if (isCloseToBottom) {
+        runOnJS(handleEndReached)();
       }
     },
-    [onEndReached, loadingMore, loadMoreThreshold]
-  );
+  });
+
+  const animatedButtonStyle = useAnimatedStyle(() => {
+    return {
+      opacity: opacity.value,
+    };
+  });
 
   const renderFooter = useMemo(() => {
     if (ListFooterComponent) {
@@ -116,18 +149,9 @@ const CustomScrollView = forwardRef<React.ElementRef<typeof FlashList>, CustomSc
   );
 
   const getItemKey = useCallback((item: any, index: number) => {
-    if (item?.id != null) {
-      return String(item.id);
-    }
-
-    if (item?.key != null) {
-      return String(item.key);
-    }
-
-    if (item?.title != null) {
-      return `${item.title}-`;
-    }
-
+    if (item?.id != null) return String(item.id);
+    if (item?.key != null) return String(item.key);
+    if (item?.title != null) return `${item.title}-`;
     return `${index}`;
   }, []);
 
@@ -175,7 +199,7 @@ const CustomScrollView = forwardRef<React.ElementRef<typeof FlashList>, CustomSc
 
   return (
     <View style={{ flex: 1 }}>
-      <FlashList
+      <AnimatedFlashList
         ref={listRef}
         data={data}
         keyExtractor={getItemKey}
@@ -184,7 +208,7 @@ const CustomScrollView = forwardRef<React.ElementRef<typeof FlashList>, CustomSc
         // @ts-ignore
         estimatedItemSize={responsiveConfig.cardHeight + responsiveConfig.spacing}
         contentContainerStyle={dynamicStyles.listContent}
-        onScroll={handleScroll}
+        onScroll={scrollHandler}
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={responsiveConfig.deviceType !== "tv"}
         ListEmptyComponent={() => (
@@ -195,13 +219,14 @@ const CustomScrollView = forwardRef<React.ElementRef<typeof FlashList>, CustomSc
         ListFooterComponent={renderFooter}
       />
       {deviceType !== 'tv' && (
-        <TouchableOpacity
-          style={[dynamicStyles.scrollToTopButton, { opacity: showScrollToTop ? 1 : 0 }]}
-          onPress={scrollToTop}
-          activeOpacity={0.8}
-        >
-          <ThemedText>⬆️</ThemedText>
-        </TouchableOpacity>
+        <Animated.View style={[dynamicStyles.scrollToTopButton, animatedButtonStyle]} pointerEvents={showScrollToTop ? 'auto' : 'none'}>
+          <TouchableOpacity
+            onPress={scrollToTop}
+            activeOpacity={0.8}
+          >
+            <ThemedText>⬆️</ThemedText>
+          </TouchableOpacity>
+        </Animated.View>
       )}
     </View>
   );
