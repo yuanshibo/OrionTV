@@ -1,13 +1,15 @@
 import React, { useMemo } from "react";
-import { View, Text, StyleSheet, Pressable, useColorScheme } from "react-native";
+import { View, Text, StyleSheet, useColorScheme } from "react-native";
 import { Pause, Play, SkipForward, List, Tv, ArrowDownToDot, ArrowUpFromDot, Gauge } from "lucide-react-native";
-import { ThemedText } from "@/components/ThemedText";
 import { MediaButton } from "@/components/MediaButton";
+import { useShallow } from "zustand/react/shallow";
 
 import usePlayerStore from "@/stores/playerStore";
 import useDetailStore from "@/stores/detailStore";
 import { useSources } from "@/stores/sourceStore";
 import { Colors } from "@/constants/Colors";
+import { PlayerProgressBar } from "@/components/player/PlayerProgressBar";
+import { PlayerTimeDisplay } from "@/components/player/PlayerTimeDisplay";
 
 interface PlayerControlsProps {
   showControls: boolean;
@@ -21,11 +23,11 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
   const {
     currentEpisodeIndex,
     episodes,
-    status,
-    isSeeking,
-    seekPosition,
-    progressPosition,
+    isLoaded,
+    isPlaying,
     playbackRate,
+    introEndTime,
+    outroStartTime,
     togglePlayPause,
     playEpisode,
     setShowEpisodeModal,
@@ -33,17 +35,37 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
     setShowSpeedModal,
     setIntroEndTime,
     setOutroStartTime,
-    introEndTime,
-    outroStartTime,
-  } = usePlayerStore();
+  } = usePlayerStore(
+    useShallow((state) => ({
+      currentEpisodeIndex: state.currentEpisodeIndex,
+      episodes: state.episodes,
+      isLoaded: state.status?.isLoaded,
+      isPlaying: state.status?.isPlaying,
+      playbackRate: state.playbackRate,
+      introEndTime: state.introEndTime,
+      outroStartTime: state.outroStartTime,
+      togglePlayPause: state.togglePlayPause,
+      playEpisode: state.playEpisode,
+      setShowEpisodeModal: state.setShowEpisodeModal,
+      setShowSourceModal: state.setShowSourceModal,
+      setShowSpeedModal: state.setShowSpeedModal,
+      setIntroEndTime: state.setIntroEndTime,
+      setOutroStartTime: state.setOutroStartTime,
+    }))
+  );
 
-  const { detail } = useDetailStore();
+  const { title: videoTitle, source } = useDetailStore(
+    useShallow((state) => ({
+      title: state.detail?.title,
+      source: state.detail?.source,
+    }))
+  );
+
   const resources = useSources();
 
-  const videoTitle = detail?.title || "";
   const currentEpisode = episodes[currentEpisodeIndex];
   const currentEpisodeTitle = currentEpisode?.title;
-  const currentSource = resources.find((r) => r.source === detail?.source);
+  const currentSource = resources.find((r) => r.source === source);
   const currentSourceName = currentSource?.source_name;
   const hasNextEpisode = currentEpisodeIndex < (episodes.length || 0) - 1;
 
@@ -61,10 +83,6 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
     }
   };
   
-  const durationMillis = status?.durationMillis || 0;
-  const playableDurationMillis = status?.playableDurationMillis || 0;
-  const loadedPercentage = durationMillis > 0 ? playableDurationMillis / durationMillis : 0;
-
   const styles = useMemo(() => StyleSheet.create({
     controlsOverlay: {
       ...StyleSheet.absoluteFillObject,
@@ -97,44 +115,6 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
       flexWrap: "wrap",
       marginTop: 15,
     },
-    progressBarContainer: {
-      width: "100%",
-      height: 8,
-      position: "relative",
-      marginTop: 10,
-      borderRadius: 4,
-      overflow: 'hidden',
-    },
-    progressBarBackground: {
-      position: "absolute",
-      left: 0,
-      top: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: "rgba(255, 255, 255, 0.3)",
-    },
-    progressBarLoaded: {
-      position: "absolute",
-      left: 0,
-      top: 0,
-      height: "100%",
-      backgroundColor: "rgba(255, 255, 255, 0.5)",
-    },
-    progressBarFilled: {
-      position: "absolute",
-      left: 0,
-      top: 0,
-      height: "100%",
-      backgroundColor: colors.primary,
-    },
-    progressBarTouchable: {
-      position: "absolute",
-      left: 0,
-      right: 0,
-      height: 30,
-      top: -10,
-      zIndex: 10,
-    },
   }), [colors]);
 
   return (
@@ -147,32 +127,8 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
       </View>
 
       <View style={styles.bottomControlsContainer}>
-        <View style={styles.progressBarContainer}>
-          <View style={styles.progressBarBackground} />
-          <View
-            style={[
-              styles.progressBarLoaded,
-              {
-                width: `${loadedPercentage * 100}%`,
-              },
-            ]}
-          />
-          <View
-            style={[
-              styles.progressBarFilled,
-              {
-                width: `${(isSeeking ? seekPosition : progressPosition) * 100}%`,
-              },
-            ]}
-          />
-          <Pressable style={styles.progressBarTouchable} />
-        </View>
-
-        <ThemedText style={{ color: colors.text, marginTop: 5 }}>
-          {status?.isLoaded
-            ? `${formatTime(status.positionMillis)} / ${formatTime(status.durationMillis || 0)}`
-            : "00:00 / 00:00"}
-        </ThemedText>
+        <PlayerProgressBar />
+        <PlayerTimeDisplay />
 
         <View style={styles.bottomControls}>
           <MediaButton onPress={setIntroEndTime} timeLabel={introEndTime ? formatTime(introEndTime) : undefined}>
@@ -180,7 +136,7 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
           </MediaButton>
 
           <MediaButton onPress={togglePlayPause} hasTVPreferredFocus={showControls}>
-            {status?.isLoaded && status.isPlaying ? (
+            {isLoaded && isPlaying ? (
               <Pause color={colors.text} size={24} />
             ) : (
               <Play color={colors.text} size={24} />

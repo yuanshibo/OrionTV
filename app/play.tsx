@@ -15,6 +15,7 @@ import { useVideoHandlers } from "@/hooks/useVideoHandlers";
 import { usePlayerInteractions } from "@/hooks/usePlayerInteractions";
 import { usePlayerLifecycle } from "@/hooks/usePlayerLifecycle";
 import Logger from "@/utils/Logger";
+import { useShallow } from "zustand/react/shallow";
 
 const logger = Logger.withTag("PlayScreen");
 
@@ -38,7 +39,13 @@ export default function PlayScreen() {
   // Select state from the store reactively
   const detail = useDetailStore((state) => state.detail);
   const initDetail = useDetailStore((state) => state.init);
-  const status = usePlayerStore((state) => state.status);
+
+  const { isLoaded, isBuffering, isPlaying } = usePlayerStore(useShallow(state => ({
+    isLoaded: state.status?.isLoaded ?? false,
+    isBuffering: state.status?.isBuffering ?? false,
+    isPlaying: state.status?.isPlaying ?? false,
+  })));
+
   const isLoading = usePlayerStore((state) => state.isLoading);
   const isSeeking = usePlayerStore((state) => state.isSeeking);
   const isSeekBuffering = usePlayerStore((state) => state.isSeekBuffering);
@@ -65,7 +72,7 @@ export default function PlayScreen() {
     deviceType,
   });
 
-  useKeepAwake(status?.isPlaying ? "video" : undefined);
+  useKeepAwake(isPlaying ? "video" : undefined);
 
   const { onScreenPress } = usePlayerInteractions(deviceType);
 
@@ -159,7 +166,8 @@ export default function PlayScreen() {
         deviceType={deviceType}
         detail={detail}
         error={error}
-        status={status}
+        isLoaded={isLoaded}
+        isBuffering={isBuffering}
         isLoading={isLoading || !detail}
         isSeeking={isSeeking}
         isSeekBuffering={isSeekBuffering}

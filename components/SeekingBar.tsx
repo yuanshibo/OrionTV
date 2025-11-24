@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 import { View, Text, useColorScheme, StyleSheet } from "react-native";
+import { useShallow } from "zustand/react/shallow";
 import usePlayerStore from "@/stores/playerStore";
 import { Colors } from "@/constants/Colors";
 
@@ -21,7 +22,16 @@ const formatTime = (milliseconds: number) => {
 };
 
 export const SeekingBar = () => {
-  const { isSeeking, isSeekBuffering, seekPosition, status, showControls } = usePlayerStore();
+  const { isSeeking, isSeekBuffering, seekPosition, status, showControls } = usePlayerStore(
+    useShallow((state) => ({
+      isSeeking: state.isSeeking,
+      isSeekBuffering: state.isSeekBuffering,
+      seekPosition: state.seekPosition,
+      status: state.status,
+      showControls: state.showControls,
+    }))
+  );
+
   const colorScheme = useColorScheme() ?? "dark";
   const colors = Colors[colorScheme];
 

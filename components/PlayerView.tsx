@@ -4,7 +4,6 @@ import { VideoView, VideoPlayer } from "expo-video";
 import { PlayerControls } from "@/components/PlayerControls";
 import { SeekingBar } from "@/components/SeekingBar";
 import { SearchResultWithResolution } from "@/services/api";
-import { PlaybackState } from "@/stores/playerStore";
 import { VideoViewPropsSubset } from "@/hooks/useVideoHandlers";
 import Logger from "@/utils/Logger";
 
@@ -58,7 +57,8 @@ interface PlayerViewProps {
   deviceType: "tv" | "mobile" | "tablet";
   detail: SearchResultWithResolution | null;
   error?: string;
-  status: PlaybackState | null;
+  isLoaded: boolean;
+  isBuffering: boolean;
   isLoading: boolean;
   isSeeking: boolean;
   isSeekBuffering: boolean;
@@ -75,8 +75,10 @@ const PlayerView = memo((props: PlayerViewProps) => {
     deviceType,
     detail,
     error,
-    status,
+    isLoaded,
+    isBuffering,
     isLoading,
+    isSeeking,
     isSeekBuffering,
     currentEpisode,
     player,
@@ -97,18 +99,18 @@ const PlayerView = memo((props: PlayerViewProps) => {
   useEffect(() => {
     // Once the video is loaded, we set the flag and it remains set
     // for subsequent loads (e.g., next episode, source change).
-    if (status?.isLoaded && !hasEverBeenLoaded) {
+    if (isLoaded && !hasEverBeenLoaded) {
       setHasEverBeenLoaded(true);
     }
-  }, [status?.isLoaded, hasEverBeenLoaded]);
+  }, [isLoaded, hasEverBeenLoaded]);
 
   const dynamicStyles = useMemo(() => createResponsiveStyles(deviceType), [deviceType]);
   const shouldShowPoster = Boolean(detail?.poster && !hasEverBeenLoaded && !error);
-  const rawShouldShowLoading = Boolean(isLoading || isSeekBuffering || (status?.isLoaded && status?.isBuffering));
+  const rawShouldShowLoading = Boolean(isLoading || isSeekBuffering || (isLoaded && isBuffering));
   const [showLoading, setShowLoading] = useState(false);
 
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
+    let timeoutId: ReturnType<typeof setTimeout>;
 
     if (rawShouldShowLoading) {
       // Delay showing the loading indicator to prevent flicker on fast seeks/buffers
@@ -150,7 +152,7 @@ const PlayerView = memo((props: PlayerViewProps) => {
 
           {showControls && deviceType === "tv" && <PlayerControls showControls={showControls} setShowControls={setShowControls} />}
 
-          <SeekingBar />
+          {isSeeking && !showControls && <SeekingBar />}
         </>
       )}
     </TouchableOpacity>

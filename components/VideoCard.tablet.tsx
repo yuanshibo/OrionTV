@@ -379,4 +379,4 @@ const createTabletStyles = (cardWidth: number, cardHeight: number, spacing: numb
   });
 };
 
-export default VideoCardTablet;
+export default React.memo(VideoCardTablet);
