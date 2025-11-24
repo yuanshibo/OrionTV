@@ -23,7 +23,7 @@ const AnimatedFlashList = Animated.createAnimatedComponent(FlashList);
 
 interface CustomScrollViewProps {
   data: any[];
-  renderItem: ({ item, index, style }: { item: any; index: number; style?: StyleProp<ViewStyle> }) => React.ReactNode;
+  renderItem: ({ item, index, style }: { item: any; index: number; style?: StyleProp<ViewStyle> }) => React.ReactElement | null;
   numColumns?: number;
   loading?: boolean;
   loadingMore?: boolean;
@@ -163,7 +163,7 @@ const CustomScrollView = forwardRef<React.ElementRef<typeof FlashList>, CustomSc
       const style = isLastColumn ? dynamicStyles.cardContainer : dynamicStyles.cardContainerWithSpacing;
 
       // Directly call renderItem with the calculated style, avoiding an extra View wrapper
-      return renderItem({ item, index, style });
+      return renderItem({ item, index, style }) || null;
     },
     [dynamicStyles, effectiveColumns, renderItem]
   );
