@@ -1,8 +1,16 @@
-import React, { useState, useEffect, useCallback, useRef, forwardRef, useMemo } from "react";
-import { View, Text, StyleSheet, Pressable, TouchableOpacity, Alert, Animated, Platform, useColorScheme } from "react-native";
+import React, { useCallback, useRef, forwardRef, useMemo, useEffect } from "react";
+import { View, Text, StyleSheet, Pressable, TouchableOpacity, Alert, Platform, useColorScheme } from "react-native";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { Star, Play } from "lucide-react-native";
+import Reanimated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+  runOnJS,
+  withDelay
+} from "react-native-reanimated";
 import { PlayRecordManager, FavoriteManager } from "@/services/storage";
 import { API } from "@/services/api";
 import { ThemedText } from "@/components/ThemedText";
@@ -59,21 +67,35 @@ const VideoCard = forwardRef<View, VideoCardProps>(
     const router = useRouter();
     const colorScheme = useColorScheme() ?? 'dark';
     const colors = Colors[colorScheme];
-    const [isFocused, setIsFocused] = useState(false);
-    const [fadeAnim] = useState(new Animated.Value(0));
 
+    // Reanimated Shared Values
+    const isFocusedSV = useSharedValue(0);
+    const fadeSV = useSharedValue(0);
+
+    // JS State refs for logic that doesn't need re-render
     const longPressTriggered = useRef(false);
     const lastPressTime = useRef(0);
-
-    const scale = useRef(new Animated.Value(1)).current;
-    const fadeInAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
-    const scaleAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
-
     const deviceType = useResponsiveLayout().deviceType;
 
-    const animatedStyle = {
-      transform: [{ scale }],
-    };
+    useEffect(() => {
+      // Entrance Animation
+      fadeSV.value = withDelay(Math.random() * 200, withTiming(1, { duration: 400 }));
+    }, []);
+
+    const animatedStyle = useAnimatedStyle(() => {
+      const scale = isFocusedSV.value ? 1.05 : 1;
+      return {
+        transform: [{ scale: withSpring(scale, { damping: 15, stiffness: 200 }) }],
+        opacity: fadeSV.value,
+        zIndex: isFocusedSV.value ? 999 : 1,
+      };
+    });
+
+    const overlayStyle = useAnimatedStyle(() => {
+      return {
+        opacity: withTiming(isFocusedSV.value ? 1 : 0, { duration: 200 }),
+      };
+    });
 
     const handlePress = () => {
       const now = Date.now();
@@ -97,60 +119,16 @@ const VideoCard = forwardRef<View, VideoCardProps>(
       }
     };
 
-    const runScaleAnimation = useCallback(
-      (toValue: number, config?: Partial<Animated.SpringAnimationConfig>) => {
-        scaleAnimationRef.current?.stop();
-        const animation = Animated.spring(scale, {
-          toValue,
-          useNativeDriver: true,
-          ...config,
-        });
-        scaleAnimationRef.current = animation;
-        animation.start(() => {
-          if (scaleAnimationRef.current === animation) {
-            scaleAnimationRef.current = null;
-          }
-        });
-      },
-      [scale]
-    );
-
     const handleFocus = useCallback(() => {
-      setIsFocused(true);
-      runScaleAnimation(1.05, { damping: 15, stiffness: 200 });
-      onFocus?.();
-    }, [runScaleAnimation, onFocus]);
+      isFocusedSV.value = 1;
+      if (onFocus) {
+         // onFocus might trigger parent state update, so keep it in JS
+         onFocus();
+      }
+    }, [onFocus]);
 
     const handleBlur = useCallback(() => {
-      setIsFocused(false);
-      runScaleAnimation(1.0);
-    }, [runScaleAnimation]);
-
-    useEffect(() => {
-      fadeInAnimationRef.current?.stop();
-      const animation = Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 400,
-        delay: Math.random() * 200,
-        useNativeDriver: true,
-      });
-      fadeInAnimationRef.current = animation;
-      animation.start(() => {
-        if (fadeInAnimationRef.current === animation) {
-          fadeInAnimationRef.current = null;
-        }
-      });
-
-      return () => {
-        animation.stop();
-      };
-    }, [fadeAnim]);
-
-    useEffect(() => {
-      return () => {
-        fadeInAnimationRef.current?.stop();
-        scaleAnimationRef.current?.stop();
-      };
+      isFocusedSV.value = 0;
     }, []);
 
     const handleLongPress = () => {
@@ -212,7 +190,7 @@ const VideoCard = forwardRef<View, VideoCardProps>(
     );
 
     return (
-      <Animated.View style={[styles.wrapper, animatedStyle, { opacity: fadeAnim }]}>
+      <Reanimated.View style={[styles.wrapper, animatedStyle]}>
         <Pressable
           ref={ref}
           android_ripple={Platform.isTV || deviceType !== 'tv' ? { color: 'transparent' } : { color: colors.link }}
@@ -220,27 +198,22 @@ const VideoCard = forwardRef<View, VideoCardProps>(
           onLongPress={handleLongPress}
           onFocus={handleFocus}
           onBlur={handleBlur}
-          style={({ pressed }) => [
-            styles.pressable,
-            {
-              zIndex: pressed ? 999 : 1,
-            },
-          ]}
+          style={styles.pressable}
           delayLongPress={1000}
           {...rest}
         >
           <View style={styles.card}>
             <Image source={imageSource} style={styles.poster} contentFit="cover" transition={300} />
-            {isFocused && (
-              <View style={styles.overlay}>
-                {isContinueWatching && (
-                  <View style={styles.continueWatchingBadge}>
-                    <Play size={16} color={colors.text} fill={colors.text} />
-                    <ThemedText style={styles.continueWatchingText}>继续观看</ThemedText>
-                  </View>
-                )}
-              </View>
-            )}
+
+            {/* Overlay is always mounted, opacity controlled by SharedValue */}
+            <Reanimated.View style={[styles.overlay, overlayStyle]} pointerEvents="none">
+              {isContinueWatching && (
+                <View style={styles.continueWatchingBadge}>
+                  <Play size={16} color={colors.text} fill={colors.text} />
+                  <ThemedText style={styles.continueWatchingText}>继续观看</ThemedText>
+                </View>
+              )}
+            </Reanimated.View>
 
             {isContinueWatching && (
               <View style={styles.progressContainer}>
@@ -276,7 +249,7 @@ const VideoCard = forwardRef<View, VideoCardProps>(
             )}
           </View>
         </Pressable>
-      </Animated.View>
+      </Reanimated.View>
     );
   }
 );
