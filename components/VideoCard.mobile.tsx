@@ -1,12 +1,12 @@
-import React, { useState, useEffect, useRef, forwardRef, useMemo } from "react";
-import { View, StyleSheet, TouchableOpacity, Animated, useColorScheme, Text } from "react-native";
+import React, { useEffect, forwardRef, useMemo } from "react";
+import { View, StyleSheet, TouchableOpacity, useColorScheme, Text } from "react-native";
 import { Image } from "expo-image";
 import { Star, Play } from "lucide-react-native";
+import Reanimated, { useSharedValue, useAnimatedStyle, withTiming, withDelay } from "react-native-reanimated";
 import { API } from "@/services/api";
 import { ThemedText } from "@/components/ThemedText";
 import { Colors } from "@/constants/Colors";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
-import { DeviceUtils } from "@/utils/DeviceUtils";
 import useAuthStore from "@/stores/authStore";
 import { useVideoCardInteractions } from "@/hooks/useVideoCardInteractions";
 
@@ -53,8 +53,9 @@ const VideoCardMobile = forwardRef<View, VideoCardMobileProps>(
     const colorScheme = useColorScheme() ?? 'dark';
     const colors = Colors[colorScheme];
     const { cardWidth, cardHeight, spacing } = useResponsiveLayout();
-    const [fadeAnim] = useState(new Animated.Value(0));
-    const fadeInAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
+
+    // Replace Animated with Reanimated SharedValue
+    const opacitySV = useSharedValue(0);
 
     const { handlePress, handleLongPress } = useVideoCardInteractions({
       id,
@@ -69,30 +70,16 @@ const VideoCardMobile = forwardRef<View, VideoCardMobileProps>(
     });
 
     useEffect(() => {
-      fadeInAnimationRef.current?.stop();
-      const animation = Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: DeviceUtils.getAnimationDuration(300),
-        delay: Math.random() * 100,
-        useNativeDriver: true,
-      });
-      fadeInAnimationRef.current = animation;
-      animation.start(() => {
-        if (fadeInAnimationRef.current === animation) {
-          fadeInAnimationRef.current = null;
-        }
-      });
+      // Small random delay for staggered effect, but faster
+      const delay = Math.random() * 100;
+      opacitySV.value = withDelay(delay, withTiming(1, { duration: 300 }));
+    }, [opacitySV]);
 
-      return () => {
-        animation.stop();
+    const animatedStyle = useAnimatedStyle(() => {
+      return {
+        opacity: opacitySV.value,
       };
-    }, [fadeAnim]);
-
-    useEffect(() => {
-      return () => {
-        fadeInAnimationRef.current?.stop();
-      };
-    }, []);
+    });
 
     const isContinueWatching = progress !== undefined && progress > 0 && progress < 1;
 
@@ -107,7 +94,7 @@ const VideoCardMobile = forwardRef<View, VideoCardMobileProps>(
     );
 
     return (
-      <Animated.View style={[styles.wrapper, { opacity: fadeAnim }]} ref={ref}>
+      <Reanimated.View style={[styles.wrapper, animatedStyle]} ref={ref}>
         <TouchableOpacity
           onPress={handlePress}
           onLongPress={handleLongPress}
@@ -116,7 +103,13 @@ const VideoCardMobile = forwardRef<View, VideoCardMobileProps>(
           delayLongPress={800}
         >
           <View style={styles.card}>
-            <Image source={imageSource} style={styles.poster} contentFit="cover" transition={300} />
+            <Image
+              source={imageSource}
+              style={styles.poster}
+              contentFit="cover"
+              transition={200} // Reduced from 300 for snappier feel
+              cachePolicy="disk" // Explicit caching
+            />
             
             {isContinueWatching && (
               <View style={styles.progressContainer}>
@@ -160,7 +153,7 @@ const VideoCardMobile = forwardRef<View, VideoCardMobileProps>(
             )}
           </View>
         </TouchableOpacity>
-      </Animated.View>
+      </Reanimated.View>
     );
   }
 );
