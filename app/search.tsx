@@ -2,7 +2,8 @@ import React, { useState, useRef, useEffect, useMemo, useCallback } from "react"
 import { View, TextInput, StyleSheet, Alert, Keyboard, TouchableOpacity, useColorScheme, ActivityIndicator } from "react-native";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
-import VideoCard from "@/components/VideoCard";
+import VideoCardMobile from "@/components/VideoCard.mobile";
+import VideoCardTV from "@/components/VideoCard.tv";
 import VideoLoadingAnimation from "@/components/VideoLoadingAnimation";
 import { api, SearchResult, DoubanRecommendationItem } from "@/services/api";
 import { Search, QrCode } from "lucide-react-native";
@@ -194,21 +195,26 @@ export default function SearchScreen() {
     }
   };
 
-  const renderItem = ({ item, index }: { item: UnifiedResult; index: number }) => {
+  const renderItem = useCallback(({ item, index }: { item: UnifiedResult; index: number }) => {
     const isSearchResult = 'source' in item;
-    return (
-        <VideoCard
-        id={item.id?.toString() || `${item.title}-${index}`}
-        source={isSearchResult ? (item as SearchResult).source : (item as DoubanRecommendationItem).url || ''}
-        title={item.title}
-        poster={item.poster}
-        year={item.year}
-        sourceName={isSearchResult ? (item as SearchResult).source_name : (item as DoubanRecommendationItem).platform || ''}
-        rate={!isSearchResult ? (item as DoubanRecommendationItem).rate : undefined}
-        api={api}
-        />
-    );
-  };
+    const commonProps = {
+      id: item.id?.toString() || `${item.title}-${index}`,
+      source: isSearchResult ? (item as SearchResult).source : (item as DoubanRecommendationItem).url || '',
+      title: item.title,
+      poster: item.poster,
+      year: item.year,
+      sourceName: isSearchResult ? (item as SearchResult).source_name : (item as DoubanRecommendationItem).platform || '',
+      rate: !isSearchResult ? (item as DoubanRecommendationItem).rate : undefined,
+      api: api,
+    };
+
+    if (deviceType === 'mobile') {
+      return <VideoCardMobile {...commonProps} />;
+    } else {
+      // Tablet and TV use the TV implementation
+      return <VideoCardTV {...commonProps} />;
+    }
+  }, [deviceType]);
 
   // 动态样式
   const dynamicStyles = useMemo(() => createResponsiveStyles(deviceType, spacing, colors), [deviceType, spacing, colors]);

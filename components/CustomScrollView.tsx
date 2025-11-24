@@ -155,11 +155,11 @@ const CustomScrollView = forwardRef<React.ElementRef<typeof FlashList>, CustomSc
     return `${index}`;
   }, []);
 
-  const dataLength = data.length;
-
   const renderGridItem = useCallback(
     ({ item, index }: { item: any; index: number }) => {
-      const isLastColumn = ((index + 1) % effectiveColumns === 0) || index === dataLength - 1;
+      const isLastColumn = (index + 1) % effectiveColumns === 0;
+      // Removed "|| index === dataLength - 1" to remove dependency on dataLength.
+      // The last item in a row (or incomplete row) should behave based on its column index.
       const containerStyle = isLastColumn ? dynamicStyles.cardContainer : dynamicStyles.cardContainerWithSpacing;
 
       return (
@@ -168,7 +168,7 @@ const CustomScrollView = forwardRef<React.ElementRef<typeof FlashList>, CustomSc
         </View>
       );
     },
-    [dataLength, dynamicStyles, effectiveColumns, renderItem]
+    [dynamicStyles, effectiveColumns, renderItem]
   );
 
   if (loading) {
