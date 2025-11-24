@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { View, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
 import { ThemedText } from './ThemedText';
 import { api, DoubanRecommendationItem, SearchResult } from '@/services/api';
@@ -14,17 +14,17 @@ interface RelatedSeriesProps {
   autoFocus?: boolean;
 }
 
-const RelatedSeries: React.FC<RelatedSeriesProps> = ({ title, autoFocus = false }) => {
+const RelatedSeriesComponent: React.FC<RelatedSeriesProps> = ({ title, autoFocus = false }) => {
   const [related, setRelated] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(true);
   const firstCardRef = useRef<View>(null);
   const [listTitle, setListTitle] = useState('相关剧集');
 
   const responsiveConfig = useResponsiveLayout();
-  const commonStyles = getCommonResponsiveStyles(responsiveConfig);
+  const commonStyles = useMemo(() => getCommonResponsiveStyles(responsiveConfig), [responsiveConfig]);
   const { spacing } = responsiveConfig;
 
-  const styles = StyleSheet.create({
+  const styles = useMemo(() => StyleSheet.create({
     container: {
       marginTop: spacing,
       paddingBottom: spacing * 2,
@@ -41,7 +41,7 @@ const RelatedSeries: React.FC<RelatedSeriesProps> = ({ title, autoFocus = false 
     itemContainer: {
       marginRight: spacing,
     },
-  });
+  }), [spacing, responsiveConfig.deviceType]);
 
   useEffect(() => {
     if (!loading && related.length > 0 && autoFocus) {
@@ -91,7 +91,7 @@ const RelatedSeries: React.FC<RelatedSeriesProps> = ({ title, autoFocus = false 
     }
   }, [title]);
 
-  const renderItem = ({ item, index }: { item: SearchResult; index: number }) => (
+  const renderItem = useCallback(({ item, index }: { item: SearchResult; index: number }) => (
     <View style={styles.itemContainer}>
       <VideoCard
         ref={index === 0 ? firstCardRef : undefined}
@@ -104,7 +104,7 @@ const RelatedSeries: React.FC<RelatedSeriesProps> = ({ title, autoFocus = false 
         api={api}
       />
     </View>
-  );
+  ), [styles.itemContainer]);
 
   if (loading) {
     return (
@@ -132,5 +132,8 @@ const RelatedSeries: React.FC<RelatedSeriesProps> = ({ title, autoFocus = false 
     </View>
   );
 };
+
+const RelatedSeries = React.memo(RelatedSeriesComponent);
+RelatedSeries.displayName = 'RelatedSeries';
 
 export default RelatedSeries;

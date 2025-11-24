@@ -1,18 +1,14 @@
 import React, { useState, useEffect, useRef, forwardRef, useMemo } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Alert, Animated, useColorScheme } from "react-native";
+import { View, StyleSheet, TouchableOpacity, Animated, useColorScheme, Text } from "react-native";
 import { Image } from "expo-image";
-import { useRouter } from "expo-router";
 import { Star, Play } from "lucide-react-native";
-import { PlayRecordManager, FavoriteManager } from "@/services/storage";
 import { API } from "@/services/api";
 import { ThemedText } from "@/components/ThemedText";
 import { Colors } from "@/constants/Colors";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { DeviceUtils } from "@/utils/DeviceUtils";
-import Logger from '@/utils/Logger';
 import useAuthStore from "@/stores/authStore";
-
-const logger = Logger.withTag('VideoCardMobile');
+import { useVideoCardInteractions } from "@/hooks/useVideoCardInteractions";
 
 interface VideoCardMobileProps extends React.ComponentProps<typeof TouchableOpacity> {
   id: string;
@@ -54,38 +50,23 @@ const VideoCardMobile = forwardRef<View, VideoCardMobileProps>(
     }: VideoCardMobileProps,
     ref
   ) => {
-    const router = useRouter();
     const colorScheme = useColorScheme() ?? 'dark';
     const colors = Colors[colorScheme];
     const { cardWidth, cardHeight, spacing } = useResponsiveLayout();
     const [fadeAnim] = useState(new Animated.Value(0));
     const fadeInAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
 
-    const longPressTriggered = useRef(false);
-    const lastPressTime = useRef(0);
-
-    const handlePress = () => {
-      const now = Date.now();
-      if (now - lastPressTime.current < 500) return;
-      lastPressTime.current = now;
-
-      if (longPressTriggered.current) {
-        longPressTriggered.current = false;
-        return;
-      }
-      
-      if (progress !== undefined && episodeIndex !== undefined) {
-        router.push({
-          pathname: "/play",
-          params: { source, id, episodeIndex: episodeIndex - 1, title, position: playTime * 1000 },
-        });
-      } else {
-        router.push({
-          pathname: "/detail",
-          params: { source, q: title },
-        });
-      }
-    };
+    const { handlePress, handleLongPress } = useVideoCardInteractions({
+      id,
+      source,
+      title,
+      type,
+      progress,
+      playTime,
+      episodeIndex,
+      onRecordDeleted,
+      onFavoriteDeleted,
+    });
 
     useEffect(() => {
       fadeInAnimationRef.current?.stop();
@@ -112,44 +93,6 @@ const VideoCardMobile = forwardRef<View, VideoCardMobileProps>(
         fadeInAnimationRef.current?.stop();
       };
     }, []);
-
-    const handleLongPress = () => {
-      if (type === 'record' && progress === undefined) return;
-
-      longPressTriggered.current = true;
-
-      const isFavorite = type === 'favorite';
-      const titleText = isFavorite ? "删除收藏" : "删除观看记录";
-      const messageText = isFavorite ? `确定要删除"${title}"的收藏吗？` : `确定要删除"${title}"的观看记录吗？`;
-
-      Alert.alert(titleText, messageText, [
-        {
-          text: "取消",
-          style: "cancel",
-          onPress: () => { longPressTriggered.current = false; }
-        },
-        {
-          text: "删除",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              if (isFavorite) {
-                await FavoriteManager.remove(source, id);
-                onFavoriteDeleted?.();
-              } else {
-                await PlayRecordManager.remove(source, id);
-                onRecordDeleted?.();
-              }
-            } catch (error) {
-              logger.info(`Failed to delete ${type}:`, error);
-              Alert.alert("错误", `删除${isFavorite ? '收藏' : '观看记录'}失败，请重试`);
-            } finally {
-              longPressTriggered.current = false;
-            }
-          },
-        },
-      ]);
-    };
 
     const isContinueWatching = progress !== undefined && progress > 0 && progress < 1;
 

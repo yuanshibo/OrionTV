@@ -1,17 +1,20 @@
-import React, { useState, useEffect, useCallback, useRef, forwardRef, useMemo } from "react";
-import { View, Text, StyleSheet, Pressable, TouchableOpacity, Alert, Animated, Platform, useColorScheme } from "react-native";
+import React, { useCallback, forwardRef, useMemo, useEffect } from "react";
+import { View, Text, StyleSheet, Pressable, TouchableOpacity, Platform, useColorScheme } from "react-native";
 import { Image } from "expo-image";
-import { useRouter } from "expo-router";
 import { Star, Play } from "lucide-react-native";
-import { PlayRecordManager, FavoriteManager } from "@/services/storage";
+import Reanimated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+  withDelay
+} from "react-native-reanimated";
 import { API } from "@/services/api";
 import { ThemedText } from "@/components/ThemedText";
 import { Colors } from "@/constants/Colors";
-import Logger from '@/utils/Logger';
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import useAuthStore from "@/stores/authStore";
-
-const logger = Logger.withTag('VideoCardTV');
+import { useVideoCardInteractions } from "@/hooks/useVideoCardInteractions";
 
 interface VideoCardProps extends React.ComponentProps<typeof TouchableOpacity> {
   id: string;
@@ -56,149 +59,62 @@ const VideoCard = forwardRef<View, VideoCardProps>(
     }: VideoCardProps,
     ref
   ) => {
-    const router = useRouter();
     const colorScheme = useColorScheme() ?? 'dark';
     const colors = Colors[colorScheme];
-    const [isFocused, setIsFocused] = useState(false);
-    const [fadeAnim] = useState(new Animated.Value(0));
 
-    const longPressTriggered = useRef(false);
-    const lastPressTime = useRef(0);
+    // Reanimated Shared Values
+    const isFocusedSV = useSharedValue(0);
+    const fadeSV = useSharedValue(0);
 
-    const scale = useRef(new Animated.Value(1)).current;
-    const fadeInAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
-    const scaleAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
-
+    // JS State refs for logic that doesn't need re-render
     const deviceType = useResponsiveLayout().deviceType;
 
-    const animatedStyle = {
-      transform: [{ scale }],
-    };
+    const { handlePress, handleLongPress } = useVideoCardInteractions({
+      id,
+      source,
+      title,
+      type,
+      progress,
+      playTime,
+      episodeIndex,
+      onRecordDeleted,
+      onFavoriteDeleted,
+    });
 
-    const handlePress = () => {
-      const now = Date.now();
-      if (now - lastPressTime.current < 500) return;
-      lastPressTime.current = now;
+    useEffect(() => {
+      // Entrance Animation
+      fadeSV.value = withDelay(Math.random() * 200, withTiming(1, { duration: 400 }));
+    }, [fadeSV]);
 
-      if (longPressTriggered.current) {
-        longPressTriggered.current = false;
-        return;
-      }
-      if (progress !== undefined && episodeIndex !== undefined) {
-        router.push({
-          pathname: "/play",
-          params: { source, id, episodeIndex: episodeIndex - 1, title, position: playTime * 1000 },
-        });
-      } else {
-        router.push({
-          pathname: "/detail",
-          params: { source, q: title },
-        });
-      }
-    };
+    const animatedStyle = useAnimatedStyle(() => {
+      const scale = isFocusedSV.value ? 1.05 : 1;
+      return {
+        transform: [{ scale: withSpring(scale, { damping: 15, stiffness: 200 }) }],
+        opacity: fadeSV.value,
+        zIndex: isFocusedSV.value ? 999 : 1,
+      };
+    });
 
-    const runScaleAnimation = useCallback(
-      (toValue: number, config?: Partial<Animated.SpringAnimationConfig>) => {
-        scaleAnimationRef.current?.stop();
-        const animation = Animated.spring(scale, {
-          toValue,
-          useNativeDriver: true,
-          ...config,
-        });
-        scaleAnimationRef.current = animation;
-        animation.start(() => {
-          if (scaleAnimationRef.current === animation) {
-            scaleAnimationRef.current = null;
-          }
-        });
-      },
-      [scale]
-    );
+    const overlayStyle = useAnimatedStyle(() => {
+      return {
+        opacity: withTiming(isFocusedSV.value ? 1 : 0, { duration: 200 }),
+      };
+    });
 
     const handleFocus = useCallback(() => {
-      setIsFocused(true);
-      runScaleAnimation(1.05, { damping: 15, stiffness: 200 });
-      onFocus?.();
-    }, [runScaleAnimation, onFocus]);
+      isFocusedSV.value = 1;
+      if (onFocus) {
+         // onFocus might trigger parent state update, so keep it in JS
+         onFocus();
+      }
+    }, [onFocus, isFocusedSV]);
 
     const handleBlur = useCallback(() => {
-      setIsFocused(false);
-      runScaleAnimation(1.0);
-    }, [runScaleAnimation]);
+      isFocusedSV.value = 0;
+    }, [isFocusedSV]);
 
-    useEffect(() => {
-      fadeInAnimationRef.current?.stop();
-      const animation = Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 400,
-        delay: Math.random() * 200,
-        useNativeDriver: true,
-      });
-      fadeInAnimationRef.current = animation;
-      animation.start(() => {
-        if (fadeInAnimationRef.current === animation) {
-          fadeInAnimationRef.current = null;
-        }
-      });
-
-      return () => {
-        animation.stop();
-      };
-    }, [fadeAnim]);
-
-    useEffect(() => {
-      return () => {
-        fadeInAnimationRef.current?.stop();
-        scaleAnimationRef.current?.stop();
-      };
-    }, []);
-
-    const handleLongPress = () => {
-      if (onLongPress) {
-        onLongPress();
-        return;
-      }
-      if (type === 'record' && progress === undefined) return;
-
-      longPressTriggered.current = true;
-
-      const isFavorite = type === 'favorite';
-      const titleText = isFavorite ? "删除收藏" : "删除观看记录";
-      const messageText = isFavorite ? `确定要删除"${title}"的收藏吗？` : `确定要删除"${title}"的观看记录吗？`;
-
-      Alert.alert(titleText, messageText, [
-        {
-          text: "删除",
-          style: "destructive",
-          isPreferred: true,
-          onPress: async () => {
-            try {
-              if (isFavorite) {
-                await FavoriteManager.remove(source, id);
-                onFavoriteDeleted?.();
-              } else {
-                await PlayRecordManager.remove(source, id);
-                if (onRecordDeleted) {
-                  onRecordDeleted();
-                } else if (router.canGoBack()) {
-                  router.replace("/");
-                }
-              }
-            } catch (error) {
-              logger.info(`Failed to delete ${type}:`, error);
-              Alert.alert("错误", `删除${isFavorite ? '收藏' : '观看记录'}失败，请重试`);
-            } finally {
-              longPressTriggered.current = false;
-            }
-          },
-        },
-        {
-          text: "取消",
-          style: "cancel",
-          onPress: () => { longPressTriggered.current = false; }
-        },
-      ]);
-    };
+    // Use handleLongPress from hook directly if no custom prop
+    const onLongPressHandler = onLongPress || handleLongPress;
 
     const isContinueWatching = progress !== undefined && progress > 0 && progress < 1;
     const styles = useMemo(() => createStyles(colors), [colors]);
@@ -212,35 +128,30 @@ const VideoCard = forwardRef<View, VideoCardProps>(
     );
 
     return (
-      <Animated.View style={[styles.wrapper, animatedStyle, { opacity: fadeAnim }]}>
+      <Reanimated.View style={[styles.wrapper, animatedStyle]}>
         <Pressable
           ref={ref}
           android_ripple={Platform.isTV || deviceType !== 'tv' ? { color: 'transparent' } : { color: colors.link }}
           onPress={handlePress}
-          onLongPress={handleLongPress}
+          onLongPress={onLongPressHandler}
           onFocus={handleFocus}
           onBlur={handleBlur}
-          style={({ pressed }) => [
-            styles.pressable,
-            {
-              zIndex: pressed ? 999 : 1,
-            },
-          ]}
+          style={styles.pressable}
           delayLongPress={1000}
           {...rest}
         >
           <View style={styles.card}>
             <Image source={imageSource} style={styles.poster} contentFit="cover" transition={300} />
-            {isFocused && (
-              <View style={styles.overlay}>
-                {isContinueWatching && (
-                  <View style={styles.continueWatchingBadge}>
-                    <Play size={16} color={colors.text} fill={colors.text} />
-                    <ThemedText style={styles.continueWatchingText}>继续观看</ThemedText>
-                  </View>
-                )}
-              </View>
-            )}
+
+            {/* Overlay is always mounted, opacity controlled by SharedValue */}
+            <Reanimated.View style={[styles.overlay, overlayStyle]} pointerEvents="none">
+              {isContinueWatching && (
+                <View style={styles.continueWatchingBadge}>
+                  <Play size={16} color={colors.text} fill={colors.text} />
+                  <ThemedText style={styles.continueWatchingText}>继续观看</ThemedText>
+                </View>
+              )}
+            </Reanimated.View>
 
             {isContinueWatching && (
               <View style={styles.progressContainer}>
@@ -276,7 +187,7 @@ const VideoCard = forwardRef<View, VideoCardProps>(
             )}
           </View>
         </Pressable>
-      </Animated.View>
+      </Reanimated.View>
     );
   }
 );

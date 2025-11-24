@@ -1,7 +1,7 @@
-import React, { useEffect, useRef } from "react";
-import { FlatList, View } from "react-native";
+import React, { useEffect, useRef, useCallback, memo } from "react";
+import { FlatList, View, ViewStyle, TextStyle } from "react-native";
 import { StyledButton } from "@/components/StyledButton";
-import { Category } from "@/stores/homeStore";
+import { Category } from "@/services/dataTypes";
 import { requestTVFocus } from "@/utils/tvUtils";
 
 interface CategoryNavigationProps {
@@ -10,13 +10,75 @@ interface CategoryNavigationProps {
   onCategorySelect: (category: Category) => void;
   onCategoryLongPress?: (category: Category) => void;
   onTagSelect: (tag: string) => void;
-  categoryStyles: any;
+  categoryStyles: {
+    categoryContainer: ViewStyle;
+    categoryListContent: ViewStyle;
+    categoryButton: ViewStyle;
+    categoryText: TextStyle;
+  };
   deviceType: "mobile" | "tablet" | "tv";
   spacing: number;
   focusTrigger?: number;
 }
 
-export const CategoryNavigation: React.FC<CategoryNavigationProps> = ({ categories, selectedCategory, onCategorySelect, onCategoryLongPress, onTagSelect, categoryStyles, deviceType, spacing, focusTrigger }) => {
+interface CategoryItemProps {
+  item: Category;
+  index: number;
+  isSelected: boolean;
+  onSelect: (category: Category) => void;
+  onLongPress?: (category: Category) => void;
+  styles: any;
+  setRef: (index: number, ref: any) => void;
+}
+
+const CategoryItem = memo(({ item, index, isSelected, onSelect, onLongPress, styles, setRef }: CategoryItemProps) => (
+  <StyledButton
+    ref={(ref) => setRef(index, ref)}
+    hasTVPreferredFocus={index === 0}
+    text={item.title}
+    onPress={() => onSelect(item)}
+    onLongPress={() => onLongPress && onLongPress(item)}
+    isSelected={isSelected}
+    style={styles.categoryButton}
+    textStyle={styles.categoryText}
+  />
+));
+
+CategoryItem.displayName = "CategoryItem";
+
+interface TagItemProps {
+  item: string;
+  index: number;
+  isSelected: boolean;
+  onSelect: (tag: string) => void;
+  styles: any;
+}
+
+const TagItem = memo(({ item, index, isSelected, onSelect, styles }: TagItemProps) => (
+  <StyledButton
+    hasTVPreferredFocus={index === 0}
+    text={item}
+    onPress={() => onSelect(item)}
+    isSelected={isSelected}
+    style={styles.categoryButton}
+    textStyle={styles.categoryText}
+    variant="ghost"
+  />
+));
+
+TagItem.displayName = "TagItem";
+
+const CategoryNavigationComponent: React.FC<CategoryNavigationProps> = ({
+  categories,
+  selectedCategory,
+  onCategorySelect,
+  onCategoryLongPress,
+  onTagSelect,
+  categoryStyles,
+  deviceType,
+  spacing,
+  focusTrigger,
+}) => {
   const buttonRefs = useRef<(any)[]>([]);
   const lastSelectedTitleRef = useRef<string | undefined>(undefined);
   const lastFocusTriggerRef = useRef<number | undefined>(undefined);
@@ -38,41 +100,42 @@ export const CategoryNavigation: React.FC<CategoryNavigationProps> = ({ categori
     }
   }, [focusTrigger, selectedCategory, categories]);
 
-  const renderCategory = ({ item, index }: { item: Category; index: number }) => {
-    const isSelected = selectedCategory?.title === item.title;
-    return (
-      <StyledButton
-        ref={(ref) => { buttonRefs.current[index] = ref; }}
-        hasTVPreferredFocus={index === 0}
-        text={item.title}
-        onPress={() => onCategorySelect(item)}
-        onLongPress={() => onCategoryLongPress && onCategoryLongPress(item)}
-        isSelected={isSelected}
-        style={categoryStyles.categoryButton}
-        textStyle={categoryStyles.categoryText}
-      />
-    );
-  };
+  const setRef = useCallback((index: number, ref: any) => {
+    buttonRefs.current[index] = ref;
+  }, []);
 
-  const renderTag = ({ item, index }: { item: string; index: number }) => {
-    const isSelected = selectedCategory?.tag === item;
-    return (
-      <StyledButton
-        hasTVPreferredFocus={index === 0}
-        text={item}
-        onPress={() => onTagSelect(item)}
-        isSelected={isSelected}
-        style={categoryStyles.categoryButton}
-        textStyle={categoryStyles.categoryText}
-        variant="ghost"
+  const renderCategory = useCallback(
+    ({ item, index }: { item: Category; index: number }) => (
+      <CategoryItem
+        item={item}
+        index={index}
+        isSelected={selectedCategory?.title === item.title}
+        onSelect={onCategorySelect}
+        onLongPress={onCategoryLongPress}
+        styles={categoryStyles}
+        setRef={setRef}
       />
-    );
-  };
+    ),
+    [selectedCategory?.title, onCategorySelect, onCategoryLongPress, categoryStyles, setRef]
+  );
+
+  const renderTag = useCallback(
+    ({ item, index }: { item: string; index: number }) => (
+      <TagItem
+        item={item}
+        index={index}
+        isSelected={selectedCategory?.tag === item}
+        onSelect={onTagSelect}
+        styles={categoryStyles}
+      />
+    ),
+    [selectedCategory?.tag, onTagSelect, categoryStyles]
+  );
 
   const hasTags = selectedCategory?.type === "record";
 
   return (
-    <View style={[categoryStyles.categoryContainer, hasTags && { paddingBottom: spacing * 0.8}]}>
+    <View style={[categoryStyles.categoryContainer, hasTags && { paddingBottom: spacing * 0.8 }]}>
       <FlatList
         horizontal
         data={categories}
@@ -94,3 +157,5 @@ export const CategoryNavigation: React.FC<CategoryNavigationProps> = ({ categori
     </View>
   );
 };
+
+export const CategoryNavigation = memo(CategoryNavigationComponent);

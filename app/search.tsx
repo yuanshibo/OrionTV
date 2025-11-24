@@ -43,6 +43,9 @@ export default function SearchScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
 
+  // Ref to store all search results for client-side pagination
+  const allSearchResultsRef = useRef<UnifiedResult[]>([]);
+
   // 响应式布局配置
   const responsiveConfig = useResponsiveLayout();
   const commonStyles = getCommonResponsiveStyles(responsiveConfig);
@@ -88,6 +91,7 @@ export default function SearchScreen() {
     if (!term.trim()) {
       Keyboard.dismiss();
       setResults([]); // Clear previous search results
+      allSearchResultsRef.current = [];
       setDiscoverPage(1); // Reset discover page
       setHasMore(true); // Allow discover to load more
       loadDiscoverData(1);
@@ -97,12 +101,14 @@ export default function SearchScreen() {
     setLoading(true);
     setError(null);
     setResults([]);
+    allSearchResultsRef.current = [];
 
     try {
       const { results: searchResults } = await api.aiAssistantSearch(term);
       if (searchResults.length > 0) {
-        setResults(searchResults);
-        setHasMore(false);
+        allSearchResultsRef.current = searchResults;
+        setResults(searchResults.slice(0, 25));
+        setHasMore(searchResults.length > 25);
       } else {
         setError("没有找到相关内容，为你推荐...");
         loadDiscoverData(1);
@@ -156,9 +162,35 @@ export default function SearchScreen() {
     showRemoteModal('search');
   };
 
+  const loadMoreSearchResults = useCallback(() => {
+    if (loadingMore || results.length >= allSearchResultsRef.current.length) return;
+
+    setLoadingMore(true);
+
+    // Small timeout to prevent blocking UI if rendering is heavy, or just to show spinner
+    setTimeout(() => {
+        const currentLen = results.length;
+        const nextBatch = allSearchResultsRef.current.slice(currentLen, currentLen + 25);
+
+        if (nextBatch.length > 0) {
+            setResults(prev => [...prev, ...nextBatch]);
+        }
+
+        setLoadingMore(false);
+
+        if (currentLen + nextBatch.length >= allSearchResultsRef.current.length) {
+            setHasMore(false);
+        }
+    }, 200);
+  }, [loadingMore, results.length]);
+
   const handleLoadMore = () => {
-    if (!loadingRef.current && hasMore && keyword.trim() === "") {
+    if (loadingRef.current || loadingMore || !hasMore) return;
+
+    if (keyword.trim() === "") {
         loadDiscoverData(discoverPage);
+    } else {
+        loadMoreSearchResults();
     }
   };
 
