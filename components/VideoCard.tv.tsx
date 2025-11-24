@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, forwardRef, useMemo, useEffect } from "react";
+import React, { useCallback, forwardRef, useMemo, useEffect } from "react";
 import { View, Text, StyleSheet, Pressable, TouchableOpacity, Platform, useColorScheme } from "react-native";
 import { Image } from "expo-image";
 import { Star, Play } from "lucide-react-native";
@@ -12,12 +12,9 @@ import Reanimated, {
 import { API } from "@/services/api";
 import { ThemedText } from "@/components/ThemedText";
 import { Colors } from "@/constants/Colors";
-import Logger from '@/utils/Logger';
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import useAuthStore from "@/stores/authStore";
 import { useVideoCardInteractions } from "@/hooks/useVideoCardInteractions";
-
-const logger = Logger.withTag('VideoCardTV');
 
 interface VideoCardProps extends React.ComponentProps<typeof TouchableOpacity> {
   id: string;

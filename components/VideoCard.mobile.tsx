@@ -7,11 +7,8 @@ import { ThemedText } from "@/components/ThemedText";
 import { Colors } from "@/constants/Colors";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { DeviceUtils } from "@/utils/DeviceUtils";
-import Logger from '@/utils/Logger';
 import useAuthStore from "@/stores/authStore";
 import { useVideoCardInteractions } from "@/hooks/useVideoCardInteractions";
-
-const logger = Logger.withTag('VideoCardMobile');
 
 interface VideoCardMobileProps extends React.ComponentProps<typeof TouchableOpacity> {
   id: string;
