@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { View, Image, ScrollView } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { StyledButton } from '@/components/StyledButton';
@@ -23,7 +23,7 @@ interface DetailMobileViewProps {
   deviceType: 'mobile' | 'tablet' | 'tv';
 }
 
-export const DetailMobileView: React.FC<DetailMobileViewProps> = ({
+export const DetailMobileView: React.FC<DetailMobileViewProps> = memo(({
   detail,
   searchResults,
   allSourcesLoaded,
@@ -94,4 +94,6 @@ export const DetailMobileView: React.FC<DetailMobileViewProps> = ({
       <RelatedSeries title={detail.title} />
     </ScrollView>
   );
-};
+});
+
+DetailMobileView.displayName = 'DetailMobileView';
