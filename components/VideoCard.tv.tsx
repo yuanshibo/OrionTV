@@ -1,5 +1,5 @@
 import React, { useCallback, forwardRef, useMemo, useEffect } from "react";
-import { View, Text, StyleSheet, Pressable, TouchableOpacity, Platform, useColorScheme } from "react-native";
+import { View, Text, StyleSheet, Pressable, TouchableOpacity, Platform, useColorScheme, StyleProp, ViewStyle } from "react-native";
 import { Image } from "expo-image";
 import { Star, Play } from "lucide-react-native";
 import Reanimated, {
@@ -34,6 +34,7 @@ interface VideoCardProps extends React.ComponentProps<typeof TouchableOpacity> {
   onFavoriteDeleted?: () => void;
   api: API;
   type?: 'record' | 'favorite';
+  style?: StyleProp<ViewStyle>;
 }
 
 const VideoCard = forwardRef<View, VideoCardProps>(
@@ -55,6 +56,7 @@ const VideoCard = forwardRef<View, VideoCardProps>(
       api,
       playTime = 0,
       type = 'record',
+      style,
       ...rest
     }: VideoCardProps,
     ref
@@ -128,9 +130,8 @@ const VideoCard = forwardRef<View, VideoCardProps>(
     );
 
     return (
-      <Reanimated.View style={[styles.wrapper, animatedStyle]}>
+      <Reanimated.View style={[styles.wrapper, animatedStyle, style]} ref={ref}>
         <Pressable
-          ref={ref}
           android_ripple={Platform.isTV || deviceType !== 'tv' ? { color: 'transparent' } : { color: colors.link }}
           onPress={handlePress}
           onLongPress={onLongPressHandler}

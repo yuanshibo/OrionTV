@@ -1,5 +1,5 @@
 import React, { useEffect, forwardRef, useMemo } from "react";
-import { View, StyleSheet, TouchableOpacity, useColorScheme, Text } from "react-native";
+import { View, StyleSheet, TouchableOpacity, useColorScheme, Text, StyleProp, ViewStyle } from "react-native";
 import { Image } from "expo-image";
 import { Star, Play } from "lucide-react-native";
 import Reanimated, { useSharedValue, useAnimatedStyle, withTiming, withDelay } from "react-native-reanimated";
@@ -27,6 +27,7 @@ interface VideoCardMobileProps extends React.ComponentProps<typeof TouchableOpac
   onFavoriteDeleted?: () => void;
   api: API;
   type?: 'record' | 'favorite';
+  style?: StyleProp<ViewStyle>;
 }
 
 const VideoCardMobile = forwardRef<View, VideoCardMobileProps>(
@@ -47,6 +48,8 @@ const VideoCardMobile = forwardRef<View, VideoCardMobileProps>(
       api,
       playTime = 0,
       type = 'record',
+      style,
+      ...rest
     }: VideoCardMobileProps,
     ref
   ) => {
@@ -54,7 +57,6 @@ const VideoCardMobile = forwardRef<View, VideoCardMobileProps>(
     const colors = Colors[colorScheme];
     const { cardWidth, cardHeight, spacing } = useResponsiveLayout();
 
-    // Replace Animated with Reanimated SharedValue
     const opacitySV = useSharedValue(0);
 
     const { handlePress, handleLongPress } = useVideoCardInteractions({
@@ -70,7 +72,6 @@ const VideoCardMobile = forwardRef<View, VideoCardMobileProps>(
     });
 
     useEffect(() => {
-      // Small random delay for staggered effect, but faster
       const delay = Math.random() * 100;
       opacitySV.value = withDelay(delay, withTiming(1, { duration: 300 }));
     }, [opacitySV]);
@@ -94,21 +95,22 @@ const VideoCardMobile = forwardRef<View, VideoCardMobileProps>(
     );
 
     return (
-      <Reanimated.View style={[styles.wrapper, animatedStyle]} ref={ref}>
+      <Reanimated.View style={[styles.wrapper, animatedStyle, style]} ref={ref}>
         <TouchableOpacity
           onPress={handlePress}
           onLongPress={handleLongPress}
           style={styles.pressable}
           activeOpacity={0.8}
           delayLongPress={800}
+          {...rest}
         >
           <View style={styles.card}>
             <Image
               source={imageSource}
               style={styles.poster}
               contentFit="cover"
-              transition={200} // Reduced from 300 for snappier feel
-              cachePolicy="disk" // Explicit caching
+              transition={200}
+              cachePolicy="disk"
             />
             
             {isContinueWatching && (

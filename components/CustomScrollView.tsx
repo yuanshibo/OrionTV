@@ -4,6 +4,8 @@ import {
   StyleSheet,
   TouchableOpacity,
   View,
+  StyleProp,
+  ViewStyle
 } from "react-native";
 import { FlashList } from "@shopify/flash-list";
 import Animated, {
@@ -21,7 +23,7 @@ const AnimatedFlashList = Animated.createAnimatedComponent(FlashList);
 
 interface CustomScrollViewProps {
   data: any[];
-  renderItem: ({ item, index }: { item: any; index: number }) => React.ReactNode;
+  renderItem: ({ item, index, style }: { item: any; index: number; style?: StyleProp<ViewStyle> }) => React.ReactNode;
   numColumns?: number;
   loading?: boolean;
   loadingMore?: boolean;
@@ -158,15 +160,10 @@ const CustomScrollView = forwardRef<React.ElementRef<typeof FlashList>, CustomSc
   const renderGridItem = useCallback(
     ({ item, index }: { item: any; index: number }) => {
       const isLastColumn = (index + 1) % effectiveColumns === 0;
-      // Removed "|| index === dataLength - 1" to remove dependency on dataLength.
-      // The last item in a row (or incomplete row) should behave based on its column index.
-      const containerStyle = isLastColumn ? dynamicStyles.cardContainer : dynamicStyles.cardContainerWithSpacing;
+      const style = isLastColumn ? dynamicStyles.cardContainer : dynamicStyles.cardContainerWithSpacing;
 
-      return (
-        <View style={containerStyle}>
-          {renderItem({ item, index })}
-        </View>
-      );
+      // Directly call renderItem with the calculated style, avoiding an extra View wrapper
+      return renderItem({ item, index, style });
     },
     [dynamicStyles, effectiveColumns, renderItem]
   );
