@@ -8,7 +8,6 @@ import Reanimated, {
   useAnimatedStyle,
   withSpring,
   withTiming,
-  runOnJS,
   withDelay
 } from "react-native-reanimated";
 import { PlayRecordManager, FavoriteManager } from "@/services/storage";
@@ -80,7 +79,7 @@ const VideoCard = forwardRef<View, VideoCardProps>(
     useEffect(() => {
       // Entrance Animation
       fadeSV.value = withDelay(Math.random() * 200, withTiming(1, { duration: 400 }));
-    }, []);
+    }, [fadeSV]);
 
     const animatedStyle = useAnimatedStyle(() => {
       const scale = isFocusedSV.value ? 1.05 : 1;
@@ -125,11 +124,11 @@ const VideoCard = forwardRef<View, VideoCardProps>(
          // onFocus might trigger parent state update, so keep it in JS
          onFocus();
       }
-    }, [onFocus]);
+    }, [onFocus, isFocusedSV]);
 
     const handleBlur = useCallback(() => {
       isFocusedSV.value = 0;
-    }, []);
+    }, [isFocusedSV]);
 
     const handleLongPress = () => {
       if (onLongPress) {

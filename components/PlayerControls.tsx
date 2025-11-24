@@ -1,7 +1,6 @@
 import React, { useMemo } from "react";
 import { View, Text, StyleSheet, useColorScheme } from "react-native";
 import { Pause, Play, SkipForward, List, Tv, ArrowDownToDot, ArrowUpFromDot, Gauge } from "lucide-react-native";
-import { ThemedText } from "@/components/ThemedText";
 import { MediaButton } from "@/components/MediaButton";
 import { useShallow } from "zustand/react/shallow";
 
