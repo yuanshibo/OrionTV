@@ -1,5 +1,5 @@
 import React, { useEffect, useCallback, useMemo, useRef, useState } from "react";
-import { StyleSheet, ActivityIndicator, FlatList, StatusBar, Platform, BackHandler, View } from "react-native";
+import { StyleSheet, ActivityIndicator, FlatList, StatusBar, Platform, BackHandler, View, StyleProp, ViewStyle } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSharedValue, withTiming } from "react-native-reanimated";
 import { ThemedView } from "@/components/ThemedView";
@@ -222,7 +222,7 @@ export default function HomeScreen() {
   }), [deviceType, spacing]);
 
   const renderContentItem = useCallback(
-    ({ item, index }: { item: RowItem; index: number }) => {
+    ({ item, index, style }: { item: RowItem; index: number; style?: StyleProp<ViewStyle> }) => {
       const isFilterableCategory = selectedCategory?.title === "所有";
       const isRecordCategory = selectedCategory?.type === "record";
 
@@ -256,6 +256,7 @@ export default function HomeScreen() {
           api={api}
           onRecordDeleted={fetchInitialData}
           onLongPress={longPressAction}
+          style={style}
         />
       );
     },
