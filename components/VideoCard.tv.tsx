@@ -1,7 +1,6 @@
 import React, { useCallback, useRef, forwardRef, useMemo, useEffect } from "react";
-import { View, Text, StyleSheet, Pressable, TouchableOpacity, Alert, Platform, useColorScheme } from "react-native";
+import { View, Text, StyleSheet, Pressable, TouchableOpacity, Platform, useColorScheme } from "react-native";
 import { Image } from "expo-image";
-import { useRouter } from "expo-router";
 import { Star, Play } from "lucide-react-native";
 import Reanimated, {
   useSharedValue,
@@ -10,13 +9,13 @@ import Reanimated, {
   withTiming,
   withDelay
 } from "react-native-reanimated";
-import { PlayRecordManager, FavoriteManager } from "@/services/storage";
 import { API } from "@/services/api";
 import { ThemedText } from "@/components/ThemedText";
 import { Colors } from "@/constants/Colors";
 import Logger from '@/utils/Logger';
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import useAuthStore from "@/stores/authStore";
+import { useVideoCardInteractions } from "@/hooks/useVideoCardInteractions";
 
 const logger = Logger.withTag('VideoCardTV');
 
@@ -63,7 +62,6 @@ const VideoCard = forwardRef<View, VideoCardProps>(
     }: VideoCardProps,
     ref
   ) => {
-    const router = useRouter();
     const colorScheme = useColorScheme() ?? 'dark';
     const colors = Colors[colorScheme];
 
@@ -72,9 +70,19 @@ const VideoCard = forwardRef<View, VideoCardProps>(
     const fadeSV = useSharedValue(0);
 
     // JS State refs for logic that doesn't need re-render
-    const longPressTriggered = useRef(false);
-    const lastPressTime = useRef(0);
     const deviceType = useResponsiveLayout().deviceType;
+
+    const { handlePress, handleLongPress } = useVideoCardInteractions({
+      id,
+      source,
+      title,
+      type,
+      progress,
+      playTime,
+      episodeIndex,
+      onRecordDeleted,
+      onFavoriteDeleted,
+    });
 
     useEffect(() => {
       // Entrance Animation
@@ -96,28 +104,6 @@ const VideoCard = forwardRef<View, VideoCardProps>(
       };
     });
 
-    const handlePress = () => {
-      const now = Date.now();
-      if (now - lastPressTime.current < 500) return;
-      lastPressTime.current = now;
-
-      if (longPressTriggered.current) {
-        longPressTriggered.current = false;
-        return;
-      }
-      if (progress !== undefined && episodeIndex !== undefined) {
-        router.push({
-          pathname: "/play",
-          params: { source, id, episodeIndex: episodeIndex - 1, title, position: playTime * 1000 },
-        });
-      } else {
-        router.push({
-          pathname: "/detail",
-          params: { source, q: title },
-        });
-      }
-    };
-
     const handleFocus = useCallback(() => {
       isFocusedSV.value = 1;
       if (onFocus) {
@@ -130,52 +116,8 @@ const VideoCard = forwardRef<View, VideoCardProps>(
       isFocusedSV.value = 0;
     }, [isFocusedSV]);
 
-    const handleLongPress = () => {
-      if (onLongPress) {
-        onLongPress();
-        return;
-      }
-      if (type === 'record' && progress === undefined) return;
-
-      longPressTriggered.current = true;
-
-      const isFavorite = type === 'favorite';
-      const titleText = isFavorite ? "删除收藏" : "删除观看记录";
-      const messageText = isFavorite ? `确定要删除"${title}"的收藏吗？` : `确定要删除"${title}"的观看记录吗？`;
-
-      Alert.alert(titleText, messageText, [
-        {
-          text: "删除",
-          style: "destructive",
-          isPreferred: true,
-          onPress: async () => {
-            try {
-              if (isFavorite) {
-                await FavoriteManager.remove(source, id);
-                onFavoriteDeleted?.();
-              } else {
-                await PlayRecordManager.remove(source, id);
-                if (onRecordDeleted) {
-                  onRecordDeleted();
-                } else if (router.canGoBack()) {
-                  router.replace("/");
-                }
-              }
-            } catch (error) {
-              logger.info(`Failed to delete ${type}:`, error);
-              Alert.alert("错误", `删除${isFavorite ? '收藏' : '观看记录'}失败，请重试`);
-            } finally {
-              longPressTriggered.current = false;
-            }
-          },
-        },
-        {
-          text: "取消",
-          style: "cancel",
-          onPress: () => { longPressTriggered.current = false; }
-        },
-      ]);
-    };
+    // Use handleLongPress from hook directly if no custom prop
+    const onLongPressHandler = onLongPress || handleLongPress;
 
     const isContinueWatching = progress !== undefined && progress > 0 && progress < 1;
     const styles = useMemo(() => createStyles(colors), [colors]);
@@ -194,7 +136,7 @@ const VideoCard = forwardRef<View, VideoCardProps>(
           ref={ref}
           android_ripple={Platform.isTV || deviceType !== 'tv' ? { color: 'transparent' } : { color: colors.link }}
           onPress={handlePress}
-          onLongPress={handleLongPress}
+          onLongPress={onLongPressHandler}
           onFocus={handleFocus}
           onBlur={handleBlur}
           style={styles.pressable}
