@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
-import { View, TextInput, StyleSheet, Alert, Keyboard, TouchableOpacity, useColorScheme, ActivityIndicator } from "react-native";
+import { View, TextInput, StyleSheet, Alert, Keyboard, TouchableOpacity, useColorScheme, ActivityIndicator, StyleProp, ViewStyle } from "react-native";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
-import VideoCard from "@/components/VideoCard";
+import VideoCardMobile from "@/components/VideoCard.mobile";
+import VideoCardTV from "@/components/VideoCard.tv";
 import VideoLoadingAnimation from "@/components/VideoLoadingAnimation";
 import { api, SearchResult, DoubanRecommendationItem } from "@/services/api";
 import { Search, QrCode } from "lucide-react-native";
@@ -22,12 +23,51 @@ import Logger from "@/utils/Logger";
 
 const logger = Logger.withTag("SearchScreen");
 
-type UnifiedResult = SearchResult | DoubanRecommendationItem;
+// Normalized Data Model for View
+interface VideoCardViewModel {
+  id: string;
+  source: string;
+  title: string;
+  poster: string;
+  year?: string;
+  rate?: string;
+  sourceName?: string;
+  type?: string;
+  originalItem: SearchResult | DoubanRecommendationItem;
+}
+
+const normalizeSearchResult = (item: SearchResult | DoubanRecommendationItem, index: number): VideoCardViewModel => {
+  const isSearchResult = 'source' in item;
+  if (isSearchResult) {
+    const searchItem = item as SearchResult;
+    return {
+      id: searchItem.id?.toString() || `${searchItem.title}-${index}`,
+      source: searchItem.source,
+      title: searchItem.title,
+      poster: searchItem.poster,
+      year: searchItem.year,
+      sourceName: searchItem.source_name,
+      originalItem: item,
+    };
+  } else {
+    const doubanItem = item as DoubanRecommendationItem;
+    return {
+      id: doubanItem.id?.toString() || `${doubanItem.title}-${index}`,
+      source: doubanItem.url || '',
+      title: doubanItem.title,
+      poster: doubanItem.poster,
+      year: doubanItem.year,
+      sourceName: doubanItem.platform || '',
+      rate: doubanItem.rate,
+      originalItem: item,
+    };
+  }
+};
 
 export default function SearchScreen() {
   const params = useLocalSearchParams();
   const [keyword, setKeyword] = useState((params.q as string) || "");
-  const [results, setResults] = useState<UnifiedResult[]>([]);
+  const [results, setResults] = useState<VideoCardViewModel[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const textInputRef = useRef<TextInput>(null);
@@ -44,7 +84,7 @@ export default function SearchScreen() {
   const [hasMore, setHasMore] = useState(true);
 
   // Ref to store all search results for client-side pagination
-  const allSearchResultsRef = useRef<UnifiedResult[]>([]);
+  const allSearchResultsRef = useRef<VideoCardViewModel[]>([]);
 
   // 响应式布局配置
   const responsiveConfig = useResponsiveLayout();
@@ -65,7 +105,8 @@ export default function SearchScreen() {
     try {
       const response = await api.discover(page, 25);
       if (response && response.list && response.list.length > 0) {
-        setResults(prev => page === 1 ? response.list : [...prev, ...response.list]);
+        const normalizedList = response.list.map((item: any, index: number) => normalizeSearchResult(item, index + (page - 1) * 25));
+        setResults(prev => page === 1 ? normalizedList : [...prev, ...normalizedList]);
         setDiscoverPage(page + 1);
         setHasMore(response.list.length === 25);
       } else {
@@ -106,9 +147,10 @@ export default function SearchScreen() {
     try {
       const { results: searchResults } = await api.aiAssistantSearch(term);
       if (searchResults.length > 0) {
-        allSearchResultsRef.current = searchResults;
-        setResults(searchResults.slice(0, 25));
-        setHasMore(searchResults.length > 25);
+        const normalizedResults = searchResults.map((item, index) => normalizeSearchResult(item, index));
+        allSearchResultsRef.current = normalizedResults;
+        setResults(normalizedResults.slice(0, 25));
+        setHasMore(normalizedResults.length > 25);
       } else {
         setError("没有找到相关内容，为你推荐...");
         loadDiscoverData(1);
@@ -194,21 +236,25 @@ export default function SearchScreen() {
     }
   };
 
-  const renderItem = ({ item, index }: { item: UnifiedResult; index: number }) => {
-    const isSearchResult = 'source' in item;
-    return (
-        <VideoCard
-        id={item.id?.toString() || `${item.title}-${index}`}
-        source={isSearchResult ? (item as SearchResult).source : (item as DoubanRecommendationItem).url || ''}
-        title={item.title}
-        poster={item.poster}
-        year={item.year}
-        sourceName={isSearchResult ? (item as SearchResult).source_name : (item as DoubanRecommendationItem).platform || ''}
-        rate={!isSearchResult ? (item as DoubanRecommendationItem).rate : undefined}
-        api={api}
-        />
-    );
-  };
+  const renderItem = useCallback(({ item, style }: { item: VideoCardViewModel; index: number; style?: StyleProp<ViewStyle> }) => {
+    const commonProps = {
+      id: item.id,
+      source: item.source,
+      title: item.title,
+      poster: item.poster,
+      year: item.year,
+      sourceName: item.sourceName,
+      rate: item.rate,
+      api: api,
+      style: style, // Pass the style for grid layout
+    };
+
+    if (deviceType === 'mobile') {
+      return <VideoCardMobile {...commonProps} />;
+    } else {
+      return <VideoCardTV {...commonProps} />;
+    }
+  }, [deviceType]);
 
   // 动态样式
   const dynamicStyles = useMemo(() => createResponsiveStyles(deviceType, spacing, colors), [deviceType, spacing, colors]);
