@@ -1,6 +1,7 @@
 import React, { useEffect, useCallback, useMemo, useRef, useState } from "react";
-import { StyleSheet, ActivityIndicator, FlatList, Animated, StatusBar, Platform, BackHandler, View } from "react-native";
+import { StyleSheet, ActivityIndicator, FlatList, StatusBar, Platform, BackHandler, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSharedValue, withTiming } from "react-native-reanimated";
 import { ThemedView } from "@/components/ThemedView";
 import { api } from "@/services/api";
 import VideoCard from "@/components/VideoCard";
@@ -18,7 +19,7 @@ import { requestTVFocus } from "@/utils/tvUtils";
 import { useShallow } from "zustand/react/shallow";
 
 export default function HomeScreen() {
-  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const fadeAnim = useSharedValue(0);
   const insets = useSafeAreaInsets();
   const listRef = useRef<FlatList<RowItem>>(null);
   const firstItemRef = useRef<View>(null);
@@ -140,16 +141,16 @@ export default function HomeScreen() {
   // 内容淡入动画
   useEffect(() => {
     if (loading && !hasContent) {
-      fadeAnim.setValue(0);
+      fadeAnim.value = 0;
     } else if (!loading && hasContent) {
       if (!hadContentRef.current) {
-        fadeAnim.setValue(0);
-        Animated.timing(fadeAnim, { toValue: 1, duration: 300, useNativeDriver: true }).start();
+        fadeAnim.value = 0;
+        fadeAnim.value = withTiming(1, { duration: 300 });
       } else {
-        fadeAnim.setValue(1);
+        fadeAnim.value = 1;
       }
     } else if (!loading && !hasContent) {
-      fadeAnim.setValue(1);
+      fadeAnim.value = 1;
     }
     hadContentRef.current = hasContent;
   }, [loading, hasContent, fadeAnim]);

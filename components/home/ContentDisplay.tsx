@@ -1,9 +1,10 @@
 import React from 'react';
-import { View, ActivityIndicator, Animated, StyleSheet } from 'react-native';
+import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import Reanimated, { SharedValue, useAnimatedStyle } from 'react-native-reanimated';
 import { ThemedText } from '@/components/ThemedText';
 import CustomScrollView from '@/components/CustomScrollView';
 import { getApiConfigErrorMessage } from '@/hooks/useApiConfig';
-import { Category, RowItem } from '@/stores/homeStore';
+import { Category, RowItem } from '@/services/dataTypes';
 
 const LOAD_MORE_THRESHOLD = 200;
 
@@ -12,7 +13,7 @@ interface ContentDisplayProps {
   selectedCategory: Category | null;
   loading: boolean;
   error: string | null;
-  fadeAnim: Animated.Value;
+  fadeAnim: SharedValue<number>;
   commonStyles: any;
   spacing: number;
   contentData: RowItem[];
@@ -44,6 +45,10 @@ export const ContentDisplay: React.FC<ContentDisplayProps> = React.memo(({
   loadingMore,
   footerComponent,
 }) => {
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: fadeAnim.value,
+  }));
+
   const shouldShowApiConfig = apiConfigStatus.needsConfiguration && selectedCategory && !selectedCategory.tags;
 
   if (shouldShowApiConfig) {
@@ -96,7 +101,7 @@ export const ContentDisplay: React.FC<ContentDisplayProps> = React.memo(({
   }
 
   return (
-    <Animated.View style={[styles.contentContainer, { opacity: fadeAnim }]}>
+    <Reanimated.View style={[styles.contentContainer, animatedStyle]}>
       <CustomScrollView
         ref={listRef}
         data={contentData}
@@ -109,7 +114,7 @@ export const ContentDisplay: React.FC<ContentDisplayProps> = React.memo(({
         emptyMessage={selectedCategory?.tags ? '请选择一个子分类' : '该分类下暂无内容'}
         ListFooterComponent={footerComponent}
       />
-    </Animated.View>
+    </Reanimated.View>
   );
 });
 
