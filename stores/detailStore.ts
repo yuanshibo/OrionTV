@@ -421,7 +421,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
 
   init: async (q, preferredSource, id) => {
     const perfStart = performance.now();
-    logger.info(`[PERF] DetailStore.init START - q: ${q}, preferredSource: ${preferredSource}, id: ${id}`);
+    logger.debug(`[PERF] DetailStore.init START - q: ${q}, preferredSource: ${preferredSource}, id: ${id}`);
 
     const { controller: oldController } = get();
     if (oldController) {
@@ -443,7 +443,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
 
     const finalizeInitialization = async (reason: string) => {
       if (signal.aborted) {
-        logger.info(`[INFO] Skipping finalize for "${q}" due to abort (${reason})`);
+        logger.debug(`[INFO] Skipping finalize for "${q}" due to abort (${reason})`);
         return;
       }
 
@@ -454,18 +454,18 @@ const useDetailStore = create<DetailState>((set, get) => ({
         logger.error(`[ERROR] All search attempts completed but no results found for "${q}"`);
         set({ error: `未找到 "${q}" 的播放源，请检查标题拼写或稍后重试` });
       } else if (finalStateSnapshot.searchResults.length > 0) {
-        logger.info(
+        logger.debug(
           `[SUCCESS] DetailStore.init completed successfully with ${finalStateSnapshot.searchResults.length} sources`
         );
       }
 
       if (finalStateSnapshot.detail) {
         const { source, id } = finalStateSnapshot.detail;
-        logger.info(`[INFO] Checking favorite status for source: ${source}, id: ${id}`);
+        logger.debug(`[INFO] Checking favorite status for source: ${source}, id: ${id}`);
         try {
           const isFavorited = await FavoriteManager.isFavorited(source, id.toString());
           set({ isFavorited });
-          logger.info(`[INFO] Favorite status: ${isFavorited}`);
+          logger.debug(`[INFO] Favorite status: ${isFavorited}`);
         } catch (favoriteError) {
           logger.warn(`[WARN] Failed to check favorite status:`, favoriteError);
         }
@@ -474,7 +474,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
       }
 
       const favoriteCheckEnd = performance.now();
-      logger.info(`[PERF] Favorite check took ${(favoriteCheckEnd - favoriteCheckStart).toFixed(2)}ms`);
+      logger.debug(`[PERF] Favorite check took ${(favoriteCheckEnd - favoriteCheckStart).toFixed(2)}ms`);
 
       set({ loading: false, allSourcesLoaded: true });
 
@@ -487,7 +487,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
         persistedState.allSourcesLoaded
       );
 
-      logger.info(`[INFO] DetailStore.init cleanup completed (${reason})`);
+      logger.debug(`[INFO] DetailStore.init cleanup completed (${reason})`);
     };
 
     const runFinalizeOnce = (reason: string) => {
@@ -500,7 +500,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
 
     // 如果有有效缓存,直接使用缓存数据,不需要加载状态
     const hasValidCache = cachedEntry && cachedDetail && cachedSearchResults.length > 0;
-    logger.info(`[CACHE] Cache status for "${q}": ${hasValidCache ? 'VALID' : 'MISS'}`);
+    logger.debug(`[CACHE] Cache status for "${q}": ${hasValidCache ? 'VALID' : 'MISS'}`);
 
     set({
       q,
@@ -517,7 +517,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
 
     // 如果有有效缓存且不是 abort 的结果,直接返回
     if (hasValidCache) {
-      logger.info(`[CACHE] Using cached data for "${q}", skipping fetch`);
+      logger.debug(`[CACHE] Using cached data for "${q}", skipping fetch`);
 
       try {
         const isFavFromCache = await FavoriteManager.isFavorited(
@@ -530,7 +530,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
       }
 
       const perfEnd = performance.now();
-      logger.info(`[PERF] DetailStore.init COMPLETE (from cache) - total time: ${(perfEnd - perfStart).toFixed(2)}ms`);
+      logger.debug(`[PERF] DetailStore.init COMPLETE (from cache) - total time: ${(perfEnd - perfStart).toFixed(2)}ms`);
       return;
     }
 
@@ -544,7 +544,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
       const { merge = false, sourceKey } = options;
       // 检查是否已被 abort
       if (signal.aborted) {
-        logger.info(`[ABORT] processAndSetResults aborted before processing`);
+        logger.debug(`[ABORT] processAndSetResults aborted before processing`);
         return 0;
       }
       const snapshot = get();
@@ -560,7 +560,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
         if (merge && snapshot.searchResults.length >= MAX_PLAY_SOURCES) {
           set({ allSourcesLoaded: true });
         }
-        logger.info(`[INFO] No new valid results to process from batch (merge: ${merge})`);
+        logger.debug(`[INFO] No new valid results to process from batch (merge: ${merge})`);
         return 0;
       }
 
@@ -626,7 +626,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
         if (merge && snapshot.searchResults.length >= MAX_PLAY_SOURCES) {
           set({ allSourcesLoaded: true });
         }
-        logger.info(`[INFO] No new valid results to process from batch (merge: ${merge})`);
+        logger.debug(`[INFO] No new valid results to process from batch (merge: ${merge})`);
         return 0;
       }
 
@@ -720,7 +720,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
 
       // 2. Second Pass: Fetch resolutions in background
       const resolutionStart = performance.now();
-      logger.info(
+      logger.debug(
         `[PERF] Resolution detection START - processing ${combinedCandidates.length} sources (merge: ${merge})`
       );
 
@@ -759,7 +759,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
             }
           }
           const m3u8End = performance.now();
-          logger.info(
+          logger.debug(
             `[PERF] M3U8 resolution for ${result.source_name}: ${(m3u8End - m3u8Start).toFixed(2)}ms (${resolution || "failed"})`
           );
           return {
@@ -773,7 +773,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
       ).then((resultsWithResolution) => {
         if (signal.aborted) return;
         const resolutionEnd = performance.now();
-        logger.info(`[PERF] Resolution detection COMPLETE - took ${(resolutionEnd - resolutionStart).toFixed(2)}ms`);
+        logger.debug(`[PERF] Resolution detection COMPLETE - took ${(resolutionEnd - resolutionStart).toFixed(2)}ms`);
 
         // Update state again with resolutions
         updateState(resultsWithResolution);
