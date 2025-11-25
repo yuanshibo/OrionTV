@@ -3,6 +3,7 @@ import { Alert, Platform } from "react-native";
 import { useRouter } from "expo-router";
 import { PlayRecordManager, FavoriteManager } from "@/services/storage";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { useModalStore } from "@/stores/modalStore";
 import Logger from '@/utils/Logger';
 
 const logger = Logger.withTag('useVideoCardInteractions');
@@ -98,28 +99,13 @@ export const useVideoCardInteractions = ({
     const titleText = isFavorite ? "删除收藏" : "删除观看记录";
     const messageText = isFavorite ? `确定要删除"${title}"的收藏吗？` : `确定要删除"${title}"的观看记录吗？`;
 
-    const deleteButton = {
-      text: "删除",
-      style: "destructive" as const,
-      isPreferred: deviceType === 'tv', // Preferred on TV
-      onPress: handleDelete,
-    };
-
-    const cancelButton = {
-      text: "取消",
-      style: "cancel" as const,
-      onPress: () => { longPressTriggered.current = false; }
-    };
-
-    // TV order vs Mobile order
-    // TV: [Delete, Cancel] (Delete preferred)
-    // Mobile: [Cancel, Delete]
-    const buttons = deviceType === 'tv'
-      ? [deleteButton, cancelButton]
-      : [cancelButton, deleteButton];
-
-    Alert.alert(titleText, messageText, buttons);
-  }, [type, progress, title, deviceType, handleDelete]);
+    useModalStore.getState().showDeleteModal(
+      titleText,
+      messageText,
+      handleDelete,
+      () => { longPressTriggered.current = false; }
+    );
+  }, [type, progress, title, handleDelete]);
 
   return {
     handlePress,
