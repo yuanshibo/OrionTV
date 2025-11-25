@@ -106,8 +106,8 @@ const VideoCard = forwardRef<View, VideoCardProps>(
     const handleFocus = useCallback(() => {
       isFocusedSV.value = 1;
       if (onFocus) {
-         // onFocus might trigger parent state update, so keep it in JS
-         onFocus();
+        // onFocus might trigger parent state update, so keep it in JS
+        onFocus();
       }
     }, [onFocus, isFocusedSV]);
 
@@ -143,7 +143,7 @@ const VideoCard = forwardRef<View, VideoCardProps>(
           {...rest}
         >
           <View style={styles.card}>
-            <Image source={imageSource} style={styles.poster} contentFit="cover" transition={300} />
+            <Image source={imageSource} style={styles.poster} contentFit="cover" transition={300} cachePolicy="memory-disk" />
 
             {/* Overlay is always mounted, opacity controlled by SharedValue */}
             <Reanimated.View style={[styles.overlay, overlayStyle]} pointerEvents="none">

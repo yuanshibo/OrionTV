@@ -224,6 +224,12 @@ export default function HomeScreen() {
   const selectedCategoryRef = useRef(selectedCategory);
   selectedCategoryRef.current = selectedCategory;
 
+  const showFilterPanel = useCallback(() => {
+    setFilterPanelVisible(true);
+  }, []);
+
+  const noOp = useCallback(() => { }, []);
+
   const renderContentItem = useCallback(
     ({ item, index, style }: { item: RowItem; index: number; style?: StyleProp<ViewStyle> }) => {
       const currentCategory = selectedCategoryRef.current;
@@ -233,13 +239,13 @@ export default function HomeScreen() {
       let longPressAction;
       if (deviceType === "tv") {
         if (isFilterableCategory) {
-          longPressAction = () => setFilterPanelVisible(true);
+          longPressAction = showFilterPanel;
         } else if (isRecordCategory) {
           // Let VideoCard handle it internally for deletion.
           longPressAction = undefined;
         } else {
           // For any other category, long-press should do nothing.
-          longPressAction = () => { };
+          longPressAction = noOp;
         }
       }
 
@@ -264,7 +270,7 @@ export default function HomeScreen() {
         />
       );
     },
-    [fetchInitialData, deviceType]
+    [fetchInitialData, deviceType, showFilterPanel, noOp]
   );
 
   const footerComponent = useMemo(() => {
