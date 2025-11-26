@@ -1,5 +1,5 @@
 import React, { memo, useCallback } from 'react';
-import { View, ScrollView, Text } from 'react';
+import { View, ScrollView, Text } from 'react-native';
 import { StyledButton } from '@/components/StyledButton';
 import { ThemedText } from '@/components/ThemedText';
 import { Colors } from '@/constants/Colors';

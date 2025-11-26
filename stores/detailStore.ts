@@ -121,7 +121,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
     });
 
     try {
-      const { results } = await api.searchVideos(q, newController.signal);
+      const { results } = await api.searchVideos(q);
       if (newController.signal.aborted) return;
 
       const filteredResults = results.filter(item => item.title === q);
