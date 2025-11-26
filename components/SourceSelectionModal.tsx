@@ -11,13 +11,13 @@ const logger = Logger.withTag('SourceSelectionModal');
 export const SourceSelectionModal: React.FC = () => {
     const router = useRouter();
   const { showSourceModal, setShowSourceModal, loadVideo, currentEpisodeIndex, status } = usePlayerStore();
-  const { searchResults, detail, setActiveSource } = useDetailStore(s => ({ searchResults: s.searchResults, detail: s.detail, setActiveSource: s.setActiveSource }));
+  const { searchResults, detail, setDetail } = useDetailStore();
 
-  const onSelectSource = async (index: number) => {
+  const onSelectSource = (index: number) => {
     logger.debug("onSelectSource", index, searchResults[index].source, detail?.source);
     if (searchResults[index].source !== detail?.source) {
       const newDetail = searchResults[index];
-      await setActiveSource(newDetail.source);
+      setDetail(newDetail);
       
       // Reload the video with the new source, preserving current position
       const currentPosition = status?.isLoaded ? status.positionMillis : undefined;
