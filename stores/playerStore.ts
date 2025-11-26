@@ -378,7 +378,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
         return;
       }
 
-      await useDetailStore.getState().setDetail(fallbackSource);
+      await useDetailStore.getState().setActiveSource(fallbackSource.source);
       const newEpisodes = fallbackSource.episodes || [];
       if (newEpisodes.length > currentEpisodeIndex) {
         const mappedEpisodes = newEpisodes.map((ep, index) => ({ url: ep, title: `第 ${index + 1} 集` }));

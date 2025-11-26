@@ -1,38 +1,31 @@
 import React, { memo, useCallback } from 'react';
-import { View, ScrollView, Text, ActivityIndicator } from 'react-native';
+import { View, ScrollView, Text } from 'react-native';
 import { StyledButton } from '@/components/StyledButton';
 import { ThemedText } from '@/components/ThemedText';
-import { SearchResultWithResolution } from '@/services/api';
 import { Colors } from '@/constants/Colors';
 
+type SourceName = { key: string; name: string; resolution?: string | null };
+
 interface SourceButtonProps {
-  item: SearchResultWithResolution;
+  item: SourceName;
   isSelected: boolean;
-  onSelect: (item: SearchResultWithResolution) => void;
+  onSelect: (sourceKey: string) => void;
   deviceType: 'mobile' | 'tablet' | 'tv';
   styles: any;
   colors: typeof Colors.dark;
 }
 
 const SourceButton = memo(({ item, isSelected, onSelect, deviceType, styles, colors }: SourceButtonProps) => {
-  const isMobile = deviceType === 'mobile';
-  const handlePress = useCallback(() => onSelect(item), [onSelect, item]);
+  const handlePress = useCallback(() => onSelect(item.key), [onSelect, item.key]);
 
-  if (isMobile) {
+  if (deviceType === 'mobile') {
     return (
       <StyledButton
         onPress={handlePress}
         isSelected={isSelected}
         style={styles.sourceButton}
       >
-        <ThemedText style={styles.sourceButtonText}>{item.source_name}</ThemedText>
-        {item.episodes.length > 1 && (
-          <View style={[styles.badge, isSelected && styles.selectedBadge]}>
-            <Text style={styles.badgeText}>
-              {item.episodes.length > 99 ? "99+" : `${item.episodes.length}`} 集
-            </Text>
-          </View>
-        )}
+        <ThemedText style={styles.sourceButtonText}>{item.name}</ThemedText>
         {item.resolution && (
           <View style={[styles.badge, { backgroundColor: colors.border }, isSelected && styles.selectedBadge]}>
             <Text style={styles.badgeText}>{item.resolution}</Text>
@@ -42,9 +35,7 @@ const SourceButton = memo(({ item, isSelected, onSelect, deviceType, styles, col
     );
   }
 
-  const episodesDisplay = item.episodes.length > 99 ? "99+集" : `${item.episodes.length}集`;
-  const metaLine = item.resolution ? `${episodesDisplay} · ${item.resolution}` : episodesDisplay;
-
+  // TV View
   return (
     <StyledButton
       onPress={handlePress}
@@ -53,33 +44,33 @@ const SourceButton = memo(({ item, isSelected, onSelect, deviceType, styles, col
     >
       <View style={styles.sourceButtonContent}>
         <ThemedText style={styles.sourceNameText} numberOfLines={1}>
-          {item.source_name}
+          {item.name}
         </ThemedText>
-        <ThemedText style={styles.sourceMetaText} numberOfLines={1}>
-          {metaLine}
-        </ThemedText>
+        {item.resolution && (
+          <ThemedText style={styles.sourceMetaText} numberOfLines={1}>
+            {item.resolution}
+          </ThemedText>
+        )}
       </View>
     </StyledButton>
   );
 });
-
 SourceButton.displayName = 'SourceButton';
 
+
 interface SourceListProps {
-  searchResults: SearchResultWithResolution[];
-  currentSource?: string;
-  onSelect: (item: SearchResultWithResolution) => void;
-  loading?: boolean;
+  sourceNames: SourceName[];
+  activeSourceKey: string | null;
+  onSelect: (sourceKey: string) => void;
   deviceType: 'mobile' | 'tablet' | 'tv';
   styles: any;
   colors: typeof Colors.dark;
 }
 
 export const SourceList: React.FC<SourceListProps> = memo(({
-  searchResults,
-  currentSource,
+  sourceNames,
+  activeSourceKey,
   onSelect,
-  loading,
   deviceType,
   styles,
   colors,
@@ -89,17 +80,16 @@ export const SourceList: React.FC<SourceListProps> = memo(({
   const title = (
     <View style={styles.sourcesTitleContainer}>
       <ThemedText style={styles.sourcesTitle}>
-        {isMobile ? `播放源 (${searchResults.length})` : `选择播放源 共 ${searchResults.length} 个`}
+        {isMobile ? `播放源 (${sourceNames.length})` : `选择播放源 共 ${sourceNames.length} 个`}
       </ThemedText>
-      {loading && <ActivityIndicator style={{ marginLeft: 10 }} />}
     </View>
   );
 
-  const renderButton = (item: SearchResultWithResolution, index: number) => (
+  const renderButton = (item: SourceName, index: number) => (
     <SourceButton
-      key={index}
+      key={item.key}
       item={item}
-      isSelected={currentSource === item.source}
+      isSelected={activeSourceKey === item.key}
       onSelect={onSelect}
       deviceType={deviceType}
       styles={styles}
@@ -109,7 +99,7 @@ export const SourceList: React.FC<SourceListProps> = memo(({
 
   const content = isMobile ? (
     <View style={styles.sourceList}>
-      {searchResults.map(renderButton)}
+      {sourceNames.map(renderButton)}
     </View>
   ) : (
     <ScrollView
@@ -117,7 +107,7 @@ export const SourceList: React.FC<SourceListProps> = memo(({
       style={styles.sourceList}
       showsHorizontalScrollIndicator={false}
     >
-      {searchResults.map(renderButton)}
+      {sourceNames.map(renderButton)}
     </ScrollView>
   );
 

@@ -9,34 +9,37 @@ import { Heart } from 'lucide-react-native';
 
 interface DetailMobileViewProps {
   detail: any;
-  searchResults: any[];
-  allSourcesLoaded: boolean;
   isFavorited: boolean;
   toggleFavorite: () => void;
   handlePrimaryPlay: () => void;
   handlePlay: (episodeIndex: number, position?: number) => void;
   playButtonLabel: string;
   isPlayDisabled: boolean;
-  setDetail: (detail: any) => void;
   dynamicStyles: any;
   colors: any;
   deviceType: 'mobile' | 'tablet' | 'tv';
+  // New props for progressive loading
+  sourceNames: { key: string; name: string; resolution?: string | null }[];
+  activeSourceKey: string | null;
+  isEpisodeListLoading: boolean;
+  onSourceChange: (sourceKey: string) => void;
 }
 
 export const DetailMobileView: React.FC<DetailMobileViewProps> = memo(({
   detail,
-  searchResults,
-  allSourcesLoaded,
   isFavorited,
   toggleFavorite,
   handlePrimaryPlay,
   handlePlay,
   playButtonLabel,
   isPlayDisabled,
-  setDetail,
   dynamicStyles,
   colors,
   deviceType,
+  sourceNames,
+  activeSourceKey,
+  isEpisodeListLoading,
+  onSourceChange,
 }) => {
   return (
     <ScrollView
@@ -77,10 +80,9 @@ export const DetailMobileView: React.FC<DetailMobileViewProps> = memo(({
       </View>
 
       <SourceList
-        searchResults={searchResults}
-        currentSource={detail.source}
-        onSelect={setDetail}
-        loading={!allSourcesLoaded}
+        sourceNames={sourceNames}
+        activeSourceKey={activeSourceKey}
+        onSelect={onSourceChange}
         deviceType={deviceType}
         styles={dynamicStyles}
         colors={colors}
@@ -90,6 +92,7 @@ export const DetailMobileView: React.FC<DetailMobileViewProps> = memo(({
         episodes={detail.episodes}
         onPlay={handlePlay}
         styles={dynamicStyles}
+        isLoading={isEpisodeListLoading}
       />
       <RelatedSeries title={detail.title} />
     </ScrollView>
