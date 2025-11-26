@@ -1,6 +1,7 @@
 import { useRef, useCallback } from "react";
 import { Alert, Platform } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useNavigation } from "expo-router";
+import { CommonActions } from "@react-navigation/native";
 import { PlayRecordManager, FavoriteManager } from "@/services/storage";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { useModalStore } from "@/stores/modalStore";
@@ -34,6 +35,7 @@ export const useVideoCardInteractions = ({
   onFavoriteDeleted,
 }: InteractionProps) => {
   const router = useRouter();
+  const navigation = useNavigation();
   const { deviceType } = useResponsiveLayout();
   const longPressTriggered = useRef(false);
   const lastPressTime = useRef(0);
@@ -55,16 +57,39 @@ export const useVideoCardInteractions = ({
       });
     } else {
       const isDouban = source === 'douban';
-      router.push({
-        pathname: "/detail",
-        params: {
-          q: title,
-          poster,
-          ...(isDouban ? {} : { source, id })
-        },
-      });
+      const params = {
+        q: title,
+        poster,
+        ...(isDouban ? {} : { source, id })
+      };
+
+      // Smart navigation: Flatten the stack for Detail pages
+      // This ensures that navigating from Detail -> Related -> Detail doesn't create a deep stack.
+      // It keeps "context" pages (Home, Search, Favorites) but replaces the "Detail chain".
+      if (navigation) {
+        navigation.dispatch((state: any) => {
+          // Filter out existing Detail, Play, and Related screens from the stack
+          // This effectively "replaces" the current Detail flow with the new Detail page
+          // while preserving the history of how we got here (e.g. Home -> Search)
+          const routesToKeep = state.routes.filter((r: any) =>
+            !['detail', 'play', 'related'].includes(r.name)
+          );
+
+          return CommonActions.reset({
+            ...state,
+            routes: [...routesToKeep, { name: 'detail', params }],
+            index: routesToKeep.length,
+          });
+        });
+      } else {
+        // Fallback if navigation is not available (shouldn't happen in expo-router)
+        router.push({
+          pathname: "/detail",
+          params,
+        });
+      }
     }
-  }, [id, source, title, poster, progress, episodeIndex, playTime, router]);
+  }, [id, source, title, poster, progress, episodeIndex, playTime, router, navigation]);
 
   const handleDelete = useCallback(async () => {
     try {
