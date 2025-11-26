@@ -155,6 +155,7 @@ const CategoryNavigationComponent: React.FC<CategoryNavigationProps> = ({
         keyExtractor={(item) => item.title}
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={categoryStyles.categoryListContent}
+        // @ts-ignore
         estimatedItemSize={80}
       />
       {selectedCategory?.tags && (
@@ -165,6 +166,7 @@ const CategoryNavigationComponent: React.FC<CategoryNavigationProps> = ({
           keyExtractor={(item) => item}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={categoryStyles.categoryListContent}
+          // @ts-ignore
           estimatedItemSize={60}
         />
       )}

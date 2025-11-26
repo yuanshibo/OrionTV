@@ -37,7 +37,7 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ isVisible, onClose, category,
 
   const styles = useMemo(() => StyleSheet.create({
     panel: {
-      backgroundColor: "rgba(10, 10, 10, 0.75)",
+      backgroundColor: "rgba(10, 10, 10, 0.4)",
       paddingHorizontal: 20,
       borderBottomWidth: 0,
       borderBottomColor: "rgba(255, 255, 255, 0.1)",
