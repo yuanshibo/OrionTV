@@ -4,16 +4,21 @@ import { getResolutionFromM3U8 } from "@/services/m3u8";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { FavoriteManager } from "@/services/storage";
 import Logger from "@/utils/Logger";
+import { APP_CONFIG } from "@/constants/AppConfig";
+import {
+  normalizeIdentifier,
+  normalizeSourceName,
+  buildDetailCacheKey,
+  buildResultDedupeKey,
+  shouldPreferRawResult,
+  shouldPreferEnrichedResult,
+  mergeResultsByDedupeKey,
+} from "@/utils/DetailUtils";
+import { processNewResults } from "@/utils/DetailLogic";
 
 const logger = Logger.withTag('DetailStore');
 
-const MAX_PLAY_SOURCES = 8;
-const MAX_CONCURRENT_SOURCE_REQUESTS = 3;
-
-const DETAIL_CACHE_TTL = 10 * 60 * 1000;
-const DETAIL_CACHE_MAX_ENTRIES = 8;
-const RESOLUTION_CACHE_TTL = 60 * 60 * 1000;
-const NETWORK_ERROR_FRIENDLY_MESSAGE = "网络请求失败，请检查网络连接后重试";
+const NETWORK_ERROR_FRIENDLY_MESSAGE = APP_CONFIG.MESSAGES.NETWORK_ERROR_FRIENDLY;
 
 const mapNetworkErrorMessage = (error: unknown, fallback: string): string => {
   if (isNetworkStatusZeroError(error)) {
@@ -25,210 +30,6 @@ const mapNetworkErrorMessage = (error: unknown, fallback: string): string => {
   }
 
   return NETWORK_ERROR_FRIENDLY_MESSAGE;
-};
-
-
-const normalizeIdentifier = (value?: string | null): string => {
-  if (!value) {
-    return "";
-  }
-
-  return value
-    .normalize("NFKC")
-    .trim()
-    .toLowerCase()
-    .replace(/[\u3000\u00A0\s]+/g, "")
-    .replace(/[·•~!@#$%^&*()_+=[\]{}|\\;:'",.<>/?`！￥…（）—【】「」『』、《》？。，、丨-]/g, "");
-};
-
-const VARIANT_SUFFIX_PATTERNS: readonly RegExp[] = [
-  /(?:第?\d{1,3}(?:线|源))$/u, // “第1线”“1源”等线路编号
-  /(?:线路?\d{1,3})$/u, // “线路1”“线1” 等简写
-  /(?:line\d{1,3})$/u, // “line1” 等英文线路标签
-  /(?:主线|多线|备用)$/u, // “主线”“备用”等调度说明
-  /(?:无广|无广告)$/u, // “无广”一类去广告说明
-  /(?:超清|高清|蓝光|标清|普清)$/u, // 画质标签
-  /(?:\d{3,4}p)$/u, // 1080p 等数字画质标签
-  /(?:4k|2k|uhd|fhd)$/u, // UHD/FHD 等英文画质标签
-  /(?:资源|源|source)\d{1,3}$/u, // “资源1”“source2”等编号
-];
-
-/**
- * Remove marketing/line suffixes that aggregators append to provider names so that
- * "暴风资源线路1"、"暴风资源蓝光" 等变体都会映射到同一个去重键。
- */
-const stripVariantSuffixes = (value: string): string => {
-  let result = value;
-  let previous: string;
-
-  do {
-    previous = result;
-    for (const pattern of VARIANT_SUFFIX_PATTERNS) {
-      result = result.replace(pattern, "");
-    }
-  } while (previous !== result);
-
-  return result;
-};
-
-const normalizeSourceName = (sourceName?: string | null): string => {
-  if (!sourceName) {
-    return "";
-  }
-
-  const normalized = normalizeIdentifier(sourceName);
-  return stripVariantSuffixes(normalized);
-};
-
-const buildDetailCacheKey = (query: string, preferredSource?: string, resourceId?: string) => {
-  const normalizedQuery = normalizeIdentifier(query);
-  const normalizedSource = preferredSource ? normalizeIdentifier(preferredSource) : "";
-  const normalizedId = resourceId ? resourceId.toString() : "";
-  return `${normalizedQuery}::${normalizedSource}::${normalizedId}`;
-};
-
-
-const buildResultDedupeKey = (
-  item: Pick<SearchResult, "source" | "source_name" | "title" | "id">,
-  contextSourceKey?: string
-): string => {
-  const contextKey = stripVariantSuffixes(normalizeIdentifier(contextSourceKey));
-  const sourceKey = stripVariantSuffixes(normalizeIdentifier(item.source));
-  const nameKey = normalizeSourceName(item.source_name);
-
-  if (contextKey) {
-    return contextKey;
-  }
-
-  if (sourceKey) {
-    return sourceKey;
-  }
-
-  if (nameKey) {
-    return nameKey;
-  }
-
-  const titleKey = normalizeIdentifier(item.title);
-  return titleKey ? `${titleKey}:${item.id}` : `${item.id}`;
-};
-
-const labelPriority = (sourceName?: string | null): number => {
-  if (!sourceName) {
-    return 0;
-  }
-
-  const normalized = sourceName.trim().toLowerCase();
-  let score = 0;
-
-  if (normalized.includes("无广") || normalized.includes("无广告")) {
-    score += 4;
-  }
-  if (normalized.includes("蓝光")) {
-    score += 3;
-  }
-  if (normalized.includes("超清")) {
-    score += 2;
-  }
-  if (normalized.includes("高清")) {
-    score += 1;
-  }
-  if (normalized.includes("备用")) {
-    score -= 3;
-  }
-  if (normalized.includes("线路") || normalized.includes("line")) {
-    score -= 2;
-  }
-  if (normalized.includes("主线")) {
-    score -= 1;
-  }
-
-  return score;
-};
-
-const resolutionPriority = (resolution?: string | null): number => {
-  if (!resolution) {
-    return 0;
-  }
-
-  const normalized = resolution.toLowerCase();
-
-  if (/(4k|2160)/.test(normalized)) {
-    return 6;
-  }
-  if (/(2k|1440)/.test(normalized)) {
-    return 5;
-  }
-
-  const match = normalized.match(/(\d{3,4})p/);
-  if (match) {
-    const value = Number(match[1]);
-    if (value >= 2160) {
-      return 6;
-    }
-    if (value >= 1440) {
-      return 5;
-    }
-    if (value >= 1080) {
-      return 4;
-    }
-    if (value >= 720) {
-      return 3;
-    }
-    if (value >= 540) {
-      return 2;
-    }
-    if (value >= 480) {
-      return 1;
-    }
-  }
-
-  if (normalized.includes("蓝光")) {
-    return 4;
-  }
-  if (normalized.includes("超清")) {
-    return 3;
-  }
-  if (normalized.includes("高清")) {
-    return 2;
-  }
-  if (normalized.includes("标清")) {
-    return 1;
-  }
-
-  return 0;
-};
-
-const shouldPreferRawResult = (current: SearchResult, candidate: SearchResult): boolean => {
-  const currentEpisodes = current.episodes?.length ?? 0;
-  const candidateEpisodes = candidate.episodes?.length ?? 0;
-
-  if (candidateEpisodes > currentEpisodes) {
-    return true;
-  }
-
-  if (candidateEpisodes < currentEpisodes) {
-    return false;
-  }
-
-  const currentLabelScore = labelPriority(current.source_name);
-  const candidateLabelScore = labelPriority(candidate.source_name);
-
-  if (candidateLabelScore > currentLabelScore) {
-    return true;
-  }
-
-  if (candidateLabelScore < currentLabelScore) {
-    return false;
-  }
-
-  const currentNameLength = current.source_name?.trim().length ?? 0;
-  const candidateNameLength = candidate.source_name?.trim().length ?? 0;
-
-  if (candidateNameLength && (!currentNameLength || candidateNameLength < currentNameLength)) {
-    return true;
-  }
-
-  return false;
 };
 
 type DetailCacheEntry = {
@@ -250,7 +51,7 @@ const getDetailCacheEntry = (cacheKey: string): DetailCacheEntry | null => {
     return null;
   }
 
-  if (Date.now() - entry.timestamp > DETAIL_CACHE_TTL) {
+  if (Date.now() - entry.timestamp > APP_CONFIG.DETAIL.CACHE_TTL) {
     detailCache.delete(cacheKey);
     return null;
   }
@@ -273,10 +74,10 @@ const setDetailCacheEntry = (
     allSourcesLoaded,
   });
 
-  if (detailCache.size > DETAIL_CACHE_MAX_ENTRIES) {
+  if (detailCache.size > APP_CONFIG.DETAIL.CACHE_MAX_ENTRIES) {
     let oldestKey: string | null = null;
     let oldestTimestamp = Number.POSITIVE_INFINITY;
-    for (const [key, value] of detailCache.entries()) {
+    for (const [key, value] of Array.from(detailCache.entries())) {
       if (value.timestamp < oldestTimestamp) {
         oldestTimestamp = value.timestamp;
         oldestKey = key;
@@ -295,7 +96,7 @@ const getResolutionWithCache = async (episodeUrl: string, signal?: AbortSignal) 
   }
 
   const cached = resolutionCache.get(episodeUrl);
-  if (cached && Date.now() - cached.timestamp < RESOLUTION_CACHE_TTL) {
+  if (cached && Date.now() - cached.timestamp < APP_CONFIG.DETAIL.RESOLUTION_CACHE_TTL) {
     return cached.value;
   }
 
@@ -325,67 +126,7 @@ const getResolutionWithCache = async (episodeUrl: string, signal?: AbortSignal) 
 };
 
 
-const shouldPreferEnrichedResult = (
-  current: SearchResultWithResolution,
-  candidate: SearchResultWithResolution
-): boolean => {
-  const currentEpisodes = current.episodes?.length ?? 0;
-  const candidateEpisodes = candidate.episodes?.length ?? 0;
 
-  if (candidateEpisodes > currentEpisodes) {
-    return true;
-  }
-
-  if (candidateEpisodes < currentEpisodes) {
-    return false;
-  }
-
-  const currentResolutionScore = resolutionPriority(current.resolution);
-  const candidateResolutionScore = resolutionPriority(candidate.resolution);
-
-  if (candidateResolutionScore > currentResolutionScore) {
-    return true;
-  }
-
-  if (candidateResolutionScore < currentResolutionScore) {
-    return false;
-  }
-
-  const currentLabelScore = labelPriority(current.source_name);
-  const candidateLabelScore = labelPriority(candidate.source_name);
-
-  if (candidateLabelScore > currentLabelScore) {
-    return true;
-  }
-
-  if (candidateLabelScore < currentLabelScore) {
-    return false;
-  }
-
-  return false;
-};
-
-const mergeResultsByDedupeKey = (
-  items: SearchResultWithResolution[]
-): SearchResultWithResolution[] => {
-  const merged = new Map<string, SearchResultWithResolution>();
-
-  for (const item of items) {
-    const key = item.dedupeKey || buildResultDedupeKey(item);
-    const existing = merged.get(key);
-
-    if (!existing) {
-      merged.set(key, item);
-      continue;
-    }
-
-    if (shouldPreferEnrichedResult(existing, item)) {
-      merged.set(key, item);
-    }
-  }
-
-  return Array.from(merged.values());
-};
 
 interface DetailState {
   q: string | null;
@@ -516,189 +257,63 @@ const useDetailStore = create<DetailState>((set, get) => ({
     });
 
     // 如果有有效缓存且不是 abort 的结果,直接返回
-    if (hasValidCache) {
-      logger.debug(`[CACHE] Using cached data for "${q}", skipping fetch`);
+    try {
+      if (hasValidCache) {
+        logger.debug(`[CACHE] Using cached data for "${q}", skipping fetch`);
 
-      try {
-        const isFavFromCache = await FavoriteManager.isFavorited(
-          cachedDetail.source,
-          cachedDetail.id.toString()
+        try {
+          const isFavFromCache = await FavoriteManager.isFavorited(
+            cachedDetail.source,
+            cachedDetail.id.toString()
+          );
+          set({ isFavorited: isFavFromCache });
+        } catch (favoriteError) {
+          logger.warn("[WARN] Failed to restore favorite status from cache:", favoriteError);
+        }
+
+        const perfEnd = performance.now();
+        logger.debug(`[PERF] DetailStore.init COMPLETE (from cache) - total time: ${(perfEnd - perfStart).toFixed(2)}ms`);
+        const { videoSource } = useSettingsStore.getState();
+      }
+
+      const { videoSource } = useSettingsStore.getState();
+
+      const processAndSetResults = async (
+        results: SearchResult[],
+        mergeOrOptions: boolean | { merge?: boolean; sourceKey?: string } = {}
+      ): Promise<number> => {
+        const options = typeof mergeOrOptions === "boolean" ? { merge: mergeOrOptions } : mergeOrOptions;
+        const { merge = false, sourceKey } = options;
+
+        if (signal.aborted) {
+          logger.debug(`[ABORT] processAndSetResults aborted before processing`);
+          return 0;
+        }
+
+        const snapshot = get();
+        const { results: newSearchResults, added, updated, reachedMax } = processNewResults(
+          snapshot.searchResults,
+          results,
+          merge,
+          sourceKey
         );
-        set({ isFavorited: isFavFromCache });
-      } catch (favoriteError) {
-        logger.warn("[WARN] Failed to restore favorite status from cache:", favoriteError);
-      }
 
-      const perfEnd = performance.now();
-      logger.debug(`[PERF] DetailStore.init COMPLETE (from cache) - total time: ${(perfEnd - perfStart).toFixed(2)}ms`);
-      return;
-    }
-
-    const { videoSource } = useSettingsStore.getState();
-
-    const processAndSetResults = async (
-      results: SearchResult[],
-      mergeOrOptions: boolean | { merge?: boolean; sourceKey?: string } = {}
-    ): Promise<number> => {
-      const options = typeof mergeOrOptions === "boolean" ? { merge: mergeOrOptions } : mergeOrOptions;
-      const { merge = false, sourceKey } = options;
-      // 检查是否已被 abort
-      if (signal.aborted) {
-        logger.debug(`[ABORT] processAndSetResults aborted before processing`);
-        return 0;
-      }
-      const snapshot = get();
-      const existingResults = snapshot.searchResults;
-      const existingKeys = new Set(
-        existingResults.map((item) => item.dedupeKey || buildResultDedupeKey(item))
-      );
-      const remainingCapacity = merge
-        ? Math.max(0, MAX_PLAY_SOURCES - existingResults.length)
-        : MAX_PLAY_SOURCES;
-
-      if (results.length === 0) {
-        if (merge && snapshot.searchResults.length >= MAX_PLAY_SOURCES) {
-          set({ allSourcesLoaded: true });
-        }
-        logger.debug(`[INFO] No new valid results to process from batch (merge: ${merge})`);
-        return 0;
-      }
-
-      interface CandidateEntry {
-        result: SearchResult;
-        normalizedSourceName: string;
-        firstSeen: number;
-        isReplacement: boolean;
-      }
-
-      const candidateMap = new Map<string, CandidateEntry>();
-
-      results.forEach((result, index) => {
-        if (!result.episodes || result.episodes.length === 0) {
-          return;
-        }
-
-        const dedupeKey = buildResultDedupeKey(result, sourceKey);
-        const normalizedSourceName = normalizeSourceName(result.source_name);
-        const isReplacement = existingKeys.has(dedupeKey);
-        const currentEntry = candidateMap.get(dedupeKey);
-
-        if (!currentEntry) {
-          candidateMap.set(dedupeKey, {
-            result,
-            normalizedSourceName,
-            firstSeen: index,
-            isReplacement,
-          });
-          return;
-        }
-
-        const nextIsReplacement = currentEntry.isReplacement || isReplacement;
-        if (shouldPreferRawResult(currentEntry.result, result)) {
-          candidateMap.set(dedupeKey, {
-            result,
-            normalizedSourceName,
-            firstSeen: currentEntry.firstSeen,
-            isReplacement: nextIsReplacement,
-          });
-        } else if (nextIsReplacement && !currentEntry.isReplacement) {
-          candidateMap.set(dedupeKey, { ...currentEntry, isReplacement: true });
-        }
-      });
-
-      let candidateEntries = Array.from(candidateMap.entries()).map(([dedupeKey, value]) => ({
-        dedupeKey,
-        ...value,
-      }));
-
-      const replacements = candidateEntries.filter((entry) => entry.isReplacement);
-      let newCandidates = candidateEntries.filter((entry) => !entry.isReplacement);
-
-      newCandidates = newCandidates.sort((a, b) => a.firstSeen - b.firstSeen);
-
-      if (merge) {
-        newCandidates = newCandidates.slice(0, remainingCapacity);
-      } else {
-        newCandidates = newCandidates.slice(0, MAX_PLAY_SOURCES);
-      }
-
-      if (newCandidates.length === 0 && replacements.length === 0) {
-        if (merge && snapshot.searchResults.length >= MAX_PLAY_SOURCES) {
-          set({ allSourcesLoaded: true });
-        }
-        logger.debug(`[INFO] No new valid results to process from batch (merge: ${merge})`);
-        return 0;
-      }
-
-      const combinedCandidates = [...newCandidates, ...replacements].sort(
-        (a, b) => a.firstSeen - b.firstSeen
-      );
-
-      // 1. First Pass: Update state immediately without resolution (to unblock UI)
-      const initialResults = combinedCandidates.map(({ result, dedupeKey, normalizedSourceName }) => ({
-        ...result,
-        source_name: result.source_name.trim(),
-        resolution: undefined, // Initially undefined
-        dedupeKey,
-        normalizedSourceName,
-      }));
-
-      // Helper to update state
-      const updateState = (itemsToUpdate: SearchResultWithResolution[]) => {
-        let currentAddedKeys: string[] = [];
-        let currentUpdatedKeys: string[] = [];
+        let itemsToResolve: SearchResultWithResolution[] = [];
 
         set((state) => {
-          const previousResults = merge ? state.searchResults : [];
-          // We need to be careful not to duplicate items if we run this twice.
-          // The mergeResultsByDedupeKey handles deduplication.
-
-          // When updating with resolution, we want to replace the "undefined resolution" items 
-          // with the "resolved" items. mergeResultsByDedupeKey should handle this if we prioritize enriched results.
-          // But wait, `shouldPreferEnrichedResult` prefers items with resolution! So it works.
-
-          const combined = merge
-            ? [...previousResults, ...itemsToUpdate]
-            : [...itemsToUpdate];
-
-          const mergedResults = mergeResultsByDedupeKey(combined);
-          const truncated = mergedResults.slice(0, MAX_PLAY_SOURCES);
-
-          const previousMap = new Map(
-            previousResults.map((item) => [item.dedupeKey || buildResultDedupeKey(item), item])
-          );
-
-          // Recalculate added/updated keys for this batch
-          // Note: This might be slightly inaccurate if called multiple times, but for the return value of processAndSetResults,
-          // we care about the *first* effective update that adds items.
-
-          for (const item of truncated) {
-            const key = item.dedupeKey || buildResultDedupeKey(item);
-            const prev = previousMap.get(key);
-            if (!prev) {
-              currentAddedKeys.push(key);
-            } else if (
-              prev.episodes.length !== item.episodes.length ||
-              prev.resolution !== item.resolution ||
-              prev.source_name !== item.source_name
-            ) {
-              currentUpdatedKeys.push(key);
-            }
-          }
-
-          const reachedMax = truncated.length >= MAX_PLAY_SOURCES;
+          itemsToResolve = newSearchResults;
 
           const nextDetail =
             state.detail &&
-              truncated.some(
+              newSearchResults.some(
                 (item) => item.source === state.detail?.source && item.id === state.detail?.id
               )
               ? state.detail
-              : truncated[0] ?? null;
+              : newSearchResults[0] ?? null;
 
           return {
-            searchResults: truncated,
-            sources: truncated.map((r) => ({
+            searchResults: newSearchResults,
+            sources: newSearchResults.map((r) => ({
               source: r.source,
               source_name: r.source_name.trim(),
               resolution: r.resolution,
@@ -708,153 +323,115 @@ const useDetailStore = create<DetailState>((set, get) => ({
           };
         });
 
-        return { added: currentAddedKeys, updated: currentUpdatedKeys };
+        if (added.length === 0 && updated.length === 0) {
+          return 0;
+        }
+
+        const candidates = itemsToResolve.filter(r => !r.resolution && r.episodes && r.episodes.length > 0);
+
+        if (candidates.length > 0) {
+          const resolutionStart = performance.now();
+          Promise.all(
+            candidates.map(async (item) => {
+              let resolution: string | null | undefined;
+              try {
+                resolution = await getResolutionWithCache(item.episodes[0], signal);
+              } catch (e) {
+                // ignore
+              }
+              return { ...item, resolution };
+            })
+          ).then((resolvedItems) => {
+            if (signal.aborted) return;
+
+            set((state) => {
+              const newSearchResults = state.searchResults.map(existing => {
+                const resolved = resolvedItems.find(r =>
+                  r.source === existing.source && r.id === existing.id
+                );
+                if (resolved && resolved.resolution) {
+                  return { ...existing, resolution: resolved.resolution };
+                }
+                return existing;
+              });
+
+              return {
+                searchResults: newSearchResults,
+                sources: newSearchResults.map((r) => ({
+                  source: r.source,
+                  source_name: r.source_name.trim(),
+                  resolution: r.resolution,
+                })),
+              };
+            });
+
+            const currentState = get();
+            if (lastCacheKey) {
+              setDetailCacheEntry(
+                lastCacheKey,
+                currentState.detail,
+                currentState.searchResults,
+                currentState.sources,
+                currentState.allSourcesLoaded
+              );
+            }
+
+            const resolutionEnd = performance.now();
+            logger.debug(`[PERF] Resolution detection COMPLETE - took ${(resolutionEnd - resolutionStart).toFixed(2)}ms`);
+          });
+        }
+
+        const addedCount = added.length;
+        const totalAfterUpdate = get().searchResults.length;
+
+        if (addedCount > 0) {
+          logger.info(
+            `[INFO] Added ${addedCount} new sources (merge: ${merge}). Total cached sources: ${totalAfterUpdate}`
+          );
+        }
+
+        return addedCount;
       };
 
-      // Perform immediate update
-      const { added: initialAdded } = updateState(initialResults);
-
-      // If we added items, we can potentially stop loading here?
-      // The caller (init) checks the return value.
-      // We should return the count of items added in this first pass so the UI shows up.
-
-      // 2. Second Pass: Fetch resolutions in background
-      const resolutionStart = performance.now();
-      logger.debug(
-        `[PERF] Resolution detection START - processing ${combinedCandidates.length} sources (merge: ${merge})`
-      );
-
-      // We don't await this promise to block the return, BUT we need to ensure the caller knows we are "done" with the synchronous part.
-      // However, the original code awaited it. If we don't await, `processAndSetResults` returns early.
-      // This is exactly what we want!
-
-      // But wait, if we return early, `init` might proceed to `finalizeInitialization` or other logic.
-      // If `init` thinks we are done, it might set `loading: false`.
-      // Since we already updated state with items, `loading: false` is fine!
-
-      // The only risk is if `finalizeInitialization` saves to cache with missing resolutions.
-      // `finalizeInitialization` calls `get()`. If resolution fetch is still running, `get()` will return items without resolution.
-      // This means the cache will have no resolutions.
-      // When we reload from cache, we won't have resolutions.
-      // This is a trade-off. But `getResolutionWithCache` caches resolutions independently in `resolutionCache`.
-      // So next time we load, we might still need to "apply" them.
-
-      // Actually, we should probably let the resolution fetch complete *eventually*.
-      // But for `processAndSetResults` to return, we want it to return fast.
-
-      // Let's trigger the resolution fetch as a floating promise (or tracked).
-      // But we need to update the state when it finishes.
-
-      Promise.all(
-        combinedCandidates.map(async ({ result, dedupeKey, normalizedSourceName }) => {
-          let resolution: string | null | undefined;
-          const m3u8Start = performance.now();
-          try {
-            if (result.episodes && result.episodes.length > 0) {
-              resolution = await getResolutionWithCache(result.episodes[0], signal);
-            }
-          } catch (e) {
-            if ((e as Error).name !== "AbortError") {
-              logger.info(`Failed to get resolution for ${result.source_name}`, e);
-            }
-          }
-          const m3u8End = performance.now();
-          logger.debug(
-            `[PERF] M3U8 resolution for ${result.source_name}: ${(m3u8End - m3u8Start).toFixed(2)}ms (${resolution || "failed"})`
-          );
-          return {
-            ...result,
-            source_name: result.source_name.trim(),
-            resolution,
-            dedupeKey,
-            normalizedSourceName,
-          };
-        })
-      ).then((resultsWithResolution) => {
-        if (signal.aborted) return;
-        const resolutionEnd = performance.now();
-        logger.debug(`[PERF] Resolution detection COMPLETE - took ${(resolutionEnd - resolutionStart).toFixed(2)}ms`);
-
-        // Update state again with resolutions
-        updateState(resultsWithResolution);
-
-        // We might want to update cache here too?
-        // The `init` function calls `finalizeInitialization` which updates cache.
-        // If `init` has already finished, we should update cache here.
-        // But `init` waits for `processAndSetResults`.
-
-        // If we make `processAndSetResults` async but NOT await the resolution, `init` continues.
-        // `init` will call `finalizeInitialization`.
-        // So cache will be written WITHOUT resolutions initially.
-
-        // To fix cache: `finalizeInitialization` could be delayed? 
-        // Or we just accept that cache might be updated progressively.
-        // `setDetailCacheEntry` is called in `finalizeInitialization`.
-
-        // Let's just update the cache explicitly here after resolution update.
-        const currentState = get();
-        if (lastCacheKey) {
-          setDetailCacheEntry(
-            lastCacheKey,
-            currentState.detail,
-            currentState.searchResults,
-            currentState.sources,
-            currentState.allSourcesLoaded
-          );
-        }
-      });
-
-      const added = initialAdded;
-      const totalAfterUpdate = get().searchResults.length;
-
-      if (added.length > 0) {
-        logger.info(
-          `[INFO] Added ${added.length} new sources (merge: ${merge}). Total cached sources: ${totalAfterUpdate}`
-        );
-      }
-
-      return added.length;
-    };
-
-    try {
-      // Optimization for favorite navigation
-      if (preferredSource && id) {
-        const searchPreferredStart = performance.now();
-        logger.info(`[PERF] API searchVideo (preferred) START - source: ${preferredSource}, query: "${q}"`);
-
+      if (!hasValidCache) {
         let preferredResult: SearchResult[] = [];
         let preferredSearchError: any = null;
-
-        try {
-          const response = await api.searchVideo(q, preferredSource, signal);
-          preferredResult = response.results;
-        } catch (error) {
-          preferredSearchError = error;
-          logger.error(`[ERROR] API searchVideo (preferred) FAILED - source: ${preferredSource}, error:`, error);
-        }
-
-        const searchPreferredEnd = performance.now();
-        logger.info(`[PERF] API searchVideo (preferred) END - took ${(searchPreferredEnd - searchPreferredStart).toFixed(2)}ms, results: ${preferredResult.length}, error: ${!!preferredSearchError}`);
-
-        if (signal.aborted) return;
-
-        // 检查preferred source结果
         let preferredAddedCount = 0;
-        if (preferredResult.length > 0) {
-          logger.info(
-            `[SUCCESS] Preferred source "${preferredSource}" found ${preferredResult.length} results for "${q}"`
-          );
-          preferredAddedCount = await processAndSetResults(preferredResult, {
-            merge: false,
-            sourceKey: preferredSource,
-          });
 
-          if (preferredAddedCount > 0) {
-            set({ loading: false });
-          } else {
-            logger.warn(
-              `[FALLBACK] Preferred source "${preferredSource}" returned results but none were usable, trying all sources immediately`
+        if (preferredSource) {
+          const searchPreferredStart = performance.now();
+          logger.info(`[PERF] API searchVideo (preferred) START - source: ${preferredSource}, query: "${q}"`);
+
+          try {
+            const response = await api.searchVideo(q, preferredSource, signal);
+            preferredResult = response.results;
+          } catch (error) {
+            preferredSearchError = error;
+            logger.error(`[ERROR] API searchVideo (preferred) FAILED - source: ${preferredSource}, error:`, error);
+          }
+
+          const searchPreferredEnd = performance.now();
+          logger.info(`[PERF] API searchVideo (preferred) END - took ${(searchPreferredEnd - searchPreferredStart).toFixed(2)}ms, results: ${preferredResult.length}, error: ${!!preferredSearchError}`);
+
+          if (signal.aborted) return;
+
+          // 检查preferred source结果
+          if (preferredResult.length > 0) {
+            logger.info(
+              `[SUCCESS] Preferred source "${preferredSource}" found ${preferredResult.length} results for "${q}"`
             );
+            preferredAddedCount = await processAndSetResults(preferredResult, {
+              merge: false,
+              sourceKey: preferredSource,
+            });
+
+            if (preferredAddedCount > 0) {
+              set({ loading: false });
+            } else {
+              logger.warn(
+                `[FALLBACK] Preferred source "${preferredSource}" returned results but none were usable, trying all sources immediately`
+              );
+            }
           }
         }
 
@@ -952,164 +529,6 @@ const useDetailStore = create<DetailState>((set, get) => ({
           })();
 
           logger.info(`[INFO] Preferred source ready; background enrichment scheduled asynchronously`);
-        }
-      } else {
-        // Standard navigation: fetch resources, then fetch details one by one
-        const resourcesStart = performance.now();
-        logger.info(`[PERF] API getResources START - query: "${q}"`);
-
-        try {
-          const allResources = await api.getResources(signal);
-
-          const resourcesEnd = performance.now();
-          logger.info(`[PERF] API getResources END - took ${(resourcesEnd - resourcesStart).toFixed(2)}ms, resources: ${allResources.length}`);
-
-          const enabledResources = videoSource.enabledAll
-            ? allResources
-            : allResources.filter((r) => videoSource.sources[r.key]);
-
-          logger.info(`[PERF] Enabled resources: ${enabledResources.length}/${allResources.length}`);
-
-          if (enabledResources.length === 0) {
-            logger.error(`[ERROR] No enabled resources available for search`);
-            set({
-              error: "没有可用的视频源，请检查设置或联系管理员",
-              loading: false
-            });
-            return;
-          }
-
-          let firstResultFound = false;
-          let totalResults = 0;
-          let resourceIndex = 0;
-
-          const runResource = async (resource: (typeof enabledResources)[number]) => {
-            if (signal.aborted) {
-              logger.info(`[INFO] Search aborted before requesting ${resource.name}`);
-              return;
-            }
-
-            if (get().searchResults.length >= MAX_PLAY_SOURCES) {
-              logger.info(
-                `[LIMIT] Max play sources (${MAX_PLAY_SOURCES}) reached before requesting ${resource.name}, skipping request`
-              );
-              return;
-            }
-
-            try {
-              const searchStart = performance.now();
-              const { results } = await api.searchVideo(q, resource.key, signal);
-              const searchEnd = performance.now();
-              logger.info(
-                `[PERF] API searchVideo (${resource.name}) took ${(searchEnd - searchStart).toFixed(2)}ms, results: ${results.length}`
-              );
-
-              if (signal.aborted) {
-                logger.info(`[INFO] Search aborted after fetching ${resource.name}`);
-                return;
-              }
-
-              const validResults = results.filter((item) => item.episodes && item.episodes.length > 0);
-
-              if (validResults.length > 0) {
-                logger.info(
-                  `[SUCCESS] Source "${resource.name}" found ${validResults.length} valid results for "${q}"`
-                );
-
-                if (get().searchResults.length >= MAX_PLAY_SOURCES) {
-                  logger.info(
-                    `[LIMIT] Max play sources (${MAX_PLAY_SOURCES}) reached before processing ${resource.name}, skipping`
-                  );
-                  return;
-                }
-
-                const added = await processAndSetResults(validResults, {
-                  merge: true,
-                  sourceKey: resource.key,
-                });
-
-                if (added > 0) {
-                  totalResults += added;
-                  logger.info(
-                    `[SUCCESS] Source "${resource.name}" added ${added} result(s). Total cached sources: ${get().searchResults.length}`
-                  );
-                  if (!firstResultFound) {
-                    set({ loading: false });
-                    firstResultFound = true;
-                    logger.info(
-                      `[SUCCESS] First result found from "${resource.name}", stopping loading indicator`
-                    );
-                  }
-                } else {
-                  logger.info(
-                    `[INFO] Source "${resource.name}" produced results but none were added (duplicates or limit reached)`
-                  );
-                }
-              } else {
-                logger.warn(`[WARN] Source "${resource.name}" returned 0 valid results for "${q}"`);
-              }
-            } catch (error) {
-              if ((error as Error)?.name === "AbortError") {
-                logger.info(`[INFO] searchVideo request for ${resource.name} aborted`);
-                return;
-              }
-              const rawMessage = error instanceof Error ? error.message : String(error);
-              const displayMessage = mapNetworkErrorMessage(error, rawMessage);
-              logger.warn(`[WARN] Failed to fetch from ${resource.name}: ${displayMessage}`);
-            }
-          };
-
-          const workerCount = Math.min(MAX_CONCURRENT_SOURCE_REQUESTS, enabledResources.length);
-          const workers = Array.from({ length: workerCount }, async (_, workerIndex) => {
-            while (true) {
-              if (signal.aborted) {
-                logger.info(`[INFO] Aborting worker ${workerIndex} due to signal abort`);
-                return;
-              }
-
-              if (get().searchResults.length >= MAX_PLAY_SOURCES) {
-                logger.info(
-                  `[LIMIT] Worker ${workerIndex} exiting after reaching max play sources (${MAX_PLAY_SOURCES})`
-                );
-                return;
-              }
-
-              const currentIndex = resourceIndex++;
-              if (currentIndex >= enabledResources.length) {
-                return;
-              }
-
-              const resource = enabledResources[currentIndex];
-              await runResource(resource);
-            }
-          });
-
-          await Promise.all(workers);
-
-          // 检查是否找到任何结果
-          if (totalResults === 0) {
-            logger.error(`[ERROR] All sources returned 0 results for "${q}"`);
-            set({
-              error: `未找到 "${q}" 的播放源，请尝试其他关键词或稍后重试`,
-              loading: false
-            });
-          } else {
-            logger.info(
-              `[SUCCESS] Standard search completed, cached ${get().searchResults.length} unique sources (added ${totalResults})`
-            );
-          }
-        } catch (resourceError) {
-          logger.error(`[ERROR] Failed to get resources:`, resourceError);
-          const rawMessage =
-            resourceError instanceof Error
-              ? resourceError.message
-              : "网络错误，请稍后重试";
-          const displayMessage = mapNetworkErrorMessage(resourceError, rawMessage);
-          set({
-            error: `获取视频源失败：${displayMessage}`,
-            loading: false,
-          });
-          return;
         }
       }
 
