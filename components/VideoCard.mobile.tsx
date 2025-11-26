@@ -1,8 +1,8 @@
-import React, { useEffect, forwardRef, useMemo } from "react";
+import React, { forwardRef, useMemo } from "react";
 import { View, StyleSheet, TouchableOpacity, useColorScheme, Text, StyleProp, ViewStyle } from "react-native";
 import { Image } from "expo-image";
 import { Star, Play } from "lucide-react-native";
-import Reanimated, { useSharedValue, useAnimatedStyle, withTiming, withDelay } from "react-native-reanimated";
+import Reanimated from "react-native-reanimated";
 import { API } from "@/services/api";
 import { ThemedText } from "@/components/ThemedText";
 import { Colors } from "@/constants/Colors";
@@ -57,29 +57,17 @@ const VideoCardMobile = forwardRef<View, VideoCardMobileProps>(
     const colors = Colors[colorScheme];
     const { cardWidth, cardHeight, spacing } = useResponsiveLayout();
 
-    const opacitySV = useSharedValue(0);
-
     const { handlePress, handleLongPress } = useVideoCardInteractions({
       id,
       source,
       title,
+      poster,
       type,
       progress,
       playTime,
       episodeIndex,
       onRecordDeleted,
       onFavoriteDeleted,
-    });
-
-    useEffect(() => {
-      const delay = Math.random() * 100;
-      opacitySV.value = withDelay(delay, withTiming(1, { duration: 300 }));
-    }, [opacitySV]);
-
-    const animatedStyle = useAnimatedStyle(() => {
-      return {
-        opacity: opacitySV.value,
-      };
     });
 
     const isContinueWatching = progress !== undefined && progress > 0 && progress < 1;
@@ -95,7 +83,7 @@ const VideoCardMobile = forwardRef<View, VideoCardMobileProps>(
     );
 
     return (
-      <Reanimated.View style={[styles.wrapper, animatedStyle, style]} ref={ref}>
+      <Reanimated.View style={[styles.wrapper, style]} ref={ref}>
         <TouchableOpacity
           onPress={handlePress}
           onLongPress={handleLongPress}
@@ -112,7 +100,7 @@ const VideoCardMobile = forwardRef<View, VideoCardMobileProps>(
               transition={200}
               cachePolicy="disk"
             />
-            
+
             {isContinueWatching && (
               <View style={styles.progressContainer}>
                 <View style={[styles.progressBar, { width: `${(progress || 0) * 100}%` }]} />

@@ -422,7 +422,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
   init: async (q, preferredSource, id) => {
     const perfStart = performance.now();
     logger.info(`[PERF] DetailStore.init START - q: ${q}, preferredSource: ${preferredSource}, id: ${id}`);
-    
+
     const { controller: oldController } = get();
     if (oldController) {
       oldController.abort();
@@ -634,12 +634,118 @@ const useDetailStore = create<DetailState>((set, get) => ({
         (a, b) => a.firstSeen - b.firstSeen
       );
 
+      // 1. First Pass: Update state immediately without resolution (to unblock UI)
+      const initialResults = combinedCandidates.map(({ result, dedupeKey, normalizedSourceName }) => ({
+        ...result,
+        source_name: result.source_name.trim(),
+        resolution: undefined, // Initially undefined
+        dedupeKey,
+        normalizedSourceName,
+      }));
+
+      // Helper to update state
+      const updateState = (itemsToUpdate: SearchResultWithResolution[]) => {
+        let currentAddedKeys: string[] = [];
+        let currentUpdatedKeys: string[] = [];
+
+        set((state) => {
+          const previousResults = merge ? state.searchResults : [];
+          // We need to be careful not to duplicate items if we run this twice.
+          // The mergeResultsByDedupeKey handles deduplication.
+
+          // When updating with resolution, we want to replace the "undefined resolution" items 
+          // with the "resolved" items. mergeResultsByDedupeKey should handle this if we prioritize enriched results.
+          // But wait, `shouldPreferEnrichedResult` prefers items with resolution! So it works.
+
+          const combined = merge
+            ? [...previousResults, ...itemsToUpdate]
+            : [...itemsToUpdate];
+
+          const mergedResults = mergeResultsByDedupeKey(combined);
+          const truncated = mergedResults.slice(0, MAX_PLAY_SOURCES);
+
+          const previousMap = new Map(
+            previousResults.map((item) => [item.dedupeKey || buildResultDedupeKey(item), item])
+          );
+
+          // Recalculate added/updated keys for this batch
+          // Note: This might be slightly inaccurate if called multiple times, but for the return value of processAndSetResults,
+          // we care about the *first* effective update that adds items.
+
+          for (const item of truncated) {
+            const key = item.dedupeKey || buildResultDedupeKey(item);
+            const prev = previousMap.get(key);
+            if (!prev) {
+              currentAddedKeys.push(key);
+            } else if (
+              prev.episodes.length !== item.episodes.length ||
+              prev.resolution !== item.resolution ||
+              prev.source_name !== item.source_name
+            ) {
+              currentUpdatedKeys.push(key);
+            }
+          }
+
+          const reachedMax = truncated.length >= MAX_PLAY_SOURCES;
+
+          const nextDetail =
+            state.detail &&
+              truncated.some(
+                (item) => item.source === state.detail?.source && item.id === state.detail?.id
+              )
+              ? state.detail
+              : truncated[0] ?? null;
+
+          return {
+            searchResults: truncated,
+            sources: truncated.map((r) => ({
+              source: r.source,
+              source_name: r.source_name.trim(),
+              resolution: r.resolution,
+            })),
+            detail: nextDetail,
+            ...(reachedMax ? { allSourcesLoaded: true } : {}),
+          };
+        });
+
+        return { added: currentAddedKeys, updated: currentUpdatedKeys };
+      };
+
+      // Perform immediate update
+      const { added: initialAdded } = updateState(initialResults);
+
+      // If we added items, we can potentially stop loading here?
+      // The caller (init) checks the return value.
+      // We should return the count of items added in this first pass so the UI shows up.
+
+      // 2. Second Pass: Fetch resolutions in background
       const resolutionStart = performance.now();
       logger.info(
         `[PERF] Resolution detection START - processing ${combinedCandidates.length} sources (merge: ${merge})`
       );
 
-      const resultsWithResolution = await Promise.all(
+      // We don't await this promise to block the return, BUT we need to ensure the caller knows we are "done" with the synchronous part.
+      // However, the original code awaited it. If we don't await, `processAndSetResults` returns early.
+      // This is exactly what we want!
+
+      // But wait, if we return early, `init` might proceed to `finalizeInitialization` or other logic.
+      // If `init` thinks we are done, it might set `loading: false`.
+      // Since we already updated state with items, `loading: false` is fine!
+
+      // The only risk is if `finalizeInitialization` saves to cache with missing resolutions.
+      // `finalizeInitialization` calls `get()`. If resolution fetch is still running, `get()` will return items without resolution.
+      // This means the cache will have no resolutions.
+      // When we reload from cache, we won't have resolutions.
+      // This is a trade-off. But `getResolutionWithCache` caches resolutions independently in `resolutionCache`.
+      // So next time we load, we might still need to "apply" them.
+
+      // Actually, we should probably let the resolution fetch complete *eventually*.
+      // But for `processAndSetResults` to return, we want it to return fast.
+
+      // Let's trigger the resolution fetch as a floating promise (or tracked).
+      // But we need to update the state when it finishes.
+
+      Promise.all(
         combinedCandidates.map(async ({ result, dedupeKey, normalizedSourceName }) => {
           let resolution: string | null | undefined;
           const m3u8Start = performance.now();
@@ -664,93 +770,50 @@ const useDetailStore = create<DetailState>((set, get) => ({
             normalizedSourceName,
           };
         })
-      );
+      ).then((resultsWithResolution) => {
+        if (signal.aborted) return;
+        const resolutionEnd = performance.now();
+        logger.info(`[PERF] Resolution detection COMPLETE - took ${(resolutionEnd - resolutionStart).toFixed(2)}ms`);
 
-      const resolutionEnd = performance.now();
-      logger.info(`[PERF] Resolution detection COMPLETE - took ${(resolutionEnd - resolutionStart).toFixed(2)}ms`);
+        // Update state again with resolutions
+        updateState(resultsWithResolution);
 
-      if (signal.aborted) {
-        return 0;
-      }
+        // We might want to update cache here too?
+        // The `init` function calls `finalizeInitialization` which updates cache.
+        // If `init` has already finished, we should update cache here.
+        // But `init` waits for `processAndSetResults`.
 
-      let addedKeys: string[] = [];
-      let updatedKeys: string[] = [];
+        // If we make `processAndSetResults` async but NOT await the resolution, `init` continues.
+        // `init` will call `finalizeInitialization`.
+        // So cache will be written WITHOUT resolutions initially.
 
-      set((state) => {
-        const previousResults = merge ? state.searchResults : [];
-        const baseResults = merge ? state.searchResults : [];
-        const combined = merge
-          ? [...baseResults, ...resultsWithResolution]
-          : [...resultsWithResolution];
-        const mergedResults = mergeResultsByDedupeKey(combined);
-        const truncated = mergedResults.slice(0, MAX_PLAY_SOURCES);
+        // To fix cache: `finalizeInitialization` could be delayed? 
+        // Or we just accept that cache might be updated progressively.
+        // `setDetailCacheEntry` is called in `finalizeInitialization`.
 
-        const previousMap = new Map(
-          previousResults.map((item) => [item.dedupeKey || buildResultDedupeKey(item), item])
-        );
-        addedKeys = [];
-        updatedKeys = [];
-
-        for (const item of truncated) {
-          const key = item.dedupeKey || buildResultDedupeKey(item);
-          const prev = previousMap.get(key);
-          if (!prev) {
-            addedKeys.push(key);
-          } else if (
-            prev.episodes.length !== item.episodes.length ||
-            prev.resolution !== item.resolution ||
-            prev.source_name !== item.source_name
-          ) {
-            updatedKeys.push(key);
-          }
+        // Let's just update the cache explicitly here after resolution update.
+        const currentState = get();
+        if (lastCacheKey) {
+          setDetailCacheEntry(
+            lastCacheKey,
+            currentState.detail,
+            currentState.searchResults,
+            currentState.sources,
+            currentState.allSourcesLoaded
+          );
         }
-
-        const reachedMax = truncated.length >= MAX_PLAY_SOURCES;
-
-        const nextDetail =
-          state.detail &&
-          truncated.some(
-            (item) => item.source === state.detail?.source && item.id === state.detail?.id
-          )
-            ? state.detail
-            : truncated[0] ?? null;
-
-        return {
-          searchResults: truncated,
-          sources: truncated.map((r) => ({
-            source: r.source,
-            source_name: r.source_name.trim(),
-            resolution: r.resolution,
-          })),
-          detail: nextDetail,
-          ...(reachedMax ? { allSourcesLoaded: true } : {}),
-        };
       });
 
-      const updatedState = get();
-      setDetailCacheEntry(
-        cacheKey,
-        updatedState.detail,
-        updatedState.searchResults,
-        updatedState.sources,
-        updatedState.allSourcesLoaded
-      );
-
+      const added = initialAdded;
       const totalAfterUpdate = get().searchResults.length;
 
-      if (addedKeys.length > 0) {
+      if (added.length > 0) {
         logger.info(
-          `[INFO] Added ${addedKeys.length} new sources (merge: ${merge}). Total cached sources: ${totalAfterUpdate}`
+          `[INFO] Added ${added.length} new sources (merge: ${merge}). Total cached sources: ${totalAfterUpdate}`
         );
       }
 
-      if (updatedKeys.length > 0) {
-        logger.info(
-          `[INFO] Updated ${updatedKeys.length} existing source(s) with fresher data (merge: ${merge}).`
-        );
-      }
-
-      return addedKeys.length;
+      return added.length;
     };
 
     try {
@@ -758,10 +821,10 @@ const useDetailStore = create<DetailState>((set, get) => ({
       if (preferredSource && id) {
         const searchPreferredStart = performance.now();
         logger.info(`[PERF] API searchVideo (preferred) START - source: ${preferredSource}, query: "${q}"`);
-        
+
         let preferredResult: SearchResult[] = [];
         let preferredSearchError: any = null;
-        
+
         try {
           const response = await api.searchVideo(q, preferredSource, signal);
           preferredResult = response.results;
@@ -769,12 +832,12 @@ const useDetailStore = create<DetailState>((set, get) => ({
           preferredSearchError = error;
           logger.error(`[ERROR] API searchVideo (preferred) FAILED - source: ${preferredSource}, error:`, error);
         }
-        
+
         const searchPreferredEnd = performance.now();
         logger.info(`[PERF] API searchVideo (preferred) END - took ${(searchPreferredEnd - searchPreferredStart).toFixed(2)}ms, results: ${preferredResult.length}, error: ${!!preferredSearchError}`);
-        
+
         if (signal.aborted) return;
-        
+
         // 检查preferred source结果
         let preferredAddedCount = 0;
         if (preferredResult.length > 0) {
@@ -894,24 +957,24 @@ const useDetailStore = create<DetailState>((set, get) => ({
         // Standard navigation: fetch resources, then fetch details one by one
         const resourcesStart = performance.now();
         logger.info(`[PERF] API getResources START - query: "${q}"`);
-        
+
         try {
           const allResources = await api.getResources(signal);
-          
+
           const resourcesEnd = performance.now();
           logger.info(`[PERF] API getResources END - took ${(resourcesEnd - resourcesStart).toFixed(2)}ms, resources: ${allResources.length}`);
-          
+
           const enabledResources = videoSource.enabledAll
             ? allResources
             : allResources.filter((r) => videoSource.sources[r.key]);
 
           logger.info(`[PERF] Enabled resources: ${enabledResources.length}/${allResources.length}`);
-          
+
           if (enabledResources.length === 0) {
             logger.error(`[ERROR] No enabled resources available for search`);
-            set({ 
+            set({
               error: "没有可用的视频源，请检查设置或联系管理员",
-              loading: false 
+              loading: false
             });
             return;
           }
@@ -1028,7 +1091,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
             logger.error(`[ERROR] All sources returned 0 results for "${q}"`);
             set({
               error: `未找到 "${q}" 的播放源，请尝试其他关键词或稍后重试`,
-              loading: false 
+              loading: false
             });
           } else {
             logger.info(
@@ -1052,7 +1115,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
 
       const favoriteCheckStart = performance.now();
       const finalState = get();
-      
+
       // 最终检查：如果所有搜索都完成但仍然没有结果
       if (finalState.searchResults.length === 0 && !finalState.error) {
         logger.error(`[ERROR] All search attempts completed but no results found for "${q}"`);
@@ -1074,10 +1137,10 @@ const useDetailStore = create<DetailState>((set, get) => ({
       } else {
         logger.warn(`[WARN] No detail found after all search attempts for "${q}"`);
       }
-      
+
       const favoriteCheckEnd = performance.now();
       logger.info(`[PERF] Favorite check took ${(favoriteCheckEnd - favoriteCheckStart).toFixed(2)}ms`);
-      
+
     } catch (e) {
       if ((e as Error).name !== "AbortError") {
         logger.error(`[ERROR] DetailStore.init caught unexpected error:`, e);
@@ -1178,42 +1241,42 @@ const useDetailStore = create<DetailState>((set, get) => ({
     const { failedSources } = get();
     const newFailedSources = new Set(failedSources);
     newFailedSources.add(source);
-    
+
     logger.warn(`[SOURCE_FAILED] Marking source "${source}" as failed due to: ${reason}`);
     logger.info(`[SOURCE_FAILED] Total failed sources: ${newFailedSources.size}`);
-    
+
     set({ failedSources: newFailedSources });
   },
 
   getNextAvailableSource: (currentSource: string, episodeIndex: number) => {
     const { searchResults, failedSources } = get();
-    
+
     logger.info(`[SOURCE_SELECTION] Looking for alternative to "${currentSource}" for episode ${episodeIndex + 1}`);
     logger.info(`[SOURCE_SELECTION] Failed sources: [${Array.from(failedSources).join(', ')}]`);
-    
+
     // 过滤掉当前source和已失败的sources
-    const availableSources = searchResults.filter(result => 
-      result.source !== currentSource && 
+    const availableSources = searchResults.filter(result =>
+      result.source !== currentSource &&
       !failedSources.has(result.source) &&
-      result.episodes && 
+      result.episodes &&
       result.episodes.length > episodeIndex
     );
-    
+
     logger.info(`[SOURCE_SELECTION] Available sources: ${availableSources.length}`);
     availableSources.forEach(source => {
       logger.info(`[SOURCE_SELECTION] - ${source.source} (${source.source_name}): ${source.episodes?.length || 0} episodes`);
     });
-    
+
     if (availableSources.length === 0) {
       logger.error(`[SOURCE_SELECTION] No available sources for episode ${episodeIndex + 1}`);
       return null;
     }
-    
+
     // 优先选择有高分辨率的source
     const sortedSources = availableSources.sort((a, b) => {
       const aResolution = a.resolution || '';
       const bResolution = b.resolution || '';
-      
+
       // 优先级: 1080p > 720p > 其他 > 无分辨率
       const resolutionPriority = (res: string) => {
         if (res.includes('1080')) return 4;
@@ -1222,13 +1285,13 @@ const useDetailStore = create<DetailState>((set, get) => ({
         if (res.includes('360')) return 1;
         return 0;
       };
-      
+
       return resolutionPriority(bResolution) - resolutionPriority(aResolution);
     });
-    
+
     const selectedSource = sortedSources[0];
     logger.info(`[SOURCE_SELECTION] Selected fallback source: ${selectedSource.source} (${selectedSource.source_name}) with resolution: ${selectedSource.resolution || 'unknown'}`);
-    
+
     return selectedSource;
   },
 }));

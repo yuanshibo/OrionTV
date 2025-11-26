@@ -11,6 +11,7 @@ interface InteractionProps {
   id: string;
   source: string;
   title: string;
+  poster?: string;
   type?: 'record' | 'favorite';
   progress?: number;
   playTime?: number;
@@ -23,6 +24,7 @@ export const useVideoCardInteractions = ({
   id,
   source,
   title,
+  poster,
   type = 'record',
   progress,
   playTime = 0,
@@ -51,12 +53,17 @@ export const useVideoCardInteractions = ({
         params: { source, id, episodeIndex: episodeIndex - 1, title, position: playTime * 1000 },
       });
     } else {
+      const isDouban = source === 'douban';
       router.push({
         pathname: "/detail",
-        params: { source, q: title },
+        params: {
+          q: title,
+          poster,
+          ...(isDouban ? {} : { source, id })
+        },
       });
     }
-  }, [id, source, title, progress, episodeIndex, playTime, router]);
+  }, [id, source, title, poster, progress, episodeIndex, playTime, router]);
 
   const handleDelete = useCallback(async () => {
     try {

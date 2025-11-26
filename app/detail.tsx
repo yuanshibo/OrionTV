@@ -15,9 +15,10 @@ import { DetailMobileView } from '@/components/detail/DetailMobileView';
 import { DetailTVView } from '@/components/detail/DetailTVView';
 import { useShallow } from 'zustand/react/shallow';
 import { useResumeProgress } from "@/hooks/useResumeProgress";
+import { Image } from "expo-image";
 
 export default function DetailScreen() {
-  const { q, source, id } = useLocalSearchParams<{ q: string; source?: string; id?: string }>();
+  const { q, source, id, poster } = useLocalSearchParams<{ q: string; source?: string; id?: string; poster?: string }>();
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'dark';
   const colors = Colors[colorScheme];
@@ -124,7 +125,51 @@ export default function DetailScreen() {
   };
 
   if (loading) {
-    return <VideoLoadingAnimation showProgressBar={false} />;
+    if (isTvExperience) {
+      return <VideoLoadingAnimation showProgressBar={false} />;
+    }
+
+    // Skeleton Screen for Mobile
+    return (
+      <ResponsiveNavigation>
+        <ResponsiveHeader title={q || "详情"} showBackButton showBottomBorder={false} />
+        <ThemedView style={[commonStyles.container, { padding: spacing }]}>
+          <ThemedView style={{ flexDirection: 'row', marginBottom: spacing }}>
+            {poster ? (
+              <Image
+                source={{ uri: poster }}
+                style={{ width: 100, height: 150, borderRadius: 8, backgroundColor: colors.border }}
+                contentFit="cover"
+              />
+            ) : (
+              <ThemedView style={{ width: 100, height: 150, borderRadius: 8, backgroundColor: colors.border }} />
+            )}
+            <ThemedView style={{ flex: 1, marginLeft: spacing, justifyContent: 'center' }}>
+              <ThemedText type="subtitle" numberOfLines={2} style={{ marginBottom: 8 }}>{q}</ThemedText>
+              <ThemedView style={{ width: '60%', height: 14, backgroundColor: colors.border, borderRadius: 4, marginBottom: 6 }} />
+              <ThemedView style={{ width: '40%', height: 14, backgroundColor: colors.border, borderRadius: 4 }} />
+            </ThemedView>
+          </ThemedView>
+
+          {/* Action Buttons Skeleton */}
+          <ThemedView style={{ flexDirection: 'row', marginBottom: spacing }}>
+            <ThemedView style={{ flex: 1, height: 40, backgroundColor: colors.border, borderRadius: 8, marginRight: spacing / 2 }} />
+            <ThemedView style={{ flex: 1, height: 40, backgroundColor: colors.border, borderRadius: 8, marginLeft: spacing / 2 }} />
+          </ThemedView>
+
+          {/* Episodes Skeleton */}
+          <ThemedView style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing / 2 }}>
+            {Array.from({ length: 12 }).map((_, i) => (
+              <ThemedView key={i} style={{ width: '18%', aspectRatio: 1, backgroundColor: colors.border, borderRadius: 4 }} />
+            ))}
+          </ThemedView>
+
+          <ThemedView style={{ marginTop: spacing * 2, alignItems: 'center' }}>
+            <ThemedText style={{ color: colors.icon }}>正在加载资源...</ThemedText>
+          </ThemedView>
+        </ThemedView>
+      </ResponsiveNavigation>
+    );
   }
 
   if (error && !detail) {

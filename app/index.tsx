@@ -214,17 +214,21 @@ export default function HomeScreen() {
     iconButton: { borderRadius: 30, marginLeft: spacing / 2 },
   }), [deviceType, spacing]);
 
-  const categoryStyles = useMemo(() => StyleSheet.create({ 
+  const categoryStyles = useMemo(() => StyleSheet.create({
     categoryContainer: { paddingBottom: spacing / 10 },
     categoryListContent: { paddingHorizontal: spacing },
     categoryButton: { paddingHorizontal: deviceType === "tv" ? spacing / 6 : spacing / 2, paddingVertical: spacing / 4, borderRadius: deviceType === "mobile" ? 6 : 8, marginHorizontal: deviceType === "tv" ? spacing / 6 : spacing / 2 },
     categoryText: { fontSize: deviceType === "mobile" ? 14 : 16, fontWeight: "500" },
   }), [deviceType, spacing]);
 
+  const selectedCategoryRef = useRef(selectedCategory);
+  selectedCategoryRef.current = selectedCategory;
+
   const renderContentItem = useCallback(
     ({ item, index, style }: { item: RowItem; index: number; style?: StyleProp<ViewStyle> }) => {
-      const isFilterableCategory = selectedCategory?.title === "所有";
-      const isRecordCategory = selectedCategory?.type === "record";
+      const currentCategory = selectedCategoryRef.current;
+      const isFilterableCategory = currentCategory?.title === "所有";
+      const isRecordCategory = currentCategory?.type === "record";
 
       let longPressAction;
       if (deviceType === "tv") {
@@ -235,7 +239,7 @@ export default function HomeScreen() {
           longPressAction = undefined;
         } else {
           // For any other category, long-press should do nothing.
-          longPressAction = () => {};
+          longPressAction = () => { };
         }
       }
 
@@ -260,7 +264,7 @@ export default function HomeScreen() {
         />
       );
     },
-    [fetchInitialData, deviceType, selectedCategory]
+    [fetchInitialData, deviceType]
   );
 
   const footerComponent = useMemo(() => {

@@ -32,6 +32,7 @@ interface CustomScrollViewProps {
   loadMoreThreshold?: number;
   emptyMessage?: string;
   ListFooterComponent?: React.ComponentType<any> | React.ReactElement | null;
+  drawDistance?: number;
 }
 
 const CustomScrollView = forwardRef<React.ElementRef<typeof FlashList>, CustomScrollViewProps>((
@@ -46,6 +47,7 @@ const CustomScrollView = forwardRef<React.ElementRef<typeof FlashList>, CustomSc
     loadMoreThreshold = 200,
     emptyMessage = "暂无内容",
     ListFooterComponent,
+    drawDistance,
   },
   ref
 ) => {
@@ -163,7 +165,8 @@ const CustomScrollView = forwardRef<React.ElementRef<typeof FlashList>, CustomSc
       const style = isLastColumn ? dynamicStyles.cardContainer : dynamicStyles.cardContainerWithSpacing;
 
       // Directly call renderItem with the calculated style, avoiding an extra View wrapper
-      return renderItem({ item, index, style }) || null;
+      const result = renderItem({ item, index, style });
+      return (result === undefined ? null : result) as React.ReactElement | null;
     },
     [dynamicStyles, effectiveColumns, renderItem]
   );
@@ -203,7 +206,7 @@ const CustomScrollView = forwardRef<React.ElementRef<typeof FlashList>, CustomSc
         renderItem={renderGridItem}
         numColumns={effectiveColumns}
         // @ts-ignore
-        estimatedItemSize={responsiveConfig.cardHeight + responsiveConfig.spacing}
+        estimatedItemSize={responsiveConfig.cardHeight + responsiveConfig.spacing + 60}
         contentContainerStyle={dynamicStyles.listContent}
         onScroll={scrollHandler}
         scrollEventThrottle={16}
@@ -214,6 +217,7 @@ const CustomScrollView = forwardRef<React.ElementRef<typeof FlashList>, CustomSc
           </View>
         )}
         ListFooterComponent={renderFooter}
+        drawDistance={drawDistance ?? 400}
       />
       {deviceType !== 'tv' && (
         <Animated.View style={[dynamicStyles.scrollToTopButton, animatedButtonStyle]} pointerEvents={showScrollToTop ? 'auto' : 'none'}>
