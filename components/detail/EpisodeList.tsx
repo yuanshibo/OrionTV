@@ -1,5 +1,5 @@
 import React, { memo, useCallback } from 'react';
-import { View } from 'react-native';
+import { View, ActivityIndicator } from 'react-native';
 import { StyledButton } from '@/components/StyledButton';
 import { ThemedText } from '@/components/ThemedText';
 
@@ -28,17 +28,31 @@ const EpisodeButton = memo(({ index, onPlay, style, textStyle }: EpisodeButtonPr
 EpisodeButton.displayName = 'EpisodeButton';
 
 interface EpisodeListProps {
-  episodes: any[];
+  episodes?: any[];
   onPlay: (index: number) => void;
   styles: any;
+  isLoading?: boolean;
 }
 
-export const EpisodeList: React.FC<EpisodeListProps> = memo(({ episodes, onPlay, styles }) => {
-  if (!episodes || episodes.length === 0) return null;
+export const EpisodeList: React.FC<EpisodeListProps> = memo(({ episodes, onPlay, styles, isLoading = false }) => {
+  const renderContent = () => {
+    if (isLoading) {
+      return (
+        <View style={styles.centeredContent}>
+          <ActivityIndicator />
+        </View>
+      );
+    }
 
-  return (
-    <View style={styles.episodesContainer}>
-      <ThemedText style={styles.episodesTitle}>播放列表</ThemedText>
+    if (!episodes || episodes.length === 0) {
+      return (
+        <View style={styles.centeredContent}>
+          <ThemedText>暂无剧集信息</ThemedText>
+        </View>
+      );
+    }
+
+    return (
       <View style={styles.episodeList}>
         {episodes.map((_, index) => (
           <EpisodeButton
@@ -50,6 +64,13 @@ export const EpisodeList: React.FC<EpisodeListProps> = memo(({ episodes, onPlay,
           />
         ))}
       </View>
+    );
+  };
+
+  return (
+    <View style={styles.episodesContainer}>
+      <ThemedText style={styles.episodesTitle}>播放列表</ThemedText>
+      {renderContent()}
     </View>
   );
 });
