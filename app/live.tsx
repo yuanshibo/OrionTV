@@ -13,7 +13,7 @@ import { DeviceUtils } from "@/utils/DeviceUtils";
 
 export default function LiveScreen() {
   const { m3uUrl } = useSettingsStore();
-  
+
   // 响应式布局配置
   const responsiveConfig = useResponsiveLayout();
   const commonStyles = getCommonResponsiveStyles(responsiveConfig);
@@ -67,14 +67,14 @@ export default function LiveScreen() {
     titleTimer.current = setTimeout(() => setChannelTitle(null), 3000);
   };
 
-  const handleSelectChannel = (channel: Channel) => {
+  const handleSelectChannel = useCallback((channel: Channel) => {
     const globalIndex = channels.findIndex((c) => c.id === channel.id);
     if (globalIndex !== -1) {
       setCurrentChannelIndex(globalIndex);
       showChannelTitle(channel.name);
       setIsChannelListVisible(false);
     }
-  };
+  }, [channels]);
 
   const changeChannel = useCallback(
     (direction: "next" | "prev") => {
@@ -100,17 +100,38 @@ export default function LiveScreen() {
     [changeChannel, isChannelListVisible, deviceType]
   );
 
-  useTVEventHandler(deviceType === 'tv' ? handleTVEvent : () => {});
+  useTVEventHandler(deviceType === 'tv' ? handleTVEvent : () => { });
 
   // 动态样式
   const dynamicStyles = createResponsiveStyles(deviceType, spacing);
 
+  const renderGroupItem = useCallback(({ item }: { item: string }) => (
+    <StyledButton
+      text={item}
+      onPress={() => setSelectedGroup(item)}
+      isSelected={selectedGroup === item}
+      style={dynamicStyles.groupButton}
+      textStyle={dynamicStyles.groupButtonText}
+    />
+  ), [selectedGroup, dynamicStyles]);
+
+  const renderChannelItem = useCallback(({ item }: { item: Channel }) => (
+    <StyledButton
+      text={item.name || "Unknown Channel"}
+      onPress={() => handleSelectChannel(item)}
+      isSelected={channels[currentChannelIndex]?.id === item.id}
+      hasTVPreferredFocus={channels[currentChannelIndex]?.id === item.id}
+      style={dynamicStyles.channelItem}
+      textStyle={dynamicStyles.channelItemText}
+    />
+  ), [channels, currentChannelIndex, dynamicStyles, handleSelectChannel]);
+
   const renderLiveContent = () => (
     <>
-      <LivePlayer 
-        streamUrl={selectedChannelUrl} 
-        channelTitle={channelTitle} 
-        onPlaybackStatusUpdate={() => {}} 
+      <LivePlayer
+        streamUrl={selectedChannelUrl}
+        channelTitle={channelTitle}
+        onPlaybackStatusUpdate={() => { }}
       />
       <Modal
         animationType="slide"
@@ -126,15 +147,7 @@ export default function LiveScreen() {
                 <FlatList
                   data={channelGroups}
                   keyExtractor={(item, index) => `group-${item}-${index}`}
-                  renderItem={({ item }) => (
-                    <StyledButton
-                      text={item}
-                      onPress={() => setSelectedGroup(item)}
-                      isSelected={selectedGroup === item}
-                      style={dynamicStyles.groupButton}
-                      textStyle={dynamicStyles.groupButtonText}
-                    />
-                  )}
+                  renderItem={renderGroupItem}
                 />
               </View>
               <View style={dynamicStyles.channelColumn}>
@@ -144,16 +157,7 @@ export default function LiveScreen() {
                   <FlatList
                     data={groupedChannels[selectedGroup] || []}
                     keyExtractor={(item, index) => `${item.id}-${item.group}-${index}`}
-                    renderItem={({ item }) => (
-                      <StyledButton
-                        text={item.name || "Unknown Channel"}
-                        onPress={() => handleSelectChannel(item)}
-                        isSelected={channels[currentChannelIndex]?.id === item.id}
-                        hasTVPreferredFocus={channels[currentChannelIndex]?.id === item.id}
-                        style={dynamicStyles.channelItem}
-                        textStyle={dynamicStyles.channelItemText}
-                      />
-                    )}
+                    renderItem={renderChannelItem}
                   />
                 )}
               </View>

@@ -16,6 +16,8 @@ import { usePlayerInteractions } from "@/hooks/usePlayerInteractions";
 import { usePlayerLifecycle } from "@/hooks/usePlayerLifecycle";
 import Logger from "@/utils/Logger";
 import { useShallow } from "zustand/react/shallow";
+import { useFocusStore } from "@/stores/focusStore";
+import { FocusPriority } from "@/types/focus";
 
 const logger = Logger.withTag("PlayScreen");
 
@@ -61,6 +63,16 @@ export default function PlayScreen() {
 
   // Get non-reactive actions from the store
   const { loadVideo, reset, setVideoPlayer, handlePlaybackStatusUpdate, setShowControls, setShowDetails, setShowRelatedVideos, setError, _savePlayRecord } = usePlayerStore.getState();
+  const setFocusArea = useFocusStore((state) => state.setFocusArea);
+
+  // Set focus area to player when component mounts
+  useEffect(() => {
+    setFocusArea('player', FocusPriority.MODAL);
+    return () => {
+      // Reset focus area when leaving player
+      setFocusArea(null, FocusPriority.DEFAULT);
+    };
+  }, [setFocusArea]);
 
   // Create the player instance
   const { player, videoViewProps } = useVideoHandlers({

@@ -13,6 +13,7 @@ import LoginModal from "@/components/LoginModal";
 import useAuthStore from "@/stores/authStore";
 import { useUpdateStore, initUpdateStore } from "@/stores/updateStore";
 import { UpdateModal } from "@/components/UpdateModal";
+import { DeleteConfirmationModal } from "@/components/DeleteConfirmationModal";
 import { UPDATE_CONFIG } from "@/constants/UpdateConfig";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import Logger from '@/utils/Logger';
@@ -99,6 +100,7 @@ export default function RootLayout() {
         <Toast />
         <LoginModal />
         <UpdateModal />
+        <DeleteConfirmationModal />
       </ThemeProvider>
     </SafeAreaProvider>
   );

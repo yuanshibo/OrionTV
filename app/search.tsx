@@ -183,7 +183,7 @@ export default function SearchScreen() {
       }, 200);
       return () => clearTimeout(timer);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.q]);
 
   const handleSearch = (searchText?: string) => {
@@ -211,18 +211,18 @@ export default function SearchScreen() {
 
     // Small timeout to prevent blocking UI if rendering is heavy, or just to show spinner
     setTimeout(() => {
-        const currentLen = results.length;
-        const nextBatch = allSearchResultsRef.current.slice(currentLen, currentLen + 25);
+      const currentLen = results.length;
+      const nextBatch = allSearchResultsRef.current.slice(currentLen, currentLen + 25);
 
-        if (nextBatch.length > 0) {
-            setResults(prev => [...prev, ...nextBatch]);
-        }
+      if (nextBatch.length > 0) {
+        setResults(prev => [...prev, ...nextBatch]);
+      }
 
-        setLoadingMore(false);
+      setLoadingMore(false);
 
-        if (currentLen + nextBatch.length >= allSearchResultsRef.current.length) {
-            setHasMore(false);
-        }
+      if (currentLen + nextBatch.length >= allSearchResultsRef.current.length) {
+        setHasMore(false);
+      }
     }, 200);
   }, [loadingMore, results.length]);
 
@@ -230,29 +230,41 @@ export default function SearchScreen() {
     if (loadingRef.current || loadingMore || !hasMore) return;
 
     if (keyword.trim() === "") {
-        loadDiscoverData(discoverPage);
+      loadDiscoverData(discoverPage);
     } else {
-        loadMoreSearchResults();
+      loadMoreSearchResults();
     }
   };
 
   const renderItem = useCallback(({ item, style }: { item: VideoCardViewModel; index: number; style?: StyleProp<ViewStyle> }) => {
-    const commonProps = {
-      id: item.id,
-      source: item.source,
-      title: item.title,
-      poster: item.poster,
-      year: item.year,
-      sourceName: item.sourceName,
-      rate: item.rate,
-      api: api,
-      style: style, // Pass the style for grid layout
-    };
-
     if (deviceType === 'mobile') {
-      return <VideoCardMobile {...commonProps} />;
+      return (
+        <VideoCardMobile
+          id={item.id}
+          source={item.source}
+          title={item.title}
+          poster={item.poster}
+          year={item.year}
+          sourceName={item.sourceName}
+          rate={item.rate}
+          api={api}
+          style={style}
+        />
+      );
     } else {
-      return <VideoCardTV {...commonProps} />;
+      return (
+        <VideoCardTV
+          id={item.id}
+          source={item.source}
+          title={item.title}
+          poster={item.poster}
+          year={item.year}
+          sourceName={item.sourceName}
+          rate={item.rate}
+          api={api}
+          style={style}
+        />
+      );
     }
   }, [deviceType]);
 
