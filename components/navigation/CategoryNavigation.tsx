@@ -57,7 +57,6 @@ interface TagItemProps {
 
 const TagItem = memo(({ item, index, isSelected, onSelect, styles }: TagItemProps) => (
   <StyledButton
-    hasTVPreferredFocus={index === 0}
     text={item}
     onPress={() => onSelect(item)}
     isSelected={isSelected}
