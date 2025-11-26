@@ -1,5 +1,6 @@
 import React, { useEffect, useCallback, useMemo, useRef, useState } from "react";
-import { StyleSheet, ActivityIndicator, FlatList, StatusBar, Platform, BackHandler, View, StyleProp, ViewStyle } from "react-native";
+import { StyleSheet, ActivityIndicator, StatusBar, Platform, BackHandler, View, StyleProp, ViewStyle } from "react-native";
+import { FlashList } from "@shopify/flash-list";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSharedValue, withTiming } from "react-native-reanimated";
 import { ThemedView } from "@/components/ThemedView";
@@ -21,7 +22,7 @@ import { useShallow } from "zustand/react/shallow";
 export default function HomeScreen() {
   const fadeAnim = useSharedValue(0);
   const insets = useSafeAreaInsets();
-  const listRef = useRef<FlatList<RowItem>>(null);
+  const listRef = useRef<FlashList<RowItem>>(null);
   const firstItemRef = useRef<View>(null);
   const lastCheckedPlayRecords = useRef<number>(0);
 

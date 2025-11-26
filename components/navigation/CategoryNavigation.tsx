@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useCallback, memo } from "react";
-import { FlatList, View, ViewStyle, TextStyle } from "react-native";
+import { View, ViewStyle, TextStyle } from "react-native";
+import { FlashList } from "@shopify/flash-list";
 import { StyledButton } from "@/components/StyledButton";
 import { Category } from "@/services/dataTypes";
 import { requestTVFocus } from "@/utils/tvUtils";
@@ -136,22 +137,24 @@ const CategoryNavigationComponent: React.FC<CategoryNavigationProps> = ({
 
   return (
     <View style={[categoryStyles.categoryContainer, hasTags && { paddingBottom: spacing * 0.8 }]}>
-      <FlatList
+      <FlashList
         horizontal
         data={categories}
         renderItem={renderCategory}
         keyExtractor={(item) => item.title}
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={categoryStyles.categoryListContent}
+        estimatedItemSize={80}
       />
       {selectedCategory?.tags && (
-        <FlatList
+        <FlashList
           horizontal
           data={selectedCategory.tags}
           renderItem={renderTag}
           keyExtractor={(item) => item}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={categoryStyles.categoryListContent}
+          estimatedItemSize={60}
         />
       )}
     </View>
