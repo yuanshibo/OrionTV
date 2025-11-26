@@ -1,6 +1,5 @@
 import React, { useMemo, useEffect } from "react";
-import { Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView } from "react-native";
-import { FlashList } from "@shopify/flash-list";
+import { Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView, FlatList } from "react-native";
 import { Category, DoubanFilterKey } from "@/stores/homeStore";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StyledButton } from "@/components/StyledButton";
@@ -82,12 +81,11 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ isVisible, onClose, category,
     return (
       <View style={styles.filterGroup}>
         <Text style={styles.filterGroupLabel}>标签</Text>
-        <FlashList
+        <FlatList
           horizontal
           data={category.tags}
           showsHorizontalScrollIndicator={false}
           keyExtractor={(tag) => tag}
-          estimatedItemSize={60}
           renderItem={({ item: tag, index }) => {
             const isSelected = category.tag === tag;
             return (
@@ -118,12 +116,11 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ isVisible, onClose, category,
           return (
             <View key={group.key} style={styles.filterGroup}>
               <Text style={styles.filterGroupLabel}>{group.label}</Text>
-              <FlashList
+              <FlatList
                 horizontal
                 data={group.options}
                 showsHorizontalScrollIndicator={false}
                 keyExtractor={(option) => option.value}
-                estimatedItemSize={80}
                 renderItem={({ item: option, index: optionIndex }) => {
                   const isSelected = activeValue === option.value;
                   return (
