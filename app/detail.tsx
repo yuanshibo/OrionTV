@@ -34,36 +34,38 @@ export default function DetailScreen() {
 
   const {
     detail,
+    searchResults,
+    loading,
     error,
+    allSourcesLoaded,
     init,
+    setDetail,
     abort,
     isFavorited,
     toggleFavorite,
-    sourceNames,
-    activeSourceKey,
-    areSourceNamesLoading,
-    isEpisodeListLoading,
-    setActiveSource,
   } = useDetailStore(useShallow((state) => ({
     detail: state.detail,
+    searchResults: state.searchResults,
+    loading: state.loading,
     error: state.error,
+    allSourcesLoaded: state.allSourcesLoaded,
     init: state.init,
+    setDetail: state.setDetail,
     abort: state.abort,
     isFavorited: state.isFavorited,
     toggleFavorite: state.toggleFavorite,
-    sourceNames: state.sourceNames,
-    activeSourceKey: state.activeSourceKey,
-    areSourceNamesLoading: state.areSourceNamesLoading,
-    isEpisodeListLoading: state.isEpisodeListLoading,
-    setActiveSource: state.setActiveSource,
   })));
 
+  // Use the extracted hook for resume logic
   const { resumeInfo, refresh } = useResumeProgress(detail);
   const setFocusArea = useFocusStore((state) => state.setFocusArea);
 
-  useFocusEffect(useCallback(() => {
-    setFocusArea('content', FocusPriority.CONTENT);
-  }, [setFocusArea]));
+  // Set focus area when detail page is active
+  useFocusEffect(
+    useCallback(() => {
+      setFocusArea('content', FocusPriority.CONTENT);
+    }, [setFocusArea])
+  );
 
   useEffect(() => {
     if (q) {
@@ -74,44 +76,57 @@ export default function DetailScreen() {
     };
   }, [init, q, source, id, abort]);
 
-  useFocusEffect(useCallback(() => {
-    refresh();
-  }, [refresh]));
+  useFocusEffect(
+    useCallback(() => {
+      refresh();
+    }, [refresh])
+  );
 
-  useFocusEffect(useCallback(() => {
-    if (!isTvExperience) return;
-    const handler = BackHandler.addEventListener("hardwareBackPress", () => {
-      if (router.canGoBack()) {
-        router.back();
-        return true;
+  useFocusEffect(
+    useCallback(() => {
+      if (!isTvExperience) {
+        return;
       }
-      return false;
-    });
-    return () => handler.remove();
-  }, [isTvExperience, router]));
+      const handler = BackHandler.addEventListener("hardwareBackPress", () => {
+        const canGoBack = router.canGoBack();
+
+        if (canGoBack) {
+          router.back();
+          return true;
+        }
+        return false;
+      });
+
+      return () => {
+        handler.remove();
+      };
+    }, [isTvExperience, router])
+  );
 
   const handlePlay = (episodeIndex: number, position?: number) => {
     if (!detail) return;
     abort();
-    const params: Record<string, string | number> = {
+    const params: Record<string, string> = {
       q: detail.title,
       source: detail.source,
-      id: detail.id,
-      episodeIndex: episodeIndex,
+      id: detail.id.toString(),
+      episodeIndex: episodeIndex.toString(),
     };
 
     if (typeof position === "number" && position > 0) {
-      params.position = Math.floor(position);
+      params.position = Math.floor(position).toString();
     }
 
     router.push({
       pathname: "/play",
-      params: params as any,
+      params,
     });
   };
 
   const handlePrimaryPlay = () => {
-    if (!detail || !detail.episodes || detail.episodes.length === 0) return;
+    if (!detail || !detail.episodes || detail.episodes.length === 0) {
+      return;
+    }
 
     const targetEpisodeIndex = resumeInfo.hasRecord ? resumeInfo.episodeIndex : 0;
     const resumePosition = resumeInfo.hasRecord ? resumeInfo.position : undefined;
@@ -119,10 +134,11 @@ export default function DetailScreen() {
     handlePlay(targetEpisodeIndex, resumePosition);
   };
 
-  if (areSourceNamesLoading) {
+  if (loading) {
     if (isTvExperience) {
       return <VideoLoadingAnimation showProgressBar={false} />;
     }
+
     // Skeleton Screen for Mobile
     return (
       <ResponsiveNavigation>
@@ -130,7 +146,11 @@ export default function DetailScreen() {
         <ThemedView style={[commonStyles.container, { padding: spacing }]}>
           <ThemedView style={{ flexDirection: 'row', marginBottom: spacing }}>
             {poster ? (
-              <Image source={{ uri: poster }} style={{ width: 100, height: 150, borderRadius: 8, backgroundColor: colors.border }} contentFit="cover" />
+              <Image
+                source={{ uri: poster }}
+                style={{ width: 100, height: 150, borderRadius: 8, backgroundColor: colors.border }}
+                contentFit="cover"
+              />
             ) : (
               <ThemedView style={{ width: 100, height: 150, borderRadius: 8, backgroundColor: colors.border }} />
             )}
@@ -140,15 +160,20 @@ export default function DetailScreen() {
               <ThemedView style={{ width: '40%', height: 14, backgroundColor: colors.border, borderRadius: 4 }} />
             </ThemedView>
           </ThemedView>
+
+          {/* Action Buttons Skeleton */}
           <ThemedView style={{ flexDirection: 'row', marginBottom: spacing }}>
             <ThemedView style={{ flex: 1, height: 40, backgroundColor: colors.border, borderRadius: 8, marginRight: spacing / 2 }} />
             <ThemedView style={{ flex: 1, height: 40, backgroundColor: colors.border, borderRadius: 8, marginLeft: spacing / 2 }} />
           </ThemedView>
+
+          {/* Episodes Skeleton */}
           <ThemedView style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing / 2 }}>
             {Array.from({ length: 12 }).map((_, i) => (
               <ThemedView key={i} style={{ width: '18%', aspectRatio: 1, backgroundColor: colors.border, borderRadius: 4 }} />
             ))}
           </ThemedView>
+
           <ThemedView style={{ marginTop: spacing * 2, alignItems: 'center' }}>
             <ThemedText style={{ color: colors.icon }}>正在加载资源...</ThemedText>
           </ThemedView>
@@ -160,11 +185,16 @@ export default function DetailScreen() {
   if (error && !detail) {
     const content = (
       <ThemedView style={[commonStyles.safeContainer, commonStyles.center]}>
-        <ThemedText type="subtitle" style={commonStyles.textMedium}>{error}</ThemedText>
+        <ThemedText type="subtitle" style={commonStyles.textMedium}>
+          {error}
+        </ThemedText>
       </ThemedView>
     );
 
-    if (isTvExperience) return content;
+    if (isTvExperience) {
+      return content;
+    }
+
     return (
       <ResponsiveNavigation>
         <ResponsiveHeader title="详情" showBackButton showBottomBorder={false} />
@@ -173,14 +203,17 @@ export default function DetailScreen() {
     );
   }
 
-  if (!detail && !isEpisodeListLoading) {
+  if (!detail) {
     const content = (
       <ThemedView style={[commonStyles.safeContainer, commonStyles.center]}>
         <ThemedText type="subtitle">未找到详情信息</ThemedText>
       </ThemedView>
     );
 
-    if (isTvExperience) return content;
+    if (isTvExperience) {
+      return content;
+    }
+
     return (
       <ResponsiveNavigation>
         <ResponsiveHeader title="详情" showBackButton showBottomBorder={false} />
@@ -189,37 +222,25 @@ export default function DetailScreen() {
     );
   }
 
-  // Use a placeholder detail if the main one is loading
-  const displayDetail = detail || {
-    id: id || '',
-    title: q || '',
-    poster: poster,
-    source: source || '',
-    episodes: [],
-    source_name: '',
-  };
-
-  const totalEpisodes = displayDetail.episodes?.length ?? 0;
-  const isPlayDisabled = totalEpisodes === 0 || isEpisodeListLoading;
-  const playButtonLabel = (resumeInfo.hasRecord ? `继续播放 · 第${resumeInfo.episodeIndex + 1}集` : "立即播放 · 第1集") + (totalEpisodes > 0 ? `/全${totalEpisodes}集` : '');
+  const totalEpisodes = detail.episodes?.length ?? 0;
+  const isPlayDisabled = totalEpisodes === 0;
+  const playButtonLabel = (resumeInfo.hasRecord ? `继续播放 · 第${resumeInfo.episodeIndex + 1}集` : "立即播放 · 第1集") + `/全${totalEpisodes}集`;
 
   const renderDetailContent = () => {
     const props = {
-      detail: displayDetail,
+      detail,
+      searchResults,
+      allSourcesLoaded,
       isFavorited,
       toggleFavorite,
       handlePrimaryPlay,
       handlePlay,
       playButtonLabel,
       isPlayDisabled,
+      setDetail,
       dynamicStyles,
       colors,
-      deviceType,
-      // new props for progressive loading
-      sourceNames,
-      activeSourceKey,
-      isEpisodeListLoading,
-      onSourceChange: setActiveSource,
+      deviceType
     };
 
     if (deviceType === 'mobile') {

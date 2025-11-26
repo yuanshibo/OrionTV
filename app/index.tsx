@@ -1,6 +1,6 @@
 import React, { useEffect, useCallback, useMemo, useRef, useState } from "react";
 import { StyleSheet, ActivityIndicator, StatusBar, Platform, BackHandler, View, StyleProp, ViewStyle } from "react-native";
-import { FlashListRef } from "@shopify/flash-list";
+import { FlashList, FlashListRef } from "@shopify/flash-list";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSharedValue, withTiming } from "react-native-reanimated";
 import { ThemedView } from "@/components/ThemedView";
