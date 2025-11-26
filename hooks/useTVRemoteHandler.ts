@@ -2,9 +2,11 @@ import { useEffect, useRef, useCallback } from "react";
 import { useTVEventHandler, HWEvent } from "react-native";
 import usePlayerStore from "@/stores/playerStore";
 
-const SEEK_STEP = 20 * 1000; // 快进/快退的时间步长(毫秒)
-const CONTROLS_TIMEOUT = 5000; // 定时器延迟时间(毫秒)
-const FAST_SEEK_INTERVAL = 200; // 连续快进/快退的间隔时间(毫秒)
+const INITIAL_SEEK_STEP = 20 * 1000; // 初始快进/快退时间步长(20秒)
+const MAX_SEEK_STEP = 300 * 1000;    // 最大快进/快退时间步长(5分钟)
+const ACCELERATION_FACTOR = 1.2;     // 加速因子(每次增加20%)
+const CONTROLS_TIMEOUT = 5000;       // 定时器延迟时间(毫秒)
+const FAST_SEEK_INTERVAL = 200;      // 连续快进/快退的间隔时间(毫秒)
 
 export const useTVRemoteHandler = () => {
   const showControls = usePlayerStore((state) => state.showControls);
@@ -18,6 +20,7 @@ export const useTVRemoteHandler = () => {
 
   const controlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const seekIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const currentSeekStepRef = useRef(INITIAL_SEEK_STEP);
 
   const resetTimer = useCallback(() => {
     if (controlsTimer.current) {
@@ -65,6 +68,7 @@ export const useTVRemoteHandler = () => {
         if (seekIntervalRef.current) {
           clearInterval(seekIntervalRef.current);
           seekIntervalRef.current = null;
+          currentSeekStepRef.current = INITIAL_SEEK_STEP; // Reset step
         }
         return;
       }
@@ -88,7 +92,7 @@ export const useTVRemoteHandler = () => {
           return;
         }
 
-      // --- Logic when PlayerControls are HIDDEN ---
+        // --- Logic when PlayerControls are HIDDEN ---
       } else {
         switch (event.eventType) {
           case 'up':
@@ -96,16 +100,32 @@ export const useTVRemoteHandler = () => {
             break;
           case 'left':
           case 'longLeft':
-            seek(-SEEK_STEP);
+            // Only seek immediately if not already seeking (to avoid double seek on hold start)
+            // Actually, we want immediate feedback on press.
+            if (!seekIntervalRef.current) {
+              seek(-INITIAL_SEEK_STEP);
+            }
+
             if (event.eventType === 'longLeft' && event.eventKeyAction === 0 && !seekIntervalRef.current) {
-              seekIntervalRef.current = setInterval(() => seek(-SEEK_STEP), FAST_SEEK_INTERVAL);
+              currentSeekStepRef.current = INITIAL_SEEK_STEP;
+              seekIntervalRef.current = setInterval(() => {
+                currentSeekStepRef.current = Math.min(currentSeekStepRef.current * ACCELERATION_FACTOR, MAX_SEEK_STEP);
+                seek(-currentSeekStepRef.current);
+              }, FAST_SEEK_INTERVAL);
             }
             break;
           case 'right':
           case 'longRight':
-            seek(SEEK_STEP);
+            if (!seekIntervalRef.current) {
+              seek(INITIAL_SEEK_STEP);
+            }
+
             if (event.eventType === 'longRight' && event.eventKeyAction === 0 && !seekIntervalRef.current) {
-              seekIntervalRef.current = setInterval(() => seek(SEEK_STEP), FAST_SEEK_INTERVAL);
+              currentSeekStepRef.current = INITIAL_SEEK_STEP;
+              seekIntervalRef.current = setInterval(() => {
+                currentSeekStepRef.current = Math.min(currentSeekStepRef.current * ACCELERATION_FACTOR, MAX_SEEK_STEP);
+                seek(currentSeekStepRef.current);
+              }, FAST_SEEK_INTERVAL);
             }
             break;
           case 'select':

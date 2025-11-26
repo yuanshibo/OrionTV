@@ -57,21 +57,21 @@ export class PlayerSettingsManager {
       const data = await AsyncStorage.getItem(STORAGE_KEYS.PLAYER_SETTINGS);
       return data ? JSON.parse(data) : {};
     } catch (error) {
-      logger.info("Failed to get all player settings:", error);
+      logger.debug("Failed to get all player settings:", error);
       return {};
     }
   }
 
   static async get(source: string, id: string): Promise<PlayerSettings | null> {
     const perfStart = performance.now();
-    logger.info(`[PERF] PlayerSettingsManager.get START - source: ${source}, id: ${id}`);
-    
+    logger.debug(`[PERF] PlayerSettingsManager.get START - source: ${source}, id: ${id}`);
+
     const allSettings = await this.getAll();
     const result = allSettings[generateKey(source, id)] || null;
-    
+
     const perfEnd = performance.now();
-    logger.info(`[PERF] PlayerSettingsManager.get END - took ${(perfEnd - perfStart).toFixed(2)}ms, found: ${!!result}`);
-    
+    logger.debug(`[PERF] PlayerSettingsManager.get END - took ${(perfEnd - perfStart).toFixed(2)}ms, found: ${!!result}`);
+
     return result;
   }
 
@@ -111,7 +111,7 @@ export class FavoriteManager {
         const data = await AsyncStorage.getItem(STORAGE_KEYS.FAVORITES);
         return data ? JSON.parse(data) : {};
       } catch (error) {
-        logger.info("Failed to get all local favorites:", error);
+        logger.debug("Failed to get all local favorites:", error);
         return {};
       }
     }
@@ -179,28 +179,28 @@ export class PlayRecordManager {
   static async getAll(): Promise<Record<string, PlayRecord>> {
     const perfStart = performance.now();
     const storageType = this.getStorageType();
-    logger.info(`[PERF] PlayRecordManager.getAll START - storageType: ${storageType}`);
-    
+    logger.debug(`[PERF] PlayRecordManager.getAll START - storageType: ${storageType}`);
+
     let apiRecords: Record<string, PlayRecord> = {};
     if (storageType === "localstorage") {
       try {
         const data = await AsyncStorage.getItem(STORAGE_KEYS.PLAY_RECORDS);
         apiRecords = data ? JSON.parse(data) : {};
       } catch (error) {
-        logger.info("Failed to get all local play records:", error);
+        logger.debug("Failed to get all local play records:", error);
         return {};
       }
     } else {
       const apiStart = performance.now();
-      logger.info(`[PERF] API getPlayRecords START`);
-      
+      logger.debug(`[PERF] API getPlayRecords START`);
+
       const result = await api.getPlayRecords();
       // When called without args, it returns the full map.
       // We default to {} if null/undefined to satisfy the type.
       apiRecords = (result as Record<string, PlayRecord>) || {};
-      
+
       const apiEnd = performance.now();
-      logger.info(`[PERF] API getPlayRecords END - took ${(apiEnd - apiStart).toFixed(2)}ms, records: ${Object.keys(apiRecords).length}`);
+      logger.debug(`[PERF] API getPlayRecords END - took ${(apiEnd - apiStart).toFixed(2)}ms, records: ${Object.keys(apiRecords).length}`);
     }
 
     const localSettings = await PlayerSettingsManager.getAll();
@@ -211,10 +211,10 @@ export class PlayRecordManager {
         ...localSettings[key],
       };
     }
-    
+
     const perfEnd = performance.now();
-    logger.info(`[PERF] PlayRecordManager.getAll END - took ${(perfEnd - perfStart).toFixed(2)}ms, total records: ${Object.keys(mergedRecords).length}`);
-    
+    logger.debug(`[PERF] PlayRecordManager.getAll END - took ${(perfEnd - perfStart).toFixed(2)}ms, total records: ${Object.keys(mergedRecords).length}`);
+
     return mergedRecords;
   }
 
@@ -229,24 +229,24 @@ export class PlayRecordManager {
     const limit = 25;
 
     for (const [key, record] of sortedRecords) {
-        // 2. Stop if we have collected enough unique titles
-        if (Object.keys(latestByTitle).length >= limit) {
-            break;
-        }
+      // 2. Stop if we have collected enough unique titles
+      if (Object.keys(latestByTitle).length >= limit) {
+        break;
+      }
 
-        const normTitle = (record?.title ?? '').trim().replace(/\s+/g, ' ');
+      const normTitle = (record?.title ?? '').trim().replace(/\s+/g, ' ');
 
-        // 3. If title is empty, treat it as unique and add it
-        if (!normTitle) {
-            latestByTitle[key] = record;
-            continue;
-        }
+      // 3. If title is empty, treat it as unique and add it
+      if (!normTitle) {
+        latestByTitle[key] = record;
+        continue;
+      }
 
-        // 4. If we haven't seen this title yet, add it to our results
-        if (!seenTitles.has(normTitle)) {
-            latestByTitle[key] = record;
-            seenTitles.add(normTitle);
-        }
+      // 4. If we haven't seen this title yet, add it to our results
+      if (!seenTitles.has(normTitle)) {
+        latestByTitle[key] = record;
+        seenTitles.add(normTitle);
+      }
     }
 
     return latestByTitle;
@@ -263,7 +263,7 @@ export class PlayRecordManager {
       const data = await AsyncStorage.getItem(STORAGE_KEYS.PLAY_RECORDS);
       const allRecords = data ? JSON.parse(data) : {};
       const existingRecord = allRecords[key] || {};
-      
+
       const fullRecord = { ...apiRecord, save_time: Date.now() };
       const newRecord = { ...existingRecord, ...fullRecord };
 
@@ -291,8 +291,8 @@ export class PlayRecordManager {
     const perfStart = performance.now();
     const key = generateKey(source, id);
     const storageType = this.getStorageType();
-    logger.info(`[PERF] PlayRecordManager.get START - source: ${source}, id: ${id}, storageType: ${storageType}`);
-    
+    logger.debug(`[PERF] PlayRecordManager.get START - source: ${source}, id: ${id}, storageType: ${storageType}`);
+
     let result: PlayRecord | null = null;
     if (storageType === "localstorage") {
       const records = await this.getAll();
@@ -302,23 +302,23 @@ export class PlayRecordManager {
       const apiResult = await api.getPlayRecords(key);
       if (apiResult && !('title' in apiResult)) {
         // If it returns a Record<string, PlayRecord> (should be rare with key, but handling just in case)
-         result = (apiResult as Record<string, PlayRecord>)[key] || null;
+        result = (apiResult as Record<string, PlayRecord>)[key] || null;
       } else {
-         result = apiResult as PlayRecord | null;
+        result = apiResult as PlayRecord | null;
       }
 
       if (result) {
-         // Merge with local settings
-         const localSettings = await PlayerSettingsManager.get(source, id);
-         if (localSettings) {
-            result = { ...result, ...localSettings };
-         }
+        // Merge with local settings
+        const localSettings = await PlayerSettingsManager.get(source, id);
+        if (localSettings) {
+          result = { ...result, ...localSettings };
+        }
       }
     }
-    
+
     const perfEnd = performance.now();
-    logger.info(`[PERF] PlayRecordManager.get END - took ${(perfEnd - perfStart).toFixed(2)}ms, found: ${!!result}`);
-    
+    logger.debug(`[PERF] PlayRecordManager.get END - took ${(perfEnd - perfStart).toFixed(2)}ms, found: ${!!result}`);
+
     return result;
   }
 
@@ -358,7 +358,7 @@ export class SearchHistoryManager {
         const data = await AsyncStorage.getItem(STORAGE_KEYS.SEARCH_HISTORY);
         return data ? JSON.parse(data) : [];
       } catch (error) {
-        logger.info("Failed to get local search history:", error);
+        logger.debug("Failed to get local search history:", error);
         return [];
       }
     }
@@ -403,7 +403,7 @@ export class SettingsManager {
       const data = await AsyncStorage.getItem(STORAGE_KEYS.SETTINGS);
       return data ? { ...defaultSettings, ...JSON.parse(data) } : defaultSettings;
     } catch (error) {
-      logger.info("Failed to get settings:", error);
+      logger.debug("Failed to get settings:", error);
       return defaultSettings;
     }
   }
@@ -426,7 +426,7 @@ export class LoginCredentialsManager {
       const data = await AsyncStorage.getItem(STORAGE_KEYS.LOGIN_CREDENTIALS);
       return data ? JSON.parse(data) : null;
     } catch (error) {
-      logger.info("Failed to get login credentials:", error);
+      logger.debug("Failed to get login credentials:", error);
       return null;
     }
   }

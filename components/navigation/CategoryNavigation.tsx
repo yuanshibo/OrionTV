@@ -1,8 +1,11 @@
 import React, { useEffect, useRef, useCallback, memo } from "react";
-import { FlatList, View, ViewStyle, TextStyle } from "react-native";
+import { View, ViewStyle, TextStyle } from "react-native";
+import { FlashList } from "@shopify/flash-list";
 import { StyledButton } from "@/components/StyledButton";
 import { Category } from "@/services/dataTypes";
 import { requestTVFocus } from "@/utils/tvUtils";
+import { useFocusStore } from "@/stores/focusStore";
+import { FocusPriority } from "@/types/focus";
 
 interface CategoryNavigationProps {
   categories: Category[];
@@ -56,7 +59,6 @@ interface TagItemProps {
 
 const TagItem = memo(({ item, index, isSelected, onSelect, styles }: TagItemProps) => (
   <StyledButton
-    hasTVPreferredFocus={index === 0}
     text={item}
     onPress={() => onSelect(item)}
     isSelected={isSelected}
@@ -83,6 +85,13 @@ const CategoryNavigationComponent: React.FC<CategoryNavigationProps> = ({
   const lastSelectedTitleRef = useRef<string | undefined>(undefined);
   const lastFocusTriggerRef = useRef<number | undefined>(undefined);
 
+  // Set focus area when component mounts or category changes
+  const setFocusArea = useFocusStore((state) => state.setFocusArea);
+
+  useEffect(() => {
+    setFocusArea('navigation', FocusPriority.NAVIGATION);
+  }, [setFocusArea]);
+
   useEffect(() => {
     if (focusTrigger && selectedCategory) {
       const shouldFocus =
@@ -95,7 +104,10 @@ const CategoryNavigationComponent: React.FC<CategoryNavigationProps> = ({
       if (shouldFocus) {
         const index = categories.findIndex((c) => c.title === selectedCategory.title);
         const buttonRef = buttonRefs.current[index];
-        requestTVFocus(buttonRef);
+        requestTVFocus(buttonRef, {
+          priority: FocusPriority.NAVIGATION,
+          duration: 300,
+        });
       }
     }
   }, [focusTrigger, selectedCategory, categories]);
@@ -136,22 +148,26 @@ const CategoryNavigationComponent: React.FC<CategoryNavigationProps> = ({
 
   return (
     <View style={[categoryStyles.categoryContainer, hasTags && { paddingBottom: spacing * 0.8 }]}>
-      <FlatList
+      <FlashList
         horizontal
         data={categories}
         renderItem={renderCategory}
         keyExtractor={(item) => item.title}
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={categoryStyles.categoryListContent}
+        // @ts-ignore
+        estimatedItemSize={80}
       />
       {selectedCategory?.tags && (
-        <FlatList
+        <FlashList
           horizontal
           data={selectedCategory.tags}
           renderItem={renderTag}
           keyExtractor={(item) => item}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={categoryStyles.categoryListContent}
+          // @ts-ignore
+          estimatedItemSize={60}
         />
       )}
     </View>

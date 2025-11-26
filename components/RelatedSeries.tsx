@@ -8,6 +8,7 @@ import { useResponsiveLayout } from '@/hooks/useResponsiveLayout';
 import { getCommonResponsiveStyles } from '@/utils/ResponsiveStyles';
 import { getSearchTermFromTitle } from '@/utils/searchUtils';
 import { requestTVFocus } from '@/utils/tvUtils';
+import { FocusPriority } from '@/types/focus';
 
 interface RelatedSeriesProps {
   title: string;
@@ -46,7 +47,10 @@ const RelatedSeriesComponent: React.FC<RelatedSeriesProps> = ({ title, autoFocus
   useEffect(() => {
     if (!loading && related.length > 0 && autoFocus) {
       const timer = setTimeout(() => {
-        requestTVFocus(firstCardRef);
+        requestTVFocus(firstCardRef, {
+          priority: FocusPriority.CONTENT,
+          duration: 300,
+        });
       }, 500);
       return () => clearTimeout(timer);
     }

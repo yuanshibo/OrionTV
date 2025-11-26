@@ -9,9 +9,11 @@ export const PlayerTimeDisplay = () => {
   const colorScheme = useColorScheme() ?? "dark";
   const colors = Colors[colorScheme];
 
-  const { status } = usePlayerStore(
+  const { positionMillis, durationMillis, isLoaded } = usePlayerStore(
     useShallow((state) => ({
-      status: state.status,
+      positionMillis: state.status?.positionMillis ?? 0,
+      durationMillis: state.status?.durationMillis ?? 0,
+      isLoaded: state.status?.isLoaded ?? false,
     }))
   );
 
@@ -25,8 +27,8 @@ export const PlayerTimeDisplay = () => {
 
   return (
     <ThemedText style={{ color: colors.text, marginTop: 5 }}>
-      {status?.isLoaded
-        ? `${formatTime(status.positionMillis)} / ${formatTime(status.durationMillis || 0)}`
+      {isLoaded
+        ? `${formatTime(positionMillis)} / ${formatTime(durationMillis)}`
         : "00:00 / 00:00"}
     </ThemedText>
   );

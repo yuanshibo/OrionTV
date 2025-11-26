@@ -1,7 +1,8 @@
-import {Text, type TextProps} from 'react-native';
+import { Text, type TextProps } from 'react-native';
+import { memo } from 'react';
 
-import {useThemeColor} from '@/hooks/useThemeColor';
-import {useTextStyles} from '@/hooks/useTextStyles';
+import { useThemeColor } from '@/hooks/useThemeColor';
+import { useTextStyles } from '@/hooks/useTextStyles';
 
 export type ThemedTextProps = TextProps & {
   lightColor?: string;
@@ -9,20 +10,20 @@ export type ThemedTextProps = TextProps & {
   type?: 'default' | 'title' | 'defaultSemiBold' | 'subtitle' | 'link';
 };
 
-export function ThemedText({
+export const ThemedText = memo(function ThemedText({
   style,
   lightColor,
   darkColor,
   type = 'default',
   ...rest
 }: ThemedTextProps) {
-  const color = useThemeColor({light: lightColor, dark: darkColor}, 'text');
+  const color = useThemeColor({ light: lightColor, dark: darkColor }, 'text');
   const styles = useTextStyles();
 
   return (
     <Text
       style={[
-        {color},
+        { color },
         type === 'default' ? styles.default : undefined,
         type === 'title' ? styles.title : undefined,
         type === 'defaultSemiBold' ? styles.defaultSemiBold : undefined,
@@ -33,4 +34,4 @@ export function ThemedText({
       {...rest}
     />
   );
-}
+});

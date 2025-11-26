@@ -14,7 +14,7 @@ export default function PostPlayScreen() {
     container: {
       flex: 1,
       justifyContent: 'center',
-      alignItems: 'flex-start',
+
       padding: spacing / 2,
       marginBottom: spacing,
     },

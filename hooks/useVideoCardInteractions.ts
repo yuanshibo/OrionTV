@@ -1,8 +1,10 @@
 import { useRef, useCallback } from "react";
 import { Alert, Platform } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useNavigation } from "expo-router";
+import { CommonActions } from "@react-navigation/native";
 import { PlayRecordManager, FavoriteManager } from "@/services/storage";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { useModalStore } from "@/stores/modalStore";
 import Logger from '@/utils/Logger';
 
 const logger = Logger.withTag('useVideoCardInteractions');
@@ -11,6 +13,7 @@ interface InteractionProps {
   id: string;
   source: string;
   title: string;
+  poster?: string;
   type?: 'record' | 'favorite';
   progress?: number;
   playTime?: number;
@@ -23,6 +26,7 @@ export const useVideoCardInteractions = ({
   id,
   source,
   title,
+  poster,
   type = 'record',
   progress,
   playTime = 0,
@@ -31,6 +35,7 @@ export const useVideoCardInteractions = ({
   onFavoriteDeleted,
 }: InteractionProps) => {
   const router = useRouter();
+  const navigation = useNavigation();
   const { deviceType } = useResponsiveLayout();
   const longPressTriggered = useRef(false);
   const lastPressTime = useRef(0);
@@ -51,12 +56,40 @@ export const useVideoCardInteractions = ({
         params: { source, id, episodeIndex: episodeIndex - 1, title, position: playTime * 1000 },
       });
     } else {
-      router.push({
-        pathname: "/detail",
-        params: { source, q: title },
-      });
+      const isDouban = source === 'douban';
+      const params = {
+        q: title,
+        poster,
+        ...(isDouban ? {} : { source, id })
+      };
+
+      // Smart navigation: Flatten the stack for Detail pages
+      // This ensures that navigating from Detail -> Related -> Detail doesn't create a deep stack.
+      // It keeps "context" pages (Home, Search, Favorites) but replaces the "Detail chain".
+      if (navigation) {
+        navigation.dispatch((state: any) => {
+          // Filter out existing Detail, Play, and Related screens from the stack
+          // This effectively "replaces" the current Detail flow with the new Detail page
+          // while preserving the history of how we got here (e.g. Home -> Search)
+          const routesToKeep = state.routes.filter((r: any) =>
+            !['detail', 'play', 'related'].includes(r.name)
+          );
+
+          return CommonActions.reset({
+            ...state,
+            routes: [...routesToKeep, { name: 'detail', params }],
+            index: routesToKeep.length,
+          });
+        });
+      } else {
+        // Fallback if navigation is not available (shouldn't happen in expo-router)
+        router.push({
+          pathname: "/detail",
+          params,
+        });
+      }
     }
-  }, [id, source, title, progress, episodeIndex, playTime, router]);
+  }, [id, source, title, poster, progress, episodeIndex, playTime, router, navigation]);
 
   const handleDelete = useCallback(async () => {
     try {
@@ -91,28 +124,13 @@ export const useVideoCardInteractions = ({
     const titleText = isFavorite ? "删除收藏" : "删除观看记录";
     const messageText = isFavorite ? `确定要删除"${title}"的收藏吗？` : `确定要删除"${title}"的观看记录吗？`;
 
-    const deleteButton = {
-      text: "删除",
-      style: "destructive" as const,
-      isPreferred: deviceType === 'tv', // Preferred on TV
-      onPress: handleDelete,
-    };
-
-    const cancelButton = {
-      text: "取消",
-      style: "cancel" as const,
-      onPress: () => { longPressTriggered.current = false; }
-    };
-
-    // TV order vs Mobile order
-    // TV: [Delete, Cancel] (Delete preferred)
-    // Mobile: [Cancel, Delete]
-    const buttons = deviceType === 'tv'
-      ? [deleteButton, cancelButton]
-      : [cancelButton, deleteButton];
-
-    Alert.alert(titleText, messageText, buttons);
-  }, [type, progress, title, deviceType, handleDelete]);
+    useModalStore.getState().showDeleteModal(
+      titleText,
+      messageText,
+      handleDelete,
+      () => { longPressTriggered.current = false; }
+    );
+  }, [type, progress, title, handleDelete]);
 
   return {
     handlePress,
