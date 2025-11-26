@@ -18,6 +18,8 @@ import { ContentDisplay } from "@/components/home/ContentDisplay";
 import FilterPanel from "@/components/home/FilterPanel";
 import { requestTVFocus } from "@/utils/tvUtils";
 import { useShallow } from "zustand/react/shallow";
+import { useFocusStore } from "@/stores/focusStore";
+import { FocusPriority } from "@/types/focus";
 
 export default function HomeScreen() {
   const fadeAnim = useSharedValue(0);
@@ -67,6 +69,14 @@ export default function HomeScreen() {
   const apiConfigStatus = useApiConfig();
   const [isFilterPanelVisible, setFilterPanelVisible] = useState(false);
   const [categoryFocusTrigger, setCategoryFocusTrigger] = useState(0);
+  const setFocusArea = useFocusStore((state) => state.setFocusArea);
+
+  // Set content focus area when content is displayed
+  useEffect(() => {
+    if (contentData.length > 0 && !loading) {
+      setFocusArea('content', FocusPriority.CONTENT);
+    }
+  }, [contentData.length, loading, setFocusArea]);
 
   useEffect(() => {
     void hydrateFromStorage();
@@ -103,7 +113,10 @@ export default function HomeScreen() {
           listRef.current?.scrollToOffset({ offset: 0, animated: true });
 
           setTimeout(() => {
-            requestTVFocus(firstItemRef);
+            requestTVFocus(firstItemRef, {
+              priority: FocusPriority.CONTENT,
+              duration: 300,
+            });
           }, 300);
 
           backPressTimeRef.current = now;

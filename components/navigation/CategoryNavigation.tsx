@@ -4,6 +4,8 @@ import { FlashList } from "@shopify/flash-list";
 import { StyledButton } from "@/components/StyledButton";
 import { Category } from "@/services/dataTypes";
 import { requestTVFocus } from "@/utils/tvUtils";
+import { useFocusStore } from "@/stores/focusStore";
+import { FocusPriority } from "@/types/focus";
 
 interface CategoryNavigationProps {
   categories: Category[];
@@ -83,6 +85,13 @@ const CategoryNavigationComponent: React.FC<CategoryNavigationProps> = ({
   const lastSelectedTitleRef = useRef<string | undefined>(undefined);
   const lastFocusTriggerRef = useRef<number | undefined>(undefined);
 
+  // Set focus area when component mounts or category changes
+  const setFocusArea = useFocusStore((state) => state.setFocusArea);
+
+  useEffect(() => {
+    setFocusArea('navigation', FocusPriority.NAVIGATION);
+  }, [setFocusArea]);
+
   useEffect(() => {
     if (focusTrigger && selectedCategory) {
       const shouldFocus =
@@ -95,7 +104,10 @@ const CategoryNavigationComponent: React.FC<CategoryNavigationProps> = ({
       if (shouldFocus) {
         const index = categories.findIndex((c) => c.title === selectedCategory.title);
         const buttonRef = buttonRefs.current[index];
-        requestTVFocus(buttonRef);
+        requestTVFocus(buttonRef, {
+          priority: FocusPriority.NAVIGATION,
+          duration: 300,
+        });
       }
     }
   }, [focusTrigger, selectedCategory, categories]);

@@ -1,10 +1,12 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useEffect } from "react";
 import { Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView } from "react-native";
 import { FlashList } from "@shopify/flash-list";
 import { Category, DoubanFilterKey } from "@/stores/homeStore";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StyledButton } from "@/components/StyledButton";
 import { Colors } from "@/constants/Colors";
+import { useFocusStore } from "@/stores/focusStore";
+import { FocusPriority } from "@/types/focus";
 
 interface FilterPanelProps {
   isVisible: boolean;
@@ -18,6 +20,21 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ isVisible, onClose, category,
   const insets = useSafeAreaInsets();
   const colorScheme = "dark";
   const colors = Colors[colorScheme];
+  const setFocusArea = useFocusStore((state) => state.setFocusArea);
+  const restorePreviousFocus = useFocusStore((state) => state.restorePreviousFocus);
+
+  // Set focus area to modal when visible
+  useEffect(() => {
+    if (isVisible) {
+      setFocusArea('modal', FocusPriority.MODAL);
+    }
+  }, [isVisible, setFocusArea]);
+
+  // Handle close with focus restoration
+  const handleClose = () => {
+    restorePreviousFocus();
+    onClose();
+  };
 
   const styles = useMemo(() => StyleSheet.create({
     panel: {
@@ -137,7 +154,7 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ isVisible, onClose, category,
             {renderFilters()}
           </ScrollView>
         </View>
-        <TouchableOpacity style={{ flex: 1 }} onPress={onClose} activeOpacity={0} />
+        <TouchableOpacity style={{ flex: 1 }} onPress={handleClose} activeOpacity={0} />
       </View>
     </Modal>
   );

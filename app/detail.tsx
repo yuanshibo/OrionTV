@@ -16,6 +16,8 @@ import { DetailTVView } from '@/components/detail/DetailTVView';
 import { useShallow } from 'zustand/react/shallow';
 import { useResumeProgress } from "@/hooks/useResumeProgress";
 import { Image } from "expo-image";
+import { useFocusStore } from "@/stores/focusStore";
+import { FocusPriority } from "@/types/focus";
 
 export default function DetailScreen() {
   const { q, source, id, poster } = useLocalSearchParams<{ q: string; source?: string; id?: string; poster?: string }>();
@@ -56,6 +58,14 @@ export default function DetailScreen() {
 
   // Use the extracted hook for resume logic
   const { resumeInfo, refresh } = useResumeProgress(detail);
+  const setFocusArea = useFocusStore((state) => state.setFocusArea);
+
+  // Set focus area when detail page is active
+  useFocusEffect(
+    useCallback(() => {
+      setFocusArea('content', FocusPriority.CONTENT);
+    }, [setFocusArea])
+  );
 
   useEffect(() => {
     if (q) {
