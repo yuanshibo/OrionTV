@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import Toast from "react-native-toast-message";
 import { SearchResult, api, isNetworkStatusZeroError, SearchResultWithResolution } from "@/services/api";
 import { getResolutionFromM3U8 } from "@/services/m3u8";
 import { FavoriteManager } from "@/services/storage";
@@ -165,11 +166,11 @@ const useDetailStore = create<DetailState>((set, get) => ({
   },
 
   loadSourceDetails: async (sourceKey) => {
-    const { q, sourceDetails, controller } = get();
+    const { q, sourceDetails, controller, activeSourceKey: previousSourceKey } = get();
     if (!q || sourceDetails.has(sourceKey) || !controller) return;
 
     logger.debug(`[LOAD_DETAILS] Loading details for source: ${sourceKey}`);
-    set({ isEpisodeListLoading: true, activeSourceKey: sourceKey, detail: null });
+    set({ isEpisodeListLoading: true, activeSourceKey: sourceKey });
 
     try {
       const { results } = await api.searchVideo(q, sourceKey, controller.signal);
@@ -181,7 +182,6 @@ const useDetailStore = create<DetailState>((set, get) => ({
 
       const detail = results[0];
 
-      // Fetch resolution for the first episode
       let resolution: string | null | undefined = undefined;
       if (detail.episodes && detail.episodes.length > 0) {
         try {
@@ -192,37 +192,37 @@ const useDetailStore = create<DetailState>((set, get) => ({
       }
       const detailWithResolution: SearchResultWithResolution = { ...detail, resolution };
 
-      // Update state
       set((state) => {
         const newSourceDetails = new Map(state.sourceDetails);
         newSourceDetails.set(sourceKey, detailWithResolution);
-
-        // Update resolution in sourceNames list for UI
         const newSourceNames = state.sourceNames.map(sn =>
             sn.key === sourceKey ? { ...sn, resolution } : sn
         );
-
         return {
           sourceDetails: newSourceDetails,
           searchResults: Array.from(newSourceDetails.values()),
           detail: detailWithResolution,
-          activeSourceKey: sourceKey,
           isEpisodeListLoading: false,
           sourceNames: newSourceNames,
         };
       });
 
-      // Check favorite status
       const isFavorited = await FavoriteManager.isFavorited(sourceKey, detail.id.toString());
       set({ isFavorited });
 
     } catch (e) {
       if ((e as Error).name !== 'AbortError') {
         logger.error(`[LOAD_DETAILS] Failed to load details for source "${sourceKey}":`, e);
+        Toast.show({
+          type: 'error',
+          text1: '播放源加载失败',
+          text2: `无法从 "${sourceKey}" 获取剧集列表`,
+        });
         get().markSourceAsFailed(sourceKey, (e as Error).message);
-        set({ isEpisodeListLoading: false, detail: null }); // Clear detail on error
+        set({ isEpisodeListLoading: false, activeSourceKey: previousSourceKey }); // Revert to previous source key
       } else {
         logger.info(`[LOAD_DETAILS] Aborted for source "${sourceKey}"`);
+        set({ isEpisodeListLoading: false, activeSourceKey: previousSourceKey });
       }
     }
   },

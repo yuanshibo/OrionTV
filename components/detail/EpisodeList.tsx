@@ -2,6 +2,7 @@ import React, { memo, useCallback } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { StyledButton } from '@/components/StyledButton';
 import { ThemedText } from '@/components/ThemedText';
+import { FlashList } from '@shopify/flash-list';
 
 interface EpisodeButtonProps {
   index: number;
@@ -35,6 +36,17 @@ interface EpisodeListProps {
 }
 
 export const EpisodeList: React.FC<EpisodeListProps> = memo(({ episodes, onPlay, styles, isLoading = false }) => {
+  const renderItem = useCallback(({ index }: { item: any, index: number }) => (
+    <EpisodeButton
+      index={index}
+      onPlay={onPlay}
+      style={styles.episodeButton}
+      textStyle={styles.episodeButtonText}
+    />
+  ), [onPlay, styles.episodeButton, styles.episodeButtonText]);
+
+  const keyExtractor = useCallback((item: any, index: number) => index.toString(), []);
+
   const renderContent = () => {
     if (isLoading) {
       return (
@@ -54,15 +66,12 @@ export const EpisodeList: React.FC<EpisodeListProps> = memo(({ episodes, onPlay,
 
     return (
       <View style={styles.episodeList}>
-        {episodes.map((_, index) => (
-          <EpisodeButton
-            key={index}
-            index={index}
-            onPlay={onPlay}
-            style={styles.episodeButton}
-            textStyle={styles.episodeButtonText}
-          />
-        ))}
+        <FlashList
+          data={episodes}
+          renderItem={renderItem}
+          keyExtractor={keyExtractor}
+          numColumns={5} // Adjust based on your design
+        />
       </View>
     );
   };
