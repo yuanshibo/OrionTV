@@ -179,67 +179,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
     const cachedSources = cachedEntry ? cachedEntry.sources.map((item) => ({ ...item })) : [];
     const cachedAllSourcesLoaded = cachedEntry?.allSourcesLoaded ?? false;
 
-    let backgroundPromise: Promise<void> | null = null;
-    let hasFinalized = false;
-
-    const finalizeInitialization = async (reason: string) => {
-      if (signal.aborted) {
-        logger.debug(`[INFO] Skipping finalize for "${q}" due to abort (${reason})`);
-        return;
-      }
-
-      const favoriteCheckStart = performance.now();
-      const finalStateSnapshot = get();
-
-      if (finalStateSnapshot.searchResults.length === 0 && !finalStateSnapshot.error) {
-        logger.error(`[ERROR] All search attempts completed but no results found for "${q}"`);
-        set({ error: `未找到 "${q}" 的播放源，请检查标题拼写或稍后重试` });
-      } else if (finalStateSnapshot.searchResults.length > 0) {
-        logger.debug(
-          `[SUCCESS] DetailStore.init completed successfully with ${finalStateSnapshot.searchResults.length} sources`
-        );
-      }
-
-      if (finalStateSnapshot.detail) {
-        const { source, id } = finalStateSnapshot.detail;
-        logger.debug(`[INFO] Checking favorite status for source: ${source}, id: ${id}`);
-        try {
-          const isFavorited = await FavoriteManager.isFavorited(source, id.toString());
-          set({ isFavorited });
-          logger.debug(`[INFO] Favorite status: ${isFavorited}`);
-        } catch (favoriteError) {
-          logger.warn(`[WARN] Failed to check favorite status:`, favoriteError);
-        }
-      } else {
-        logger.warn(`[WARN] No detail found after all search attempts for "${q}"`);
-      }
-
-      const favoriteCheckEnd = performance.now();
-      logger.debug(`[PERF] Favorite check took ${(favoriteCheckEnd - favoriteCheckStart).toFixed(2)}ms`);
-
-      set({ loading: false, allSourcesLoaded: true });
-
-      const persistedState = get();
-      setDetailCacheEntry(
-        cacheKey,
-        persistedState.detail,
-        persistedState.searchResults,
-        persistedState.sources,
-        persistedState.allSourcesLoaded
-      );
-
-      logger.debug(`[INFO] DetailStore.init cleanup completed (${reason})`);
-    };
-
-    const runFinalizeOnce = (reason: string) => {
-      if (hasFinalized) {
-        return null;
-      }
-      hasFinalized = true;
-      return finalizeInitialization(reason);
-    };
-
-    // 如果有有效缓存,直接使用缓存数据,不需要加载状态
+    // 如果有有效缓存,直接使用缓存数据
     const hasValidCache = cachedEntry && cachedDetail && cachedSearchResults.length > 0;
     logger.debug(`[CACHE] Cache status for "${q}": ${hasValidCache ? 'VALID' : 'MISS'}`);
 
@@ -256,348 +196,152 @@ const useDetailStore = create<DetailState>((set, get) => ({
       isFavorited: false,
     });
 
-    // 如果有有效缓存且不是 abort 的结果,直接返回
+    if (hasValidCache) {
+      logger.debug(`[CACHE] Using cached data for "${q}", skipping fetch`);
+      try {
+        const isFavFromCache = await FavoriteManager.isFavorited(
+          cachedDetail.source,
+          cachedDetail.id.toString()
+        );
+        set({ isFavorited: isFavFromCache });
+      } catch (favoriteError) {
+        logger.warn("[WARN] Failed to restore favorite status from cache:", favoriteError);
+      }
+      return;
+    }
+
+    // --- Progressive Loading Start ---
+
     try {
-      if (hasValidCache) {
-        logger.debug(`[CACHE] Using cached data for "${q}", skipping fetch`);
+      // 1. Fetch Metadata (Resources & History) in parallel
+      const metadataStart = performance.now();
+      const [resources, playRecords] = await Promise.all([
+        api.getResources(signal),
+        api.getPlayRecords()
+      ]);
+      const metadataEnd = performance.now();
+      logger.info(`[PERF] Metadata fetch took ${(metadataEnd - metadataStart).toFixed(2)}ms`);
 
-        try {
-          const isFavFromCache = await FavoriteManager.isFavorited(
-            cachedDetail.source,
-            cachedDetail.id.toString()
-          );
-          set({ isFavorited: isFavFromCache });
-        } catch (favoriteError) {
-          logger.warn("[WARN] Failed to restore favorite status from cache:", favoriteError);
+      if (signal.aborted) return;
+
+      // 2. No Placeholders - Start Fresh
+      set({
+        searchResults: [],
+        sources: [],
+        loading: true, // Keep loading true until first valid source
+        error: null
+      });
+
+      // 3. Determine Target Source (History Priority)
+      let historySourceKey: string | null = null;
+      if (playRecords) {
+        const records = Object.values(playRecords || {});
+        const match = records.find(r => r.title === q);
+        if (match) {
+          const res = resources.find(r => r.name === match.source_name);
+          if (res) historySourceKey = res.key;
         }
-
-        const perfEnd = performance.now();
-        logger.debug(`[PERF] DetailStore.init COMPLETE (from cache) - total time: ${(perfEnd - perfStart).toFixed(2)}ms`);
-        const { videoSource } = useSettingsStore.getState();
       }
 
-      const { videoSource } = useSettingsStore.getState();
+      let validSourcesCount = 0;
+      const MAX_VALID_SOURCES = 8;
+      const loadedSourceKeys = new Set<string>();
 
-      const processAndSetResults = async (
-        results: SearchResult[],
-        mergeOrOptions: boolean | { merge?: boolean; sourceKey?: string } = {}
-      ): Promise<number> => {
-        const options = typeof mergeOrOptions === "boolean" ? { merge: mergeOrOptions } : mergeOrOptions;
-        const { merge = false, sourceKey } = options;
-
-        if (signal.aborted) {
-          logger.debug(`[ABORT] processAndSetResults aborted before processing`);
-          return 0;
-        }
-
+      // Helper to process and add results
+      const addResults = (results: SearchResult[], sourceKey: string) => {
         const snapshot = get();
-        const { results: newSearchResults, added, updated, reachedMax } = processNewResults(
+        const { results: newSearchResults } = processNewResults(
           snapshot.searchResults,
           results,
-          merge,
+          true, // merge
           sourceKey
         );
 
-        let itemsToResolve: SearchResultWithResolution[] = [];
+        // If this is the first valid source, set it as detail and stop loading
+        let updates: Partial<DetailState> = {
+          searchResults: newSearchResults,
+          sources: newSearchResults.map(r => ({ source: r.source, source_name: r.source_name.trim(), resolution: r.resolution })),
+        };
 
-        set((state) => {
-          itemsToResolve = newSearchResults;
-
-          const nextDetail =
-            state.detail &&
-              newSearchResults.some(
-                (item) => item.source === state.detail?.source && item.id === state.detail?.id
-              )
-              ? state.detail
-              : newSearchResults[0] ?? null;
-
-          return {
-            searchResults: newSearchResults,
-            sources: newSearchResults.map((r) => ({
-              source: r.source,
-              source_name: r.source_name.trim(),
-              resolution: r.resolution,
-            })),
-            detail: nextDetail,
-            ...(reachedMax ? { allSourcesLoaded: true } : {}),
-          };
-        });
-
-        if (added.length === 0 && updated.length === 0) {
-          return 0;
+        if (snapshot.loading) {
+          const firstDetail = newSearchResults.find(r => r.source === sourceKey) || newSearchResults[0];
+          if (firstDetail) {
+            updates.detail = firstDetail;
+            updates.loading = false;
+            logger.info(`[INFO] First valid source loaded: ${sourceKey}. UI displayed.`);
+          }
         }
 
-        const candidates = itemsToResolve.filter(r => !r.resolution && r.episodes && r.episodes.length > 0);
-
-        if (candidates.length > 0) {
-          const resolutionStart = performance.now();
-          Promise.all(
-            candidates.map(async (item) => {
-              let resolution: string | null | undefined;
-              try {
-                resolution = await getResolutionWithCache(item.episodes[0], signal);
-              } catch (e) {
-                // ignore
-              }
-              return { ...item, resolution };
-            })
-          ).then((resolvedItems) => {
-            if (signal.aborted) return;
-
-            set((state) => {
-              const newSearchResults = state.searchResults.map(existing => {
-                const resolved = resolvedItems.find(r =>
-                  r.source === existing.source && r.id === existing.id
-                );
-                if (resolved && resolved.resolution) {
-                  return { ...existing, resolution: resolved.resolution };
-                }
-                return existing;
-              });
-
-              return {
-                searchResults: newSearchResults,
-                sources: newSearchResults.map((r) => ({
-                  source: r.source,
-                  source_name: r.source_name.trim(),
-                  resolution: r.resolution,
-                })),
-              };
-            });
-
-            const currentState = get();
-            if (lastCacheKey) {
-              setDetailCacheEntry(
-                lastCacheKey,
-                currentState.detail,
-                currentState.searchResults,
-                currentState.sources,
-                currentState.allSourcesLoaded
-              );
-            }
-
-            const resolutionEnd = performance.now();
-            logger.debug(`[PERF] Resolution detection COMPLETE - took ${(resolutionEnd - resolutionStart).toFixed(2)}ms`);
-          });
-        }
-
-        const addedCount = added.length;
-        const totalAfterUpdate = get().searchResults.length;
-
-        if (addedCount > 0) {
-          logger.info(
-            `[INFO] Added ${addedCount} new sources (merge: ${merge}). Total cached sources: ${totalAfterUpdate}`
-          );
-        }
-
-        return addedCount;
+        set(updates);
+        validSourcesCount++;
+        loadedSourceKeys.add(sourceKey);
       };
 
-      if (!hasValidCache) {
-        let preferredResult: SearchResult[] = [];
-        let preferredSearchError: any = null;
-        let preferredAddedCount = 0;
-
-        if (preferredSource) {
-          const searchPreferredStart = performance.now();
-          logger.info(`[PERF] API searchVideo (preferred) START - source: ${preferredSource}, query: "${q}"`);
-
-          try {
-            const response = await api.searchVideo(q, preferredSource, signal);
-            preferredResult = response.results;
-          } catch (error) {
-            preferredSearchError = error;
-            logger.error(`[ERROR] API searchVideo (preferred) FAILED - source: ${preferredSource}, error:`, error);
-          }
-
-          const searchPreferredEnd = performance.now();
-          logger.info(`[PERF] API searchVideo (preferred) END - took ${(searchPreferredEnd - searchPreferredStart).toFixed(2)}ms, results: ${preferredResult.length}, error: ${!!preferredSearchError}`);
-
+      // 4. Load History Source First (if exists)
+      if (historySourceKey) {
+        logger.info(`[INFO] Loading history source first: ${historySourceKey}`);
+        try {
+          const { results } = await api.searchVideo(q, historySourceKey, signal);
           if (signal.aborted) return;
 
-          // 检查preferred source结果
-          if (preferredResult.length > 0) {
-            logger.info(
-              `[SUCCESS] Preferred source "${preferredSource}" found ${preferredResult.length} results for "${q}"`
-            );
-            preferredAddedCount = await processAndSetResults(preferredResult, {
-              merge: false,
-              sourceKey: preferredSource,
-            });
-
-            if (preferredAddedCount > 0) {
-              set({ loading: false });
-            } else {
-              logger.warn(
-                `[FALLBACK] Preferred source "${preferredSource}" returned results but none were usable, trying all sources immediately`
-              );
-            }
+          if (results.length > 0) {
+            addResults(results, historySourceKey);
+          } else {
+            logger.warn(`[WARN] History source "${historySourceKey}" returned no results.`);
           }
-        }
-
-        const shouldFallback = preferredAddedCount <= 0;
-
-        if (shouldFallback) {
-          // 降级策略：preferred source失败时立即尝试所有源
-          if (preferredResult.length === 0) {
-            if (preferredSearchError) {
-              logger.warn(
-                `[FALLBACK] Preferred source "${preferredSource}" failed with error, trying all sources immediately`
-              );
-            } else {
-              logger.warn(
-                `[FALLBACK] Preferred source "${preferredSource}" returned 0 results for "${q}", trying all sources immediately`
-              );
-            }
-          }
-
-          // 立即尝试所有源，不再依赖后台搜索
-          const fallbackStart = performance.now();
-          logger.info(`[PERF] FALLBACK search (all sources) START - query: "${q}"`);
-
-          try {
-            const { results: allResults } = await api.searchVideos(q);
-            const fallbackEnd = performance.now();
-            logger.info(
-              `[PERF] FALLBACK search END - took ${(fallbackEnd - fallbackStart).toFixed(2)}ms, total results: ${allResults.length}`
-            );
-
-            const filteredResults = allResults.filter((item) => item.title === q);
-            logger.info(`[FALLBACK] Filtered results: ${filteredResults.length} matches for "${q}"`);
-
-            if (filteredResults.length > 0) {
-              logger.info(`[SUCCESS] FALLBACK search found results, proceeding with ${filteredResults[0].source_name}`);
-              const addedFromFallback = await processAndSetResults(filteredResults, { merge: false });
-              if (addedFromFallback > 0) {
-                set({ loading: false });
-              } else {
-                logger.error(
-                  `[ERROR] FALLBACK search returned results but none were usable for "${q}"`
-                );
-                set({
-                  error: `未找到 "${q}" 的播放源，请检查标题或稍后重试`,
-                  loading: false,
-                });
-              }
-            } else {
-              logger.error(`[ERROR] FALLBACK search found no matching results for "${q}"`);
-              set({
-                error: `未找到 "${q}" 的播放源，请检查标题或稍后重试`,
-                loading: false,
-              });
-            }
-          } catch (fallbackError) {
-            if ((fallbackError as Error)?.name === "AbortError") {
-              logger.info(`[INFO] FALLBACK search aborted`);
-              return;
-            }
-            logger.error(`[ERROR] FALLBACK search FAILED:`, fallbackError);
-            set({
-              error: `搜索失败：${fallbackError instanceof Error ? fallbackError.message : "网络错误，请稍后重试"}`,
-              loading: false,
-            });
-          }
-        }
-
-        // 后台搜索（如果preferred source成功的话）
-        if (!shouldFallback) {
-          backgroundPromise = (async () => {
-            const searchAllStart = performance.now();
-            logger.info(`[PERF] API searchVideos (background) START`);
-
-            try {
-              const { results: allResults } = await api.searchVideos(q);
-
-              const searchAllEnd = performance.now();
-              logger.info(
-                `[PERF] API searchVideos (background) END - took ${(searchAllEnd - searchAllStart).toFixed(2)}ms, results: ${allResults.length}`
-              );
-
-              if (signal.aborted) {
-                logger.info(`[INFO] Background search aborted before processing results`);
-                return;
-              }
-
-              await processAndSetResults(allResults.filter((item) => item.title === q), { merge: true });
-            } catch (backgroundError) {
-              if (backgroundError instanceof Error && backgroundError.name === "AbortError") {
-                logger.info(`[INFO] Background search aborted`);
-                return;
-              }
-              logger.warn(`[WARN] Background search failed, but preferred source already succeeded:`, backgroundError);
-            }
-          })();
-
-          logger.info(`[INFO] Preferred source ready; background enrichment scheduled asynchronously`);
+        } catch (e) {
+          logger.error(`[ERROR] History source "${historySourceKey}" failed:`, e);
         }
       }
 
-      const favoriteCheckStart = performance.now();
-      const finalState = get();
+      // 5. Sequential Load of Remaining Sources
+      // We iterate through resources and fetch them one by one (or small batches)
+      // skipping the history source if it was already attempted.
 
-      // 最终检查：如果所有搜索都完成但仍然没有结果
-      if (finalState.searchResults.length === 0 && !finalState.error) {
-        logger.error(`[ERROR] All search attempts completed but no results found for "${q}"`);
-        set({ error: `未找到 "${q}" 的播放源，请检查标题拼写或稍后重试` });
-      } else if (finalState.searchResults.length > 0) {
-        logger.info(`[SUCCESS] DetailStore.init completed successfully with ${finalState.searchResults.length} sources`);
-      }
+      const remainingResources = resources.filter(r => r.key !== historySourceKey);
 
-      if (finalState.detail) {
-        const { source, id } = finalState.detail;
-        logger.info(`[INFO] Checking favorite status for source: ${source}, id: ${id}`);
+      // We can use a loop to fetch sequentially
+      for (const res of remainingResources) {
+        if (signal.aborted) break;
+        if (validSourcesCount >= MAX_VALID_SOURCES) {
+          logger.info(`[INFO] Reached limit of ${MAX_VALID_SOURCES} valid sources. Stopping.`);
+          break;
+        }
+
         try {
-          const isFavorited = await FavoriteManager.isFavorited(source, id.toString());
-          set({ isFavorited });
-          logger.info(`[INFO] Favorite status: ${isFavorited}`);
-        } catch (favoriteError) {
-          logger.warn(`[WARN] Failed to check favorite status:`, favoriteError);
+          // Fetch one by one to strictly control the order and limit
+          // We could parallelize slightly (e.g. 2 at a time) if speed is too slow,
+          // but user requested "sequential" and "limit 8", so strict sequential is safest for logic.
+          const { results } = await api.searchVideo(q, res.key, signal);
+          if (signal.aborted) break;
+
+          if (results.length > 0) {
+            addResults(results, res.key);
+          }
+        } catch (e) {
+          logger.warn(`[WARN] Source "${res.key}" failed:`, e);
         }
-      } else {
-        logger.warn(`[WARN] No detail found after all search attempts for "${q}"`);
       }
 
-      const favoriteCheckEnd = performance.now();
-      logger.info(`[PERF] Favorite check took ${(favoriteCheckEnd - favoriteCheckStart).toFixed(2)}ms`);
+      // 6. Finalize
+      if (signal.aborted) return;
+
+      const finalState = get();
+      if (finalState.loading) {
+        // If still loading, it means NO sources were valid
+        set({ loading: false, error: "未找到相关资源" });
+      } else {
+        set({ allSourcesLoaded: true });
+        // Update cache
+        if (lastCacheKey) {
+          setDetailCacheEntry(lastCacheKey, finalState.detail, finalState.searchResults, finalState.sources, true);
+        }
+      }
 
     } catch (e) {
       if ((e as Error).name !== "AbortError") {
-        logger.error(`[ERROR] DetailStore.init caught unexpected error:`, e);
-        const errorMessage = e instanceof Error ? e.message : "获取数据失败";
-        const displayMessage = mapNetworkErrorMessage(e, errorMessage);
-        set({ error: `搜索失败：${displayMessage}` });
-      } else {
-        logger.info(`[INFO] DetailStore.init aborted by user`);
-      }
-    } finally {
-      const logCompletion = (label: string) => {
-        const perfEnd = performance.now();
-        logger.info(
-          `[PERF] DetailStore.init COMPLETE (${label}) - total time: ${(perfEnd - perfStart).toFixed(2)}ms`
-        );
-      };
-
-      const finalizeAndLog = (label: string) => {
-        const result = runFinalizeOnce(label);
-        if (result) {
-          result.finally(() => logCompletion(label));
-        } else {
-          logCompletion(label);
-        }
-      };
-
-      if (backgroundPromise) {
-        backgroundPromise
-          .catch((error) => {
-            if (error instanceof Error && error.name === "AbortError") {
-              logger.info(`[INFO] Background search promise aborted before completion`);
-            } else if (error) {
-              logger.warn(`[WARN] Background search promise rejected:`, error);
-            }
-          })
-          .finally(() => finalizeAndLog("async"));
-      } else {
-        finalizeAndLog("sync");
+        logger.error(`[ERROR] DetailStore.init failed:`, e);
+        set({ error: `加载失败: ${e instanceof Error ? e.message : "未知错误"}` });
       }
     }
   },
