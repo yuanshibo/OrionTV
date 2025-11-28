@@ -13,6 +13,7 @@ import { Colors } from "@/constants/Colors";
 import { createResponsiveStyles } from '@/components/detail/detail.styles';
 import { DetailMobileView } from '@/components/detail/DetailMobileView';
 import { DetailTVView } from '@/components/detail/DetailTVView';
+import { DetailTVSkeleton } from '@/components/detail/DetailTVSkeleton';
 import { useShallow } from 'zustand/react/shallow';
 import { useResumeProgress } from "@/hooks/useResumeProgress";
 import { Image } from "expo-image";
@@ -136,7 +137,7 @@ export default function DetailScreen() {
 
   if (loading) {
     if (isTvExperience) {
-      return <VideoLoadingAnimation showProgressBar={false} />;
+      return <DetailTVSkeleton />;
     }
 
     // Skeleton Screen for Mobile

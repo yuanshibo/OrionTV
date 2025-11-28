@@ -22,7 +22,7 @@ export const EpisodeButton = memo(React.forwardRef<View, EpisodeButtonProps>(({ 
       style={style}
       onPress={handlePress}
       onFocus={onFocus}
-      text={`第 ${index + 1} 集`}
+      text={`${index + 1}集`}
       textStyle={textStyle}
       textProps={{ numberOfLines: 1, adjustsFontSizeToFit: true }}
     />

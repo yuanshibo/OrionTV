@@ -112,8 +112,9 @@ export const createResponsiveStyles = (deviceType: string, spacing: number, colo
       minHeight: isMobile ? 36 : 44,
     },
     sourceButtonContent: {
-      flexDirection: "column",
-      alignItems: "stretch",
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
     },
     sourceButtonText: {
       color: colors.text,
@@ -141,9 +142,9 @@ export const createResponsiveStyles = (deviceType: string, spacing: number, colo
       fontWeight: "600"
     },
     sourceMetaText: {
-      color: colors.icon,
-      fontSize: isMobile ? 10 : 10,
-      marginTop: 2,
+      color: colors.text,
+      fontSize: isMobile ? 12 : 12,
+      marginLeft: 4,
       textAlign: 'center',
     },
     episodesContainer: {
