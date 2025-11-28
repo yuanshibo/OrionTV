@@ -146,28 +146,28 @@ const CategoryNavigationComponent: React.FC<CategoryNavigationProps> = ({
 
   const hasTags = selectedCategory?.type === "record";
 
+  const FlashListAny = FlashList as any;
+
   return (
     <View style={[categoryStyles.categoryContainer, hasTags && { paddingBottom: spacing * 0.8 }]}>
-      <FlashList
+      <FlashListAny
         horizontal
         data={categories}
         renderItem={renderCategory}
-        keyExtractor={(item) => item.title}
+        keyExtractor={(item: Category) => item.title}
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={categoryStyles.categoryListContent}
-        // @ts-ignore
-        estimatedItemSize={80}
+        estimatedItemSize={90}
       />
       {selectedCategory?.tags && (
-        <FlashList
+        <FlashListAny
           horizontal
           data={selectedCategory.tags}
           renderItem={renderTag}
-          keyExtractor={(item) => item}
+          keyExtractor={(item: string) => item}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={categoryStyles.categoryListContent}
-          // @ts-ignore
-          estimatedItemSize={60}
+          estimatedItemSize={70}
         />
       )}
     </View>
