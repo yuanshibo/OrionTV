@@ -1,5 +1,5 @@
 import React, { useCallback, forwardRef, useMemo, useEffect } from "react";
-import { View, Text, StyleSheet, Pressable, TouchableOpacity, Platform, useColorScheme, StyleProp, ViewStyle } from "react-native";
+import { View, Text, StyleSheet, Pressable, Platform, useColorScheme } from "react-native";
 import { Image } from "expo-image";
 import { Star, Play } from "lucide-react-native";
 import Reanimated, {
@@ -9,33 +9,18 @@ import Reanimated, {
   withTiming,
   withDelay
 } from "react-native-reanimated";
-import { API } from "@/services/api";
+import { api } from "@/services/api";
 import { ThemedText } from "@/components/ThemedText";
 import { Colors } from "@/constants/Colors";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import useAuthStore from "@/stores/authStore";
 import { useVideoCardInteractions } from "@/hooks/useVideoCardInteractions";
 
-interface VideoCardProps extends React.ComponentProps<typeof TouchableOpacity> {
-  id: string;
-  source: string;
-  title: string;
-  poster: string;
-  year?: string;
-  rate?: string;
-  sourceName?: string;
-  progress?: number;
-  playTime?: number;
-  episodeIndex?: number;
-  totalEpisodes?: number;
-  onFocus?: () => void;
-  onLongPress?: () => void;
-  onRecordDeleted?: () => void;
-  onFavoriteDeleted?: () => void;
-  api: API;
-  type?: 'record' | 'favorite';
-  style?: StyleProp<ViewStyle>;
-}
+import { VideoCardTVProps } from './VideoCard.types';
+
+// Use the shared type but alias it to VideoCardProps for local usage if needed, 
+// or just use VideoCardTVProps directly.
+type VideoCardProps = VideoCardTVProps;
 
 const VideoCard = forwardRef<View, VideoCardProps>(
   (

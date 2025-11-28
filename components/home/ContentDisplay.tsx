@@ -1,10 +1,12 @@
-import React from 'react';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import React, { useCallback, useMemo } from 'react';
+import { View, ActivityIndicator, StyleSheet, StyleProp, ViewStyle } from 'react-native';
 import Reanimated, { SharedValue, useAnimatedStyle } from 'react-native-reanimated';
 import { ThemedText } from '@/components/ThemedText';
 import CustomScrollView from '@/components/CustomScrollView';
 import { getApiConfigErrorMessage } from '@/hooks/useApiConfig';
 import { Category, RowItem } from '@/services/dataTypes';
+import VideoCard from '@/components/VideoCard';
+import { api } from '@/services/api';
 
 const LOAD_MORE_THRESHOLD = 200;
 
@@ -18,10 +20,12 @@ interface ContentDisplayProps {
   spacing: number;
   contentData: RowItem[];
   listRef: React.RefObject<any>;
-  renderContentItem: ({ item, index }: { item: RowItem; index: number }) => React.JSX.Element;
   loadMoreData: () => void;
   loadingMore: boolean;
-  footerComponent: React.ReactElement | null;
+  deviceType: 'mobile' | 'tablet' | 'tv';
+  onShowFilterPanel: () => void;
+  onRecordDeleted: () => void;
+  firstItemRef?: React.RefObject<any>;
 }
 
 const styles = StyleSheet.create({
@@ -40,16 +44,56 @@ export const ContentDisplay: React.FC<ContentDisplayProps> = React.memo(({
   spacing,
   contentData,
   listRef,
-  renderContentItem,
   loadMoreData,
   loadingMore,
-  footerComponent,
+  deviceType,
+  onShowFilterPanel,
+  onRecordDeleted,
+  firstItemRef,
 }) => {
   const animatedStyle = useAnimatedStyle(() => ({
     opacity: fadeAnim.value,
   }));
 
   const shouldShowApiConfig = apiConfigStatus.needsConfiguration && selectedCategory && !selectedCategory.tags;
+
+  const renderContentItem = useCallback(({ item, index, style }: { item: RowItem; index: number; style?: StyleProp<ViewStyle> }) => {
+    const isFilterable = selectedCategory?.title === "所有";
+    const isRecord = selectedCategory?.type === "record";
+    let longPressAction;
+
+    if (deviceType === "tv") {
+      if (isFilterable) longPressAction = onShowFilterPanel;
+      else if (isRecord) longPressAction = undefined;
+      else longPressAction = () => { };
+    }
+
+    return (
+      <VideoCard
+        ref={index === 0 ? firstItemRef : undefined}
+        id={item.id}
+        source={item.source}
+        title={item.title}
+        poster={item.poster}
+        year={item.year}
+        rate={item.rate}
+        progress={item.progress}
+        playTime={item.play_time}
+        episodeIndex={item.episodeIndex}
+        sourceName={item.sourceName}
+        totalEpisodes={item.totalEpisodes}
+        api={api}
+        onRecordDeleted={onRecordDeleted}
+        onLongPress={longPressAction}
+        style={style}
+      />
+    );
+  }, [selectedCategory, deviceType, onShowFilterPanel, onRecordDeleted, firstItemRef]);
+
+  const footerComponent = useMemo(() => {
+    if (!loadingMore) return null;
+    return <ActivityIndicator style={{ marginVertical: 20 }} size="large" />;
+  }, [loadingMore]);
 
   if (shouldShowApiConfig) {
     return (

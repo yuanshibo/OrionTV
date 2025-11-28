@@ -1,11 +1,9 @@
 import React, { useEffect, useCallback, useMemo, useRef, useState } from "react";
-import { StyleSheet, ActivityIndicator, StatusBar, Platform, BackHandler, View, StyleProp, ViewStyle } from "react-native";
+import { StyleSheet, StatusBar, Platform, BackHandler, View } from "react-native";
 import { FlashListRef } from "@shopify/flash-list";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSharedValue, withTiming } from "react-native-reanimated";
 import { ThemedView } from "@/components/ThemedView";
-import { api } from "@/services/api";
-import VideoCard from "@/components/VideoCard";
 import { useFocusEffect } from "expo-router";
 import useHomeStore, { RowItem, Category, DoubanFilterKey } from "@/stores/homeStore";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
@@ -210,48 +208,7 @@ export default function HomeScreen() {
     categoryText: { fontSize: deviceType === "mobile" ? 14 : 16, fontWeight: "500" },
   }), [deviceType, spacing]);
 
-  const selectedCategoryRef = useRef(selectedCategory);
-  selectedCategoryRef.current = selectedCategory;
-
   const showFilterPanel = useCallback(() => setFilterPanelVisible(true), []);
-  const noOp = useCallback(() => { }, []);
-
-  const renderContentItem = useCallback(({ item, index, style }: { item: RowItem; index: number; style?: StyleProp<ViewStyle> }) => {
-    const currentCategory = selectedCategoryRef.current;
-    const isFilterable = currentCategory?.title === "所有";
-    const isRecord = currentCategory?.type === "record";
-    let longPressAction;
-    if (deviceType === "tv") {
-      if (isFilterable) longPressAction = showFilterPanel;
-      else if (isRecord) longPressAction = undefined;
-      else longPressAction = noOp;
-    }
-    return (
-      <VideoCard
-        ref={index === 0 ? firstItemRef : undefined}
-        id={item.id}
-        source={item.source}
-        title={item.title}
-        poster={item.poster}
-        year={item.year}
-        rate={item.rate}
-        progress={item.progress}
-        playTime={item.play_time}
-        episodeIndex={item.episodeIndex}
-        sourceName={item.sourceName}
-        totalEpisodes={item.totalEpisodes}
-        api={api}
-        onRecordDeleted={fetchInitialData}
-        onLongPress={longPressAction}
-        style={style}
-      />
-    );
-  }, [fetchInitialData, deviceType, showFilterPanel, noOp]);
-
-  const footerComponent = useMemo(() => {
-    if (!loadingMore) return null;
-    return <ActivityIndicator style={{ marginVertical: 20 }} size="large" />;
-  }, [loadingMore]);
 
   const content = (
     <ThemedView style={[commonStyles.container, dynamicContainerStyle]}>
@@ -278,10 +235,12 @@ export default function HomeScreen() {
         spacing={spacing}
         contentData={contentData}
         listRef={listRef}
-        renderContentItem={renderContentItem}
         loadMoreData={loadMoreData}
         loadingMore={loadingMore}
-        footerComponent={footerComponent}
+        deviceType={deviceType}
+        onShowFilterPanel={showFilterPanel}
+        onRecordDeleted={fetchInitialData}
+        firstItemRef={firstItemRef}
       />
       {selectedCategory && (
         <FilterPanel
