@@ -1,16 +1,31 @@
 import React, { memo, useCallback } from 'react';
-import { View, ScrollView, Text, ActivityIndicator } from 'react-native';
+import { View, ScrollView, Text, ActivityIndicator, ViewStyle, TextStyle } from 'react-native';
 import { StyledButton } from '@/components/StyledButton';
 import { ThemedText } from '@/components/ThemedText';
 import { SearchResultWithResolution } from '@/services/api';
 import { Colors } from '@/constants/Colors';
+
+interface SourceListStyles {
+  sourceButton: ViewStyle;
+  sourceButtonText: TextStyle;
+  badge: ViewStyle;
+  selectedBadge: ViewStyle;
+  badgeText: TextStyle;
+  sourceButtonContent: ViewStyle;
+  sourceNameText: TextStyle;
+  sourceMetaText: TextStyle;
+  sourcesTitleContainer: ViewStyle;
+  sourcesTitle: TextStyle;
+  sourceList: ViewStyle;
+  sourcesContainer: ViewStyle;
+}
 
 interface SourceButtonProps {
   item: SearchResultWithResolution;
   isSelected: boolean;
   onSelect: (item: SearchResultWithResolution) => void;
   deviceType: 'mobile' | 'tablet' | 'tv';
-  styles: any;
+  styles: SourceListStyles;
   colors: typeof Colors.dark;
   nextFocusDown?: number | null;
 }
@@ -72,9 +87,9 @@ interface SourceListProps {
   onSelect: (item: SearchResultWithResolution) => void;
   loading?: boolean;
   deviceType: 'mobile' | 'tablet' | 'tv';
-  styles: any;
+  styles: SourceListStyles;
   colors: typeof Colors.dark;
-  setFirstSourceRef?: (node: any) => void;
+  setFirstSourceRef?: (node: View | null) => void;
   nextFocusDown?: number | null;
 }
 

@@ -5,7 +5,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSharedValue, withTiming } from "react-native-reanimated";
 import { ThemedView } from "@/components/ThemedView";
 import { useFocusEffect } from "expo-router";
-import useHomeStore, { RowItem, Category, DoubanFilterKey } from "@/stores/homeStore";
+import { useHomeUIStore } from "@/stores/homeUIStore";
+import { useHomeDataStore } from "@/stores/homeDataStore";
+import { RowItem, Category, DoubanFilterKey } from "@/services/dataTypes";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { getCommonResponsiveStyles } from "@/utils/ResponsiveStyles";
 import ResponsiveNavigation from "@/components/navigation/ResponsiveNavigation";
@@ -30,32 +32,39 @@ export default function HomeScreen() {
   const responsiveConfig = useResponsiveLayout();
   const commonStyles = useMemo(() => getCommonResponsiveStyles(responsiveConfig), [responsiveConfig]);
   const { deviceType, spacing } = responsiveConfig;
+
+  // UI Store
   const {
     categories,
     selectedCategory,
+    selectCategory,
+    updateFilterOption,
+    refreshPlayRecords,
+    initialize,
+  } = useHomeUIStore(useShallow(state => ({
+    categories: state.categories,
+    selectedCategory: state.selectedCategory,
+    selectCategory: state.selectCategory,
+    updateFilterOption: state.updateFilterOption,
+    refreshPlayRecords: state.refreshPlayRecords,
+    initialize: state.initialize,
+  })));
+
+  // Data Store
+  const {
     contentData,
     loading,
     loadingMore,
     error,
-    fetchInitialData,
     loadMoreData,
-    selectCategory,
-    updateFilterOption,
-    refreshPlayRecords,
     clearError,
     hydrateFromStorage,
-  } = useHomeStore(useShallow(state => ({
-    categories: state.categories,
-    selectedCategory: state.selectedCategory,
+  } = useHomeDataStore(useShallow(state => ({
     contentData: state.contentData,
     loading: state.loading,
     loadingMore: state.loadingMore,
     error: state.error,
-    fetchInitialData: state.fetchInitialData,
     loadMoreData: state.loadMoreData,
-    selectCategory: state.selectCategory,
-    updateFilterOption: state.updateFilterOption,
-    refreshPlayRecords: state.refreshPlayRecords,
     clearError: state.clearError,
     hydrateFromStorage: state.hydrateFromStorage,
   })));
@@ -130,8 +139,8 @@ export default function HomeScreen() {
     if (!selectedCategory || (selectedCategory.tags && !selectedCategory.tag) || !apiConfigStatus.isConfigured || apiConfigStatus.needsConfiguration) {
       return;
     }
-    fetchInitialData();
-  }, [selectedCategory, selectedCategory?.tag, apiConfigStatus.isConfigured, apiConfigStatus.needsConfiguration, fetchInitialData]);
+    initialize();
+  }, [selectedCategory, selectedCategory?.tag, apiConfigStatus.isConfigured, apiConfigStatus.needsConfiguration, initialize]);
 
   // 错误状态清理
   useEffect(() => {
@@ -235,11 +244,11 @@ export default function HomeScreen() {
         spacing={spacing}
         contentData={contentData}
         listRef={listRef}
-        loadMoreData={loadMoreData}
+        loadMoreData={() => selectedCategory && loadMoreData(selectedCategory)}
         loadingMore={loadingMore}
         deviceType={deviceType}
         onShowFilterPanel={showFilterPanel}
-        onRecordDeleted={fetchInitialData}
+        onRecordDeleted={initialize}
         firstItemRef={firstItemRef}
       />
       {selectedCategory && (

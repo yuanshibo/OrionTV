@@ -1,10 +1,10 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Animated, useWindowDimensions } from 'react-native';
+import { View, Animated, useWindowDimensions, StyleProp, ViewStyle } from 'react-native';
 import { Colors } from '@/constants/Colors';
 import { useResponsiveLayout } from '@/hooks/useResponsiveLayout';
 import { createResponsiveStyles } from './detail.styles';
 
-const SkeletonItem = ({ style }: { style: any }) => {
+const SkeletonItem = ({ style }: { style: StyleProp<ViewStyle> }) => {
     const opacity = useRef(new Animated.Value(0.3)).current;
 
     useEffect(() => {
