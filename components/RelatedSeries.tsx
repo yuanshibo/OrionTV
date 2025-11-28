@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
-import { View, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, ActivityIndicator } from 'react-native';
+import { FlashList } from "@shopify/flash-list";
 import { ThemedText } from './ThemedText';
 import { api, DoubanRecommendationItem, SearchResult } from '@/services/api';
 import { fetchSearchResults } from '@/services/searchService';
@@ -125,13 +126,15 @@ const RelatedSeriesComponent: React.FC<RelatedSeriesProps> = ({ title, autoFocus
   return (
     <View style={styles.container}>
       <ThemedText style={styles.title}>{listTitle}</ThemedText>
-      <FlatList
+      <FlashList
         horizontal
         data={related}
         renderItem={renderItem}
         keyExtractor={(item, index) => `${item.id}-${index}`}
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.list}
+        // @ts-ignore
+        estimatedItemSize={150} // Approximate width of VideoCard
       />
     </View>
   );

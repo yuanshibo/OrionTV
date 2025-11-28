@@ -8,10 +8,10 @@ export const createResponsiveStyles = (deviceType: string, spacing: number, colo
 
   return StyleSheet.create({
     scrollContainer: {
-      flex: 1,
+      paddingHorizontal: spacing,
+      paddingBottom: spacing,
     },
     mobileTopContainer: {
-      paddingHorizontal: spacing,
       paddingTop: spacing,
       paddingBottom: spacing / 2,
     },
@@ -26,12 +26,12 @@ export const createResponsiveStyles = (deviceType: string, spacing: number, colo
       flex: 1,
     },
     descriptionContainer: {
-      paddingHorizontal: spacing,
       paddingBottom: spacing,
     },
     topContainer: {
       flexDirection: "row",
-      padding: spacing,
+      paddingTop: spacing,
+      paddingBottom: spacing,
     },
     poster: {
       width: isTV ? 200 : 160,
@@ -88,7 +88,7 @@ export const createResponsiveStyles = (deviceType: string, spacing: number, colo
       lineHeight: isMobile ? 18 : 22,
     },
     bottomContainer: {
-      paddingHorizontal: spacing,
+      // paddingHorizontal removed, handled by contentContainerStyle
     },
     sourcesContainer: {
       marginTop: spacing,
@@ -163,7 +163,7 @@ export const createResponsiveStyles = (deviceType: string, spacing: number, colo
     episodeButton: {
       margin: isMobile ? 3 : 5,
       minHeight: isMobile ? 32 : 36,
-      width: isMobile ? '23%': isTablet ? '11.5%' : '8.88%',
+      // width is handled by FlashList numColumns and renderItem padding
     },
     episodeButtonText: {
       color: colors.text,

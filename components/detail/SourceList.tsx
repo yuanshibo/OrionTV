@@ -12,15 +12,17 @@ interface SourceButtonProps {
   deviceType: 'mobile' | 'tablet' | 'tv';
   styles: any;
   colors: typeof Colors.dark;
+  nextFocusDown?: number | null;
 }
 
-const SourceButton = memo(({ item, isSelected, onSelect, deviceType, styles, colors }: SourceButtonProps) => {
+const SourceButton = memo(React.forwardRef<View, SourceButtonProps>(({ item, isSelected, onSelect, deviceType, styles, colors, nextFocusDown }, ref) => {
   const isMobile = deviceType === 'mobile';
   const handlePress = useCallback(() => onSelect(item), [onSelect, item]);
 
   if (isMobile) {
     return (
       <StyledButton
+        ref={ref}
         onPress={handlePress}
         isSelected={isSelected}
         style={styles.sourceButton}
@@ -47,9 +49,11 @@ const SourceButton = memo(({ item, isSelected, onSelect, deviceType, styles, col
 
   return (
     <StyledButton
+      ref={ref}
       onPress={handlePress}
       isSelected={isSelected}
       style={styles.sourceButton}
+      nextFocusDown={nextFocusDown}
     >
       <View style={styles.sourceButtonContent}>
         <ThemedText style={styles.sourceNameText} numberOfLines={1}>
@@ -61,7 +65,7 @@ const SourceButton = memo(({ item, isSelected, onSelect, deviceType, styles, col
       </View>
     </StyledButton>
   );
-});
+}));
 
 SourceButton.displayName = 'SourceButton';
 
@@ -73,6 +77,8 @@ interface SourceListProps {
   deviceType: 'mobile' | 'tablet' | 'tv';
   styles: any;
   colors: typeof Colors.dark;
+  setFirstSourceRef?: (node: any) => void;
+  nextFocusDown?: number | null;
 }
 
 export const SourceList: React.FC<SourceListProps> = memo(({
@@ -83,6 +89,8 @@ export const SourceList: React.FC<SourceListProps> = memo(({
   deviceType,
   styles,
   colors,
+  setFirstSourceRef,
+  nextFocusDown,
 }) => {
   const isMobile = deviceType === 'mobile';
 
@@ -98,12 +106,14 @@ export const SourceList: React.FC<SourceListProps> = memo(({
   const renderButton = (item: SearchResultWithResolution, index: number) => (
     <SourceButton
       key={index}
+      ref={index === 0 ? setFirstSourceRef : undefined}
       item={item}
       isSelected={currentSource === item.source}
       onSelect={onSelect}
       deviceType={deviceType}
       styles={styles}
       colors={colors}
+      nextFocusDown={nextFocusDown}
     />
   );
 

@@ -8,22 +8,26 @@ interface EpisodeButtonProps {
   onPlay: (index: number) => void;
   style: any;
   textStyle: any;
+  onFocus?: () => void;
 }
 
-const EpisodeButton = memo(({ index, onPlay, style, textStyle }: EpisodeButtonProps) => {
+export const EpisodeButton = memo(React.forwardRef<View, EpisodeButtonProps>(({ index, onPlay, style, textStyle, onFocus }, ref) => {
   const handlePress = useCallback(() => {
     onPlay(index);
   }, [onPlay, index]);
 
   return (
     <StyledButton
+      ref={ref}
       style={style}
       onPress={handlePress}
+      onFocus={onFocus}
       text={`第 ${index + 1} 集`}
       textStyle={textStyle}
+      textProps={{ numberOfLines: 1, adjustsFontSizeToFit: true }}
     />
   );
-});
+}));
 
 EpisodeButton.displayName = 'EpisodeButton';
 
