@@ -251,7 +251,7 @@ export default function DetailScreen() {
   };
 
   const content = (
-    <ThemedView style={[commonStyles.container, { paddingTop: isTvExperience ? 40 : 0 }]}>
+    <ThemedView style={[commonStyles.container, isTvExperience && { padding: 0, paddingHorizontal: 0, paddingVertical: 0, margin: 0 }]}>
       {renderDetailContent()}
     </ThemedView>
   );

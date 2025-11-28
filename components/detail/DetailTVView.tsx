@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useState } from 'react';
-import { View, Image, ScrollView, FlatList, useWindowDimensions, findNodeHandle } from 'react-native';
+import { View, ScrollView, FlatList, useWindowDimensions, findNodeHandle, StyleSheet } from 'react-native';
 import { EpisodeButton } from '@/components/detail/EpisodeList';
 import { ThemedText } from '@/components/ThemedText';
 import { StyledButton } from '@/components/StyledButton';
@@ -7,6 +7,7 @@ import { SourceList } from '@/components/detail/SourceList';
 import RelatedSeries from '@/components/RelatedSeries';
 import { EpisodeRangeSelector } from '@/components/detail/EpisodeRangeSelector';
 import { Heart } from 'lucide-react-native';
+import { FadeInImage } from '@/components/FadeInImage';
 
 interface DetailTVViewProps {
   detail: any;
@@ -37,7 +38,7 @@ const TVTopInfo = memo(({
 }: any) => {
   return (
     <View style={dynamicStyles.topContainer}>
-      <Image source={{ uri: detail.poster }} style={dynamicStyles.poster} />
+      <FadeInImage source={{ uri: detail.poster }} style={dynamicStyles.poster} />
       <View style={dynamicStyles.infoContainer}>
         <View style={dynamicStyles.titleContainer}>
           <ThemedText style={dynamicStyles.title} numberOfLines={1} ellipsizeMode="tail">
@@ -174,72 +175,82 @@ export const DetailTVView: React.FC<DetailTVViewProps> = memo(({
   }, [handlePlay, dynamicStyles, handleEpisodeFocus, itemWidth, targetEpisodeTag]);
 
   return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={dynamicStyles.scrollContainer}>
-      <TVTopInfo
-        detail={detail}
-        isFavorited={isFavorited}
-        toggleFavorite={toggleFavorite}
-        handlePrimaryPlay={handlePrimaryPlay}
-        playButtonLabel={playButtonLabel}
-        isPlayDisabled={isPlayDisabled}
-        dynamicStyles={dynamicStyles}
-        colors={colors}
-        nextFocusDown={firstSourceTag}
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      {/* Background Atmosphere */}
+      <FadeInImage
+        source={{ uri: detail.poster }}
+        style={[StyleSheet.absoluteFillObject, { opacity: 0.6, backgroundColor: 'transparent' }]}
+        blurRadius={30}
       />
-      <View style={dynamicStyles.bottomContainer}>
-        <SourceList
-          searchResults={searchResults}
-          currentSource={detail.source}
-          onSelect={setDetail}
-          loading={!allSourcesLoaded}
-          deviceType={deviceType}
-          styles={dynamicStyles}
+      <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.7)' }]} />
+
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={dynamicStyles.scrollContainer}>
+        <TVTopInfo
+          detail={detail}
+          isFavorited={isFavorited}
+          toggleFavorite={toggleFavorite}
+          handlePrimaryPlay={handlePrimaryPlay}
+          playButtonLabel={playButtonLabel}
+          isPlayDisabled={isPlayDisabled}
+          dynamicStyles={dynamicStyles}
           colors={colors}
-          setFirstSourceRef={setFirstSourceRef}
-          nextFocusDown={targetEpisodeTag}
+          nextFocusDown={firstSourceTag}
         />
+        <View style={dynamicStyles.bottomContainer}>
+          <SourceList
+            searchResults={searchResults}
+            currentSource={detail.source}
+            onSelect={setDetail}
+            loading={!allSourcesLoaded}
+            deviceType={deviceType}
+            styles={dynamicStyles}
+            colors={colors}
+            setFirstSourceRef={setFirstSourceRef}
+            nextFocusDown={targetEpisodeTag}
+          />
 
-        {episodes.length > 0 && (
-          <View>
-            <ThemedText style={dynamicStyles.episodesTitle}>播放列表</ThemedText>
+          {episodes.length > 0 && (
+            <View>
+              <ThemedText style={dynamicStyles.episodesTitle}>播放列表</ThemedText>
 
-            {/* Episode List (Horizontal) */}
-            <View style={{ height: 60, marginBottom: 0 }}>
-              <FlatList
-                ref={episodeListRef}
-                data={episodes}
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                renderItem={renderEpisodeItem}
-                keyExtractor={(item, index) => `episode-${index}`}
-                contentContainerStyle={{ paddingHorizontal: 0 }}
-                getItemLayout={(data, index) => (
-                  { length: itemWidth, offset: itemWidth * index, index }
-                )}
-                removeClippedSubviews={false}
-                windowSize={10}
-                initialNumToRender={10}
-                ListFooterComponent={<View style={{ width: itemWidth * 9 }} />}
-              />
+              {/* Episode List (Horizontal) */}
+              <View style={{ height: 60, marginBottom: 0 }}>
+                <FlatList
+                  ref={episodeListRef}
+                  data={episodes}
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  renderItem={renderEpisodeItem}
+                  keyExtractor={(item, index) => `episode-${index}`}
+                  contentContainerStyle={{ paddingHorizontal: 0 }}
+                  getItemLayout={(data, index) => (
+                    { length: itemWidth, offset: itemWidth * index, index }
+                  )}
+                  removeClippedSubviews={false}
+                  windowSize={10}
+                  initialNumToRender={10}
+                  ListFooterComponent={<View style={{ width: itemWidth * 9 }} />}
+                />
+              </View>
+
+              {/* Range Selector (Bottom) */}
+              {episodes.length > chunkSize && (
+                <EpisodeRangeSelector
+                  totalEpisodes={episodes.length}
+                  currentRange={currentRange}
+                  onRangeSelect={handleRangeSelect}
+                  chunkSize={chunkSize}
+                  styles={dynamicStyles}
+                  colors={colors}
+                />
+              )}
             </View>
+          )}
 
-            {/* Range Selector (Bottom) */}
-            {episodes.length > chunkSize && (
-              <EpisodeRangeSelector
-                totalEpisodes={episodes.length}
-                currentRange={currentRange}
-                onRangeSelect={handleRangeSelect}
-                chunkSize={chunkSize}
-                styles={dynamicStyles}
-                colors={colors}
-              />
-            )}
-          </View>
-        )}
-
-        <RelatedSeries title={detail.title} />
-      </View>
-    </ScrollView>
+          <RelatedSeries title={detail.title} />
+        </View>
+      </ScrollView>
+    </View>
   );
 });
 

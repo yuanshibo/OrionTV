@@ -153,7 +153,7 @@ export const createResponsiveStyles = (deviceType: string, spacing: number, colo
     episodesTitle: {
       fontSize: isMobile ? 16 : isTablet ? 18 : 20,
       fontWeight: "bold",
-      marginBottom: spacing / 2,
+      marginBottom: spacing / 4,
       color: colors.text,
     },
     episodeList: {

@@ -12,15 +12,18 @@ interface StyledButtonProps extends PressableProps {
   isSelected?: boolean;
   style?: StyleProp<ViewStyle>;
   textStyle?: StyleProp<TextStyle>;
+  focusScale?: number;
+  focusedStyle?: StyleProp<ViewStyle>;
+  buttonStyle?: StyleProp<ViewStyle>;
   textProps?: TextProps;
 }
 
 export const StyledButton = memo(forwardRef<View, StyledButtonProps>(
-  ({ children, text, variant = "default", isSelected = false, style, textStyle, textProps, onLongPress, ...rest }, ref) => {
+  ({ children, text, variant = "default", isSelected = false, style, buttonStyle, textStyle, textProps, onLongPress, focusScale = 1.1, focusedStyle, ...rest }, ref) => {
     const colorScheme = "dark";
     const colors = Colors[colorScheme];
     const [isFocused, setIsFocused] = React.useState(false);
-    const animationStyle = useButtonAnimation(isFocused);
+    const animationStyle = useButtonAnimation(isFocused, focusScale);
     const deviceType = useResponsiveLayout().deviceType;
 
     const variantStyles = {
@@ -130,7 +133,8 @@ export const StyledButton = memo(forwardRef<View, StyledButtonProps>(
             styles.button,
             variantStyles[variant].button,
             isSelected && (variantStyles[variant].selectedButton ?? styles.selectedButton),
-            focused && (variantStyles[variant].focusedButton ?? styles.focusedButton),
+            buttonStyle,
+            focused && (focusedStyle ?? variantStyles[variant].focusedButton ?? styles.focusedButton),
           ]}
           {...rest}
         >

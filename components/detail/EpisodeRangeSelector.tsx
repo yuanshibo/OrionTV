@@ -79,10 +79,17 @@ export const EpisodeRangeSelector = memo(({
             onFocus={() => handleFocus(item.index)}
             isSelected={currentRange === item.index}
             variant="ghost"
-            style={[
+            style={styles.containerButton}
+            buttonStyle={[
                 styles.button,
                 isMobile ? styles.mobileButton : styles.tvButton,
             ]}
+            focusedStyle={{
+                borderBottomWidth: 2,
+                borderBottomColor: '#fff',
+                backgroundColor: 'transparent',
+                borderRadius: 0,
+            }}
             textStyle={[
                 styles.buttonText,
                 currentRange === item.index && styles.selectedButtonText
@@ -124,31 +131,34 @@ const styles = StyleSheet.create({
         marginBottom: 0,
     },
     scrollContent: {
-        paddingHorizontal: 0,
+        paddingHorizontal: 4,
+    },
+    containerButton: {
+        marginBottom: 0,
+        marginRight: 12,
     },
     button: {
-        marginRight: 0,
         borderRadius: 0,
         borderWidth: 0,
-        paddingHorizontal: 4,
-        paddingVertical: 4,
+        paddingHorizontal: 2,
+        paddingVertical: 2,
         backgroundColor: 'transparent',
     },
     mobileButton: {
         minHeight: 28,
     },
     tvButton: {
-        minHeight: 32,
+        minHeight: 28,
     },
     buttonText: {
-        fontSize: 14,
+        fontSize: 12,
         fontWeight: '600',
         color: 'rgba(255,255,255,0.5)',
     },
     selectedButtonText: {
         color: '#fff',
         fontWeight: 'bold',
-        fontSize: 16,
+        fontSize: 14,
     },
 });
 
