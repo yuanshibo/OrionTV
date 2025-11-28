@@ -20,7 +20,7 @@ import {
 } from "@/services/homeConfig";
 import useAuthStore from "./authStore";
 import { useSettingsStore } from "./settingsStore";
-import { mapErrorToMessage } from "@/utils/errorUtils";
+import errorService from "@/services/ErrorService";
 
 // Re-export types for consumers
 export { RowItem, Category, DoubanFilterKey, DoubanFilterOption, DoubanFilterGroup, DoubanFilterConfig, ActiveDoubanFilters };
@@ -274,9 +274,9 @@ const useHomeStore = create<HomeState>((set, get) => ({
 
         // Force type cast for Service (validated by isContentCategory)
         const serviceCategory = {
-            ...selectedCategory,
-            type: selectedCategory.type as "movie" | "tv",
-            tag: selectedCategory.tag!
+          ...selectedCategory,
+          type: selectedCategory.type as "movie" | "tv",
+          tag: selectedCategory.tag!
         };
 
         const { items, hasMore: newHasMore } = await homeService.fetchDoubanCategoryContent(
@@ -325,7 +325,7 @@ const useHomeStore = create<HomeState>((set, get) => ({
 
     } catch (err: any) {
       if (err?.name === "AbortError" || err?.message === "Aborted") return;
-      set({ error: mapErrorToMessage(err) });
+      set({ error: errorService.formatMessage(err) });
     } finally {
       if (abortController && currentFetchAbortController === abortController) {
         currentFetchAbortController = null;
@@ -355,7 +355,7 @@ const useHomeStore = create<HomeState>((set, get) => ({
     if (key === "kind" && targetCategory.title === "所有") {
       const newKind = value as "movie" | "tv";
       const newKindGroups = DOUBAN_FILTERS_METADATA[newKind];
-      
+
       const newStaticFilters: Partial<ActiveDoubanFilters> = { label: "all" };
       if (newKind === 'tv') {
         newStaticFilters.format = '电视剧';

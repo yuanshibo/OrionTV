@@ -38,7 +38,7 @@ const VideoCard = forwardRef<View, VideoCardProps>(
       onLongPress,
       onRecordDeleted,
       onFavoriteDeleted,
-      api,
+      // api prop is removed as we import it directly or use it from props if passed (but we removed it from destructuring to fix lint)
       playTime = 0,
       type = 'record',
       style,
@@ -111,7 +111,7 @@ const VideoCard = forwardRef<View, VideoCardProps>(
         uri: api.getImageProxyUrl(poster),
         headers: authCookie ? { Cookie: authCookie } : undefined,
       }),
-      [poster, authCookie, api]
+      [poster, authCookie]
     );
 
     return (

@@ -3,7 +3,6 @@ import { BackHandler, useColorScheme } from "react-native";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
-import VideoLoadingAnimation from "@/components/VideoLoadingAnimation";
 import useDetailStore from "@/stores/detailStore";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { getCommonResponsiveStyles } from "@/utils/ResponsiveStyles";

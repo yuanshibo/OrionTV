@@ -44,9 +44,6 @@ const SourceButton = memo(React.forwardRef<View, SourceButtonProps>(({ item, isS
     );
   }
 
-  const episodesDisplay = item.episodes.length > 99 ? "99+集" : `${item.episodes.length}集`;
-  const metaLine = item.resolution ? `${episodesDisplay} · ${item.resolution}` : episodesDisplay;
-
   return (
     <StyledButton
       ref={ref}

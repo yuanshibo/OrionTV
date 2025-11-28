@@ -4,6 +4,7 @@ import { VideoPlayer } from "expo-video";
 import { PlayRecord, PlayRecordManager, PlayerSettingsManager } from "@/services/storage";
 import useDetailStore, { episodesSelectorBySource } from "./detailStore";
 import Logger from '@/utils/Logger';
+import errorService from "@/services/ErrorService";
 import { SearchResultWithResolution } from "@/services/api";
 import { useRouter } from "expo-router";
 
@@ -145,13 +146,15 @@ const usePlayerStore = create<PlayerState>((set, get) => {
 
       const episodes = episodesSelectorBySource(detail.source)(useDetailStore.getState());
       if (!episodes || episodes.length === 0) {
-        set({ status: null, isLoading: false, error: "未找到可播放的剧集" });
+        const msg = errorService.handle("未找到可播放的剧集", { context: "loadVideo", showToast: false });
+        set({ status: null, isLoading: false, error: msg });
         return;
       }
 
       const playbackDataResult = await _loadPlaybackData(detail);
       if (playbackDataResult.error) {
-        set({ status: null, isLoading: false, error: playbackDataResult.error });
+        const msg = errorService.handle(playbackDataResult.error, { context: "loadVideo", showToast: false });
+        set({ status: null, isLoading: false, error: msg });
         return;
       }
 
@@ -208,7 +211,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
       const { isSeekBuffering, seekPosition, status: oldStatus, router, currentEpisodeIndex, episodes, outroStartTime, playEpisode, _savePlayRecord, setShowRelatedVideos } = get();
 
       const nextState: Partial<PlayerState> = { status: newStatus };
-      
+
       if (newStatus.error) {
         nextState.isLoading = false;
         nextState.error = newStatus.error;
@@ -366,15 +369,15 @@ const usePlayerStore = create<PlayerState>((set, get) => {
         set({ error: "无法回退播放源", isLoading: false, status: null });
         return;
       }
-      
+
       const { currentEpisodeIndex } = get();
       const currentSource = detail.source;
       useDetailStore.getState().markSourceAsFailed(currentSource, `${errorType} error`);
       const fallbackSource = useDetailStore.getState().getNextAvailableSource(currentSource, currentEpisodeIndex);
 
       if (!fallbackSource) {
-        set({ error: "所有播放源均不可用", isLoading: false, status: null });
-        Toast.show({ type: "error", text1: "播放失败", text2: "所有播放源都不可用" });
+        const msg = errorService.handle("所有播放源均不可用", { context: "handleVideoError", showToast: true });
+        set({ error: msg, isLoading: false, status: null });
         return;
       }
 
@@ -385,7 +388,8 @@ const usePlayerStore = create<PlayerState>((set, get) => {
         set({ episodes: mappedEpisodes, error: undefined, status: null, isLoading: true });
         Toast.show({ type: "success", text1: "已切换播放源", text2: `正在使用 ${fallbackSource.source_name}` });
       } else {
-        set({ error: "回退的播放源缺少当前剧集", isLoading: false, status: null });
+        const msg = errorService.handle("回退的播放源缺少当前剧集", { context: "handleVideoError", showToast: false });
+        set({ error: msg, isLoading: false, status: null });
       }
     },
   };

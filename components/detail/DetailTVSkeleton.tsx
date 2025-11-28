@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Animated, StyleSheet, useWindowDimensions } from 'react-native';
+import { View, Animated, useWindowDimensions } from 'react-native';
 import { Colors } from '@/constants/Colors';
 import { useResponsiveLayout } from '@/hooks/useResponsiveLayout';
 import { createResponsiveStyles } from './detail.styles';
