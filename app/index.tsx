@@ -194,11 +194,11 @@ export default function HomeScreen() {
   }, [selectedCategory, selectCategory, updateFilterOption]);
 
   // 动态样式
-  const dynamicContainerStyle = useMemo(() => ({ paddingTop: deviceType === "mobile" ? insets.top : deviceType === "tablet" ? insets.top + 20 : 40 }), [deviceType, insets.top]);
+  const dynamicContainerStyle = useMemo(() => ({ paddingTop: deviceType === "mobile" ? insets.top : deviceType === "tablet" ? insets.top + 20 : 20 }), [deviceType, insets.top]);
 
   const headerStyles = useMemo(() => StyleSheet.create({
     headerContainer: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: spacing * 1.5, marginBottom: spacing / 2 },
-    headerTitle: { fontSize: deviceType === "mobile" ? 24 : deviceType === "tablet" ? 28 : 32, fontWeight: "bold", paddingTop: 16, height: 45 },
+    headerTitle: { fontSize: deviceType === "mobile" ? 24 : deviceType === "tablet" ? 28 : 32, fontWeight: "bold", paddingTop: 0, height: 45 },
     rightHeaderButtons: { flexDirection: "row", alignItems: "center" },
     iconButton: { borderRadius: 30, marginLeft: spacing / 2 },
   }), [deviceType, spacing]);
