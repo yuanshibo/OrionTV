@@ -14,9 +14,10 @@ import { FocusPriority } from '@/types/focus';
 interface RelatedSeriesProps {
   title: string;
   autoFocus?: boolean;
+  onFocus?: (item: any) => void;
 }
 
-const RelatedSeriesComponent: React.FC<RelatedSeriesProps> = ({ title, autoFocus = false }) => {
+const RelatedSeriesComponent: React.FC<RelatedSeriesProps> = ({ title, autoFocus = false, onFocus }) => {
   const [related, setRelated] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(true);
   const firstCardRef = useRef<View>(null);
@@ -107,9 +108,10 @@ const RelatedSeriesComponent: React.FC<RelatedSeriesProps> = ({ title, autoFocus
         year={item.year}
         sourceName={item.source_name}
         api={api}
+        onFocus={onFocus}
       />
     </View>
-  ), [styles.itemContainer]);
+  ), [styles.itemContainer, onFocus]);
 
   if (loading) {
     return (

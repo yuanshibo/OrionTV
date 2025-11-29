@@ -8,6 +8,7 @@ import RelatedSeries from '@/components/RelatedSeries';
 import { EpisodeRangeSelector } from '@/components/detail/EpisodeRangeSelector';
 import { Heart } from 'lucide-react-native';
 import { FadeInImage } from '@/components/FadeInImage';
+import { DynamicBackground } from '@/components/DynamicBackground';
 
 interface DetailTVViewProps {
   detail: any;
@@ -34,7 +35,8 @@ const TVTopInfo = memo(({
   isPlayDisabled,
   dynamicStyles,
   colors,
-  nextFocusDown
+  nextFocusDown,
+  onFocus
 }: any) => {
   return (
     <View style={dynamicStyles.topContainer}>
@@ -56,6 +58,7 @@ const TVTopInfo = memo(({
           onPress={handlePrimaryPlay}
           style={dynamicStyles.playButton}
           text={playButtonLabel}
+          onFocus={onFocus}
           textStyle={dynamicStyles.playButtonText}
           disabled={isPlayDisabled}
           hasTVPreferredFocus={true}
@@ -99,6 +102,9 @@ export const DetailTVView: React.FC<DetailTVViewProps> = memo(({
   const chunkSize = 10; // Changed to 10
   const episodeListRef = React.useRef<FlatList>(null);
   const { width } = useWindowDimensions();
+  const [overridePoster, setOverridePoster] = useState<string | null>(null);
+
+  const activePoster = overridePoster || detail.poster;
 
   const [firstSourceTag, setFirstSourceTag] = useState<number | null>(null);
   const [targetEpisodeTag, setTargetEpisodeTag] = useState<number | null>(null);
@@ -177,12 +183,8 @@ export const DetailTVView: React.FC<DetailTVViewProps> = memo(({
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       {/* Background Atmosphere */}
-      <FadeInImage
-        source={{ uri: detail.poster }}
-        style={[StyleSheet.absoluteFillObject, { opacity: 0.6, backgroundColor: 'transparent' }]}
-        blurRadius={30}
-      />
-      <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.7)' }]} />
+      {/* Detail page poster URL works better without proxy (direct access or already proxied) */}
+      <DynamicBackground poster={activePoster} useProxy={false} />
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={dynamicStyles.scrollContainer}>
         <TVTopInfo
@@ -195,6 +197,7 @@ export const DetailTVView: React.FC<DetailTVViewProps> = memo(({
           dynamicStyles={dynamicStyles}
           colors={colors}
           nextFocusDown={firstSourceTag}
+          onFocus={() => setOverridePoster(null)}
         />
         <View style={dynamicStyles.bottomContainer}>
           <SourceList
@@ -247,7 +250,10 @@ export const DetailTVView: React.FC<DetailTVViewProps> = memo(({
             </View>
           )}
 
-          <RelatedSeries title={detail.title} />
+          <RelatedSeries
+            title={detail.title}
+            onFocus={(item) => setOverridePoster(item?.poster || null)}
+          />
         </View>
       </ScrollView>
     </View>
