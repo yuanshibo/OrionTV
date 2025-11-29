@@ -3,6 +3,7 @@ import { View, StyleSheet, Platform } from 'react-native';
 import { Image } from 'expo-image';
 import { useHomeUIStore } from '@/stores/homeUIStore';
 import { api } from '@/services/api';
+import { LinearGradient } from 'expo-linear-gradient';
 
 interface DynamicBackgroundProps {
     poster?: string | null;
@@ -25,10 +26,13 @@ export const DynamicBackground = React.memo(({ poster, useProxy = true }: Dynami
                 style={StyleSheet.absoluteFill}
                 contentFit="cover"
                 transition={500}
-                blurRadius={Platform.OS === 'ios' ? 20 : 10}
+                blurRadius={Platform.OS === 'ios' ? 10 : 5} // Reduced blur for better visibility
                 cachePolicy="memory-disk"
             />
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.7)' }]} />
+            <LinearGradient
+                colors={['rgba(0,0,0,0.3)', 'rgba(0,0,0,0.6)', 'rgba(0,0,0,0.9)']}
+                style={StyleSheet.absoluteFill}
+            />
         </View>
     );
 });
