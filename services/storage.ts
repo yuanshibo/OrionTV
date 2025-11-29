@@ -64,13 +64,13 @@ export class PlayerSettingsManager {
 
   static async get(source: string, id: string): Promise<PlayerSettings | null> {
     const perfStart = performance.now();
-    logger.debug(`[PERF] PlayerSettingsManager.get START - source: ${source}, id: ${id}`);
+    // logger.debug(`[PERF] PlayerSettingsManager.get START - source: ${source}, id: ${id}`);
 
     const allSettings = await this.getAll();
     const result = allSettings[generateKey(source, id)] || null;
 
     const perfEnd = performance.now();
-    logger.debug(`[PERF] PlayerSettingsManager.get END - took ${(perfEnd - perfStart).toFixed(2)}ms, found: ${!!result}`);
+    // logger.debug(`[PERF] PlayerSettingsManager.get END - took ${(perfEnd - perfStart).toFixed(2)}ms, found: ${!!result}`);
 
     return result;
   }
@@ -179,7 +179,7 @@ export class PlayRecordManager {
   static async getAll(): Promise<Record<string, PlayRecord>> {
     const perfStart = performance.now();
     const storageType = this.getStorageType();
-    logger.debug(`[PERF] PlayRecordManager.getAll START - storageType: ${storageType}`);
+    // logger.debug(`[PERF] PlayRecordManager.getAll START - storageType: ${storageType}`);
 
     let apiRecords: Record<string, PlayRecord> = {};
     if (storageType === "localstorage") {
@@ -192,7 +192,7 @@ export class PlayRecordManager {
       }
     } else {
       const apiStart = performance.now();
-      logger.debug(`[PERF] API getPlayRecords START`);
+      // logger.debug(`[PERF] API getPlayRecords START`);
 
       const result = await api.getPlayRecords();
       // When called without args, it returns the full map.
@@ -200,7 +200,7 @@ export class PlayRecordManager {
       apiRecords = (result as Record<string, PlayRecord>) || {};
 
       const apiEnd = performance.now();
-      logger.debug(`[PERF] API getPlayRecords END - took ${(apiEnd - apiStart).toFixed(2)}ms, records: ${Object.keys(apiRecords).length}`);
+      // logger.debug(`[PERF] API getPlayRecords END - took ${(apiEnd - apiStart).toFixed(2)}ms, records: ${Object.keys(apiRecords).length}`);
     }
 
     const localSettings = await PlayerSettingsManager.getAll();
@@ -213,7 +213,7 @@ export class PlayRecordManager {
     }
 
     const perfEnd = performance.now();
-    logger.debug(`[PERF] PlayRecordManager.getAll END - took ${(perfEnd - perfStart).toFixed(2)}ms, total records: ${Object.keys(mergedRecords).length}`);
+    // logger.debug(`[PERF] PlayRecordManager.getAll END - took ${(perfEnd - perfStart).toFixed(2)}ms, total records: ${Object.keys(mergedRecords).length}`);
 
     return mergedRecords;
   }
@@ -291,7 +291,7 @@ export class PlayRecordManager {
     const perfStart = performance.now();
     const key = generateKey(source, id);
     const storageType = this.getStorageType();
-    logger.debug(`[PERF] PlayRecordManager.get START - source: ${source}, id: ${id}, storageType: ${storageType}`);
+    // logger.debug(`[PERF] PlayRecordManager.get START - source: ${source}, id: ${id}, storageType: ${storageType}`);
 
     let result: PlayRecord | null = null;
     if (storageType === "localstorage") {
@@ -317,7 +317,7 @@ export class PlayRecordManager {
     }
 
     const perfEnd = performance.now();
-    logger.debug(`[PERF] PlayRecordManager.get END - took ${(perfEnd - perfStart).toFixed(2)}ms, found: ${!!result}`);
+    // logger.debug(`[PERF] PlayRecordManager.get END - took ${(perfEnd - perfStart).toFixed(2)}ms, found: ${!!result}`);
 
     return result;
   }

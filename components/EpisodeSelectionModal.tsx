@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, Modal, FlatList } from "react-native";
+import { View, Text, StyleSheet, Modal, FlatList, ScrollView } from "react-native";
 import { StyledButton } from "./StyledButton";
 import usePlayerStore from "@/stores/playerStore";
 
@@ -51,17 +51,28 @@ export const EpisodeSelectionModal: React.FC = () => {
           <Text style={styles.modalTitle}>选择剧集</Text>
 
           {episodes.length > EPISODE_GROUP_SIZE && (
-            <View style={styles.episodeGroupContainer}>
-              {Array.from({ length: Math.ceil(episodes.length / EPISODE_GROUP_SIZE) }, (_, groupIndex) => (
-                <StyledButton
-                  key={groupIndex}
-                  text={`${groupIndex * EPISODE_GROUP_SIZE + 1}-${Math.min((groupIndex + 1) * EPISODE_GROUP_SIZE, episodes.length)}`}
-                  onPress={() => setSelectedEpisodeGroup(groupIndex)}
-                  isSelected={selectedEpisodeGroup === groupIndex}
-                  style={styles.episodeGroupButton}
-                  textStyle={styles.episodeGroupButtonText}
-                />
-              ))}
+            <View style={styles.rangeContainer}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.episodeGroupContainer}
+              >
+                {Array.from({ length: Math.ceil(episodes.length / EPISODE_GROUP_SIZE) }, (_, groupIndex) => (
+                  <StyledButton
+                    key={groupIndex}
+                    text={`${groupIndex * EPISODE_GROUP_SIZE + 1}-${Math.min((groupIndex + 1) * EPISODE_GROUP_SIZE, episodes.length)}`}
+                    onPress={() => setSelectedEpisodeGroup(groupIndex)}
+                    onFocus={() => setSelectedEpisodeGroup(groupIndex)}
+                    isSelected={selectedEpisodeGroup === groupIndex}
+                    variant="ghost"
+                    style={styles.episodeGroupButton}
+                    textStyle={[
+                      styles.episodeGroupButtonText,
+                      selectedEpisodeGroup === groupIndex && styles.selectedGroupText
+                    ]}
+                  />
+                ))}
+              </ScrollView>
             </View>
           )}
           <FlatList
@@ -79,6 +90,7 @@ export const EpisodeSelectionModal: React.FC = () => {
                   hasTVPreferredFocus={currentEpisodeIndex === absoluteIndex}
                   style={styles.episodeItem}
                   textStyle={styles.episodeItemText}
+                  textProps={{ numberOfLines: 1, adjustsFontSizeToFit: true, minimumFontScale: 0.6 }}
                 />
               );
             }}
@@ -99,7 +111,7 @@ const styles = StyleSheet.create({
   modalContent: {
     width: 500,
     height: "100%",
-    backgroundColor: "rgba(0, 0, 0, 0.3)",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
     padding: 20,
   },
   modalTitle: {
@@ -109,8 +121,15 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
   },
+  rangeContainer: {
+    marginBottom: 0, // Removed margin
+    height: 50, // Reduced height slightly
+    justifyContent: 'center',
+  },
   episodeList: {
     justifyContent: "flex-start",
+    paddingBottom: 20,
+    paddingTop: 4, // Small top padding
   },
   episodeItem: {
     paddingVertical: 2,
@@ -121,16 +140,30 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   episodeGroupContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
     paddingHorizontal: 10,
+    paddingVertical: 2, // Reduced vertical padding
+    alignItems: 'center',
   },
   episodeGroupButton: {
-    paddingHorizontal: 6,
-    margin: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 0, // Remove vertical padding to let flex center it
+    marginRight: 8,
+    borderRadius: 0,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+    minHeight: 36,
+    justifyContent: 'center', // Ensure text is centered
   },
   episodeGroupButtonText: {
-    fontSize: 12,
+    fontSize: 14,
+    color: "#AAAAAA", // Opaque color
+    fontWeight: "600",
+    textAlign: 'center',
+    textAlignVertical: 'center',
+  },
+  selectedGroupText: {
+    color: "#FFFFFF",
+    fontWeight: "bold",
+    fontSize: 16,
   },
 });

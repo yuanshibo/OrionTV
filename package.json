@@ -2,7 +2,7 @@
   "name": "OrionTV",
   "private": true,
   "main": "expo-router/entry",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "scripts": {
     "start": "EXPO_TV=1 EXPO_NO_METRO_WORKSPACE_ROOT=1 expo start",
     "android": "EXPO_TV=1 EXPO_NO_METRO_WORKSPACE_ROOT=1 expo run:android",
@@ -71,6 +71,7 @@
     "@babel/core": "^7.28.4",
     "@eslint/eslintrc": "^3.1.0",
     "@react-native-tvos/config-tv": "^0.1.4",
+    "@testing-library/react-native": "^13.3.3",
     "@types/jest": "29.5.14",
     "@types/react": "~19.1.16",
     "@types/react-test-renderer": "~19.1.0",

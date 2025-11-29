@@ -20,6 +20,7 @@ import ResponsiveNavigation from "@/components/navigation/ResponsiveNavigation";
 import ResponsiveHeader from "@/components/navigation/ResponsiveHeader";
 import { DeviceUtils } from "@/utils/DeviceUtils";
 import Logger from "@/utils/Logger";
+import { DynamicBackground } from "@/components/DynamicBackground";
 
 const logger = Logger.withTag("SearchScreen");
 
@@ -78,6 +79,7 @@ export default function SearchScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'dark';
   const colors = Colors[colorScheme];
+  const [focusedPoster, setFocusedPoster] = useState<string | null>(null);
 
   const [discoverPage, setDiscoverPage] = useState(1);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -263,6 +265,7 @@ export default function SearchScreen() {
           rate={item.rate}
           api={api}
           style={style}
+          onFocus={(item: any) => setFocusedPoster(item?.poster || null)}
         />
       );
     }
@@ -333,14 +336,23 @@ export default function SearchScreen() {
   );
 
   const content = (
-    <ThemedView style={[commonStyles.container, dynamicStyles.container]}>
+    <ThemedView style={[
+      commonStyles.container,
+      dynamicStyles.container,
+      deviceType === 'tv' && { backgroundColor: 'transparent' }
+    ]}>
       {renderSearchContent()}
     </ThemedView>
   );
 
   // 根据设备类型决定是否包装在响应式导航中
   if (deviceType === 'tv') {
-    return content;
+    return (
+      <>
+        <DynamicBackground poster={focusedPoster} />
+        {content}
+      </>
+    );
   }
 
   return (

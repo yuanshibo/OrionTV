@@ -3,7 +3,6 @@ import { BackHandler, useColorScheme } from "react-native";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
-import VideoLoadingAnimation from "@/components/VideoLoadingAnimation";
 import useDetailStore from "@/stores/detailStore";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { getCommonResponsiveStyles } from "@/utils/ResponsiveStyles";
@@ -13,6 +12,7 @@ import { Colors } from "@/constants/Colors";
 import { createResponsiveStyles } from '@/components/detail/detail.styles';
 import { DetailMobileView } from '@/components/detail/DetailMobileView';
 import { DetailTVView } from '@/components/detail/DetailTVView';
+import { DetailTVSkeleton } from '@/components/detail/DetailTVSkeleton';
 import { useShallow } from 'zustand/react/shallow';
 import { useResumeProgress } from "@/hooks/useResumeProgress";
 import { Image } from "expo-image";
@@ -136,7 +136,7 @@ export default function DetailScreen() {
 
   if (loading) {
     if (isTvExperience) {
-      return <VideoLoadingAnimation showProgressBar={false} />;
+      return <DetailTVSkeleton />;
     }
 
     // Skeleton Screen for Mobile
@@ -251,7 +251,7 @@ export default function DetailScreen() {
   };
 
   const content = (
-    <ThemedView style={[commonStyles.container, { paddingTop: isTvExperience ? 40 : 0 }]}>
+    <ThemedView style={[commonStyles.container, isTvExperience && { padding: 0, paddingHorizontal: 0, paddingVertical: 0, margin: 0 }]}>
       {renderDetailContent()}
     </ThemedView>
   );

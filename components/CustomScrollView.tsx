@@ -19,7 +19,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { getCommonResponsiveStyles } from "@/utils/ResponsiveStyles";
 
-const AnimatedFlashList = Animated.createAnimatedComponent(FlashList);
+const AnimatedFlashList = Animated.createAnimatedComponent(FlashList) as any;
 
 interface CustomScrollViewProps {
   data: any[];
@@ -205,7 +205,6 @@ const CustomScrollView = forwardRef<React.ElementRef<typeof FlashList>, CustomSc
         keyExtractor={getItemKey}
         renderItem={renderGridItem}
         numColumns={effectiveColumns}
-        // @ts-ignore
         estimatedItemSize={responsiveConfig.cardHeight + responsiveConfig.spacing + 60}
         contentContainerStyle={dynamicStyles.listContent}
         onScroll={scrollHandler}

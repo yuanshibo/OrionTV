@@ -17,7 +17,7 @@ interface HomeHeaderProps {
   };
 }
 
-export const HomeHeader: React.FC<HomeHeaderProps> = ({ styles }) => {
+export const HomeHeader = React.memo(({ styles }: HomeHeaderProps) => {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'dark';
   const { isLoggedIn, logout } = useAuthStore();
@@ -49,4 +49,6 @@ export const HomeHeader: React.FC<HomeHeaderProps> = ({ styles }) => {
       </View>
     </View>
   );
-};
+});
+
+HomeHeader.displayName = 'HomeHeader';

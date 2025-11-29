@@ -5,10 +5,9 @@ import type {
   StatusChangeEventPayload,
   PlayingChangeEventPayload,
   TimeUpdateEventPayload,
-  SourceLoadEventPayload,
 } from 'expo-video';
-import Toast from 'react-native-toast-message';
 import usePlayerStore, { PlaybackState, createInitialPlaybackState } from '@/stores/playerStore';
+import errorService, { ErrorType } from '@/services/ErrorService';
 
 export type VideoViewPropsSubset = Pick<VideoViewProps, 'nativeControls' | 'contentFit'>;
 
@@ -28,30 +27,6 @@ interface UseVideoHandlersResult {
 
 type EventfulVideoPlayer = VideoPlayer & {
   addListener<K extends keyof VideoPlayerEvents>(eventName: K, listener: VideoPlayerEvents[K]): { remove(): void };
-};
-
-const ERROR_SIGNATURES = {
-  ssl: ['SSLHandshakeException', 'CertPathValidatorException', 'Trust anchor for certification path not found'],
-  network: ['HttpDataSourceException', 'IOException', 'SocketTimeoutException'],
-} as const;
-
-type ErrorType = keyof typeof ERROR_SIGNATURES | 'other';
-
-const detectErrorType = (message: string): ErrorType => {
-  if (!message) return 'other';
-  const normalizedMessage = message.toLowerCase();
-  if (ERROR_SIGNATURES.ssl.some((token) => normalizedMessage.includes(token.toLowerCase()))) return 'ssl';
-  if (ERROR_SIGNATURES.network.some((token) => normalizedMessage.includes(token.toLowerCase()))) return 'network';
-  return 'other';
-};
-
-const showErrorToast = (type: ErrorType) => {
-  const messages = {
-    ssl: 'SSL证书错误，正在尝试其他播放源...',
-    network: '网络连接失败，正在尝试其他播放源...',
-    other: '视频播放失败，正在尝试其他播放源...',
-  };
-  Toast.show({ type: 'error', text1: messages[type], text2: '请稍候' });
 };
 
 export const useVideoHandlers = ({
@@ -143,9 +118,17 @@ export const useVideoHandlers = ({
             if (currentEpisode?.url && lastErrorRef.current !== message) {
               lastErrorRef.current = message;
               const { handleVideoError } = usePlayerStore.getState();
-              const errorType = detectErrorType(message);
-              showErrorToast(errorType);
-              handleVideoError(errorType, currentEpisode.url);
+
+              // Use ErrorService to detect and handle error
+              const errorType = errorService.detectErrorType(message);
+
+              // Map ErrorService types to handleVideoError expected types
+              let handlerErrorType: 'ssl' | 'network' | 'other' = 'other';
+              if (errorType === ErrorType.SSL) handlerErrorType = 'ssl';
+              if (errorType === ErrorType.NETWORK) handlerErrorType = 'network';
+
+              errorService.showToast(errorService.formatMessage(message), 'error', '请稍候');
+              handleVideoError(handlerErrorType, currentEpisode.url);
             }
             break;
           }
@@ -158,7 +141,6 @@ export const useVideoHandlers = ({
       eventedPlayer.addListener('timeUpdate', ({ currentTime, bufferedPosition }: TimeUpdateEventPayload) => {
         emitStatusUpdate({
           positionMillis: currentTime * 1000,
-          // This is the single, correct fix: Ensure the property name matches what the UI expects.
           playableDurationMillis: bufferedPosition >= 0 ? bufferedPosition * 1000 : undefined,
           didJustFinish: false,
         });

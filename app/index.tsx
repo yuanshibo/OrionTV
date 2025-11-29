@@ -1,13 +1,13 @@
 import React, { useEffect, useCallback, useMemo, useRef, useState } from "react";
-import { StyleSheet, ActivityIndicator, StatusBar, Platform, BackHandler, View, StyleProp, ViewStyle } from "react-native";
-import { FlashList, FlashListRef } from "@shopify/flash-list";
+import { StyleSheet, StatusBar, Platform, BackHandler, View } from "react-native";
+import { FlashListRef } from "@shopify/flash-list";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSharedValue, withTiming } from "react-native-reanimated";
 import { ThemedView } from "@/components/ThemedView";
-import { api } from "@/services/api";
-import VideoCard from "@/components/VideoCard";
 import { useFocusEffect } from "expo-router";
-import useHomeStore, { RowItem, Category, DoubanFilterKey } from "@/stores/homeStore";
+import { useHomeUIStore } from "@/stores/homeUIStore";
+import { useHomeDataStore } from "@/stores/homeDataStore";
+import { RowItem, Category, DoubanFilterKey } from "@/services/dataTypes";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { getCommonResponsiveStyles } from "@/utils/ResponsiveStyles";
 import ResponsiveNavigation from "@/components/navigation/ResponsiveNavigation";
@@ -20,6 +20,7 @@ import { requestTVFocus } from "@/utils/tvUtils";
 import { useShallow } from "zustand/react/shallow";
 import { useFocusStore } from "@/stores/focusStore";
 import { FocusPriority } from "@/types/focus";
+import { DynamicBackground } from "@/components/DynamicBackground";
 
 export default function HomeScreen() {
   const fadeAnim = useSharedValue(0);
@@ -32,32 +33,41 @@ export default function HomeScreen() {
   const responsiveConfig = useResponsiveLayout();
   const commonStyles = useMemo(() => getCommonResponsiveStyles(responsiveConfig), [responsiveConfig]);
   const { deviceType, spacing } = responsiveConfig;
+
+  // UI Store
   const {
     categories,
     selectedCategory,
+    selectCategory,
+    updateFilterOption,
+    refreshPlayRecords,
+    initialize,
+    setFocusedPoster,
+  } = useHomeUIStore(useShallow(state => ({
+    categories: state.categories,
+    selectedCategory: state.selectedCategory,
+    selectCategory: state.selectCategory,
+    updateFilterOption: state.updateFilterOption,
+    refreshPlayRecords: state.refreshPlayRecords,
+    initialize: state.initialize,
+    setFocusedPoster: state.setFocusedPoster,
+  })));
+
+  // Data Store
+  const {
     contentData,
     loading,
     loadingMore,
     error,
-    fetchInitialData,
     loadMoreData,
-    selectCategory,
-    updateFilterOption,
-    refreshPlayRecords,
     clearError,
     hydrateFromStorage,
-  } = useHomeStore(useShallow(state => ({
-    categories: state.categories,
-    selectedCategory: state.selectedCategory,
+  } = useHomeDataStore(useShallow(state => ({
     contentData: state.contentData,
     loading: state.loading,
     loadingMore: state.loadingMore,
     error: state.error,
-    fetchInitialData: state.fetchInitialData,
     loadMoreData: state.loadMoreData,
-    selectCategory: state.selectCategory,
-    updateFilterOption: state.updateFilterOption,
-    refreshPlayRecords: state.refreshPlayRecords,
     clearError: state.clearError,
     hydrateFromStorage: state.hydrateFromStorage,
   })));
@@ -75,8 +85,12 @@ export default function HomeScreen() {
   useEffect(() => {
     if (contentData.length > 0 && !loading) {
       setFocusArea('content', FocusPriority.CONTENT);
+      // Set initial background if available (for mobile/tablet)
+      if (deviceType !== 'tv' && contentData[0]?.poster) {
+        setFocusedPoster(contentData[0].poster);
+      }
     }
-  }, [contentData.length, loading, setFocusArea]);
+  }, [contentData.length, loading, setFocusArea, deviceType, contentData, setFocusedPoster]);
 
   useEffect(() => {
     void hydrateFromStorage();
@@ -132,8 +146,8 @@ export default function HomeScreen() {
     if (!selectedCategory || (selectedCategory.tags && !selectedCategory.tag) || !apiConfigStatus.isConfigured || apiConfigStatus.needsConfiguration) {
       return;
     }
-    fetchInitialData();
-  }, [selectedCategory, selectedCategory?.tag, apiConfigStatus.isConfigured, apiConfigStatus.needsConfiguration, fetchInitialData]);
+    initialize();
+  }, [selectedCategory, selectedCategory?.tag, apiConfigStatus.isConfigured, apiConfigStatus.needsConfiguration, initialize]);
 
   // 错误状态清理
   useEffect(() => {
@@ -193,12 +207,18 @@ export default function HomeScreen() {
     }
   }, [selectedCategory, selectCategory, updateFilterOption]);
 
+  const handleItemFocus = useCallback((item: any) => {
+    if (item?.poster) {
+      setFocusedPoster(item.poster);
+    }
+  }, [setFocusedPoster]);
+
   // 动态样式
-  const dynamicContainerStyle = useMemo(() => ({ paddingTop: deviceType === "mobile" ? insets.top : deviceType === "tablet" ? insets.top + 20 : 40 }), [deviceType, insets.top]);
+  const dynamicContainerStyle = useMemo(() => ({ paddingTop: deviceType === "mobile" ? insets.top : deviceType === "tablet" ? insets.top + 20 : 20 }), [deviceType, insets.top]);
 
   const headerStyles = useMemo(() => StyleSheet.create({
     headerContainer: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: spacing * 1.5, marginBottom: spacing / 2 },
-    headerTitle: { fontSize: deviceType === "mobile" ? 24 : deviceType === "tablet" ? 28 : 32, fontWeight: "bold", paddingTop: 16, height: 45 },
+    headerTitle: { fontSize: deviceType === "mobile" ? 24 : deviceType === "tablet" ? 28 : 32, fontWeight: "bold", paddingTop: 0, height: 45 },
     rightHeaderButtons: { flexDirection: "row", alignItems: "center" },
     iconButton: { borderRadius: 30, marginLeft: spacing / 2 },
   }), [deviceType, spacing]);
@@ -210,51 +230,12 @@ export default function HomeScreen() {
     categoryText: { fontSize: deviceType === "mobile" ? 14 : 16, fontWeight: "500" },
   }), [deviceType, spacing]);
 
-  const selectedCategoryRef = useRef(selectedCategory);
-  selectedCategoryRef.current = selectedCategory;
-
   const showFilterPanel = useCallback(() => setFilterPanelVisible(true), []);
-  const noOp = useCallback(() => { }, []);
-
-  const renderContentItem = useCallback(({ item, index, style }: { item: RowItem; index: number; style?: StyleProp<ViewStyle> }) => {
-    const currentCategory = selectedCategoryRef.current;
-    const isFilterable = currentCategory?.title === "所有";
-    const isRecord = currentCategory?.type === "record";
-    let longPressAction;
-    if (deviceType === "tv") {
-      if (isFilterable) longPressAction = showFilterPanel;
-      else if (isRecord) longPressAction = undefined;
-      else longPressAction = noOp;
-    }
-    return (
-      <VideoCard
-        ref={index === 0 ? firstItemRef : undefined}
-        id={item.id}
-        source={item.source}
-        title={item.title}
-        poster={item.poster}
-        year={item.year}
-        rate={item.rate}
-        progress={item.progress}
-        playTime={item.play_time}
-        episodeIndex={item.episodeIndex}
-        sourceName={item.sourceName}
-        totalEpisodes={item.totalEpisodes}
-        api={api}
-        onRecordDeleted={fetchInitialData}
-        onLongPress={longPressAction}
-        style={style}
-      />
-    );
-  }, [fetchInitialData, deviceType, showFilterPanel, noOp]);
-
-  const footerComponent = useMemo(() => {
-    if (!loadingMore) return null;
-    return <ActivityIndicator style={{ marginVertical: 20 }} size="large" />;
-  }, [loadingMore]);
 
   const content = (
     <ThemedView style={[commonStyles.container, dynamicContainerStyle]}>
+      <DynamicBackground />
+
       {deviceType === "mobile" && <StatusBar barStyle="light-content" />}
       {deviceType !== "mobile" && <HomeHeader styles={headerStyles} />}
       <CategoryNavigation
@@ -278,10 +259,13 @@ export default function HomeScreen() {
         spacing={spacing}
         contentData={contentData}
         listRef={listRef}
-        renderContentItem={renderContentItem}
-        loadMoreData={loadMoreData}
+        loadMoreData={() => selectedCategory && loadMoreData(selectedCategory)}
         loadingMore={loadingMore}
-        footerComponent={footerComponent}
+        deviceType={deviceType}
+        onShowFilterPanel={showFilterPanel}
+        onRecordDeleted={initialize}
+        firstItemRef={firstItemRef}
+        onFocus={handleItemFocus}
       />
       {selectedCategory && (
         <FilterPanel

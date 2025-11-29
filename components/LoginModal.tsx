@@ -4,7 +4,7 @@ import { usePathname } from "expo-router";
 import Toast from "react-native-toast-message";
 import useAuthStore from "@/stores/authStore";
 import { useSettingsStore } from "@/stores/settingsStore";
-import useHomeStore from "@/stores/homeStore";
+import { useHomeUIStore } from "@/stores/homeUIStore";
 import { api } from "@/services/api";
 import { LoginCredentialsManager } from "@/services/storage";
 import { ThemedView } from "./ThemedView";
@@ -15,7 +15,7 @@ import { Colors } from "@/constants/Colors";
 const LoginModal = () => {
   const { isLoginModalVisible, hideLoginModal, checkLoginStatus } = useAuthStore();
   const { serverConfig, apiBaseUrl } = useSettingsStore();
-  const { refreshPlayRecords } = useHomeStore();
+  const refreshPlayRecords = useHomeUIStore(state => state.refreshPlayRecords);
   const colorScheme = useColorScheme() ?? 'dark';
   const colors = Colors[colorScheme];
 

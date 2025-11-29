@@ -1,5 +1,5 @@
-import React, { forwardRef } from "react";
-import { Animated, Pressable, StyleSheet, StyleProp, ViewStyle, PressableProps, TextStyle, View, Platform } from "react-native";
+import React, { forwardRef, memo } from "react";
+import { Animated, Pressable, StyleSheet, StyleProp, ViewStyle, PressableProps, TextStyle, View, Platform, TextProps } from "react-native";
 import { ThemedText } from "./ThemedText";
 import { Colors } from "@/constants/Colors";
 import { useButtonAnimation } from "@/hooks/useAnimation";
@@ -12,14 +12,18 @@ interface StyledButtonProps extends PressableProps {
   isSelected?: boolean;
   style?: StyleProp<ViewStyle>;
   textStyle?: StyleProp<TextStyle>;
+  focusScale?: number;
+  focusedStyle?: StyleProp<ViewStyle>;
+  buttonStyle?: StyleProp<ViewStyle>;
+  textProps?: TextProps;
 }
 
-export const StyledButton = forwardRef<View, StyledButtonProps>(
-  ({ children, text, variant = "default", isSelected = false, style, textStyle, onLongPress, ...rest }, ref) => {
+export const StyledButton = memo(forwardRef<View, StyledButtonProps>(
+  ({ children, text, variant = "default", isSelected = false, style, buttonStyle, textStyle, textProps, onLongPress, focusScale = 1.1, focusedStyle, ...rest }, ref) => {
     const colorScheme = "dark";
     const colors = Colors[colorScheme];
     const [isFocused, setIsFocused] = React.useState(false);
-    const animationStyle = useButtonAnimation(isFocused);
+    const animationStyle = useButtonAnimation(isFocused, focusScale);
     const deviceType = useResponsiveLayout().deviceType;
 
     const variantStyles = {
@@ -70,7 +74,7 @@ export const StyledButton = forwardRef<View, StyledButtonProps>(
           borderColor: colors.primary,
         },
         selectedButton: {},
-        selectedText: {color: colors.link,},
+        selectedText: { color: colors.link, },
       }),
     };
 
@@ -110,16 +114,27 @@ export const StyledButton = forwardRef<View, StyledButtonProps>(
     return (
       <Animated.View style={[animationStyle, style]}>
         <Pressable
-          android_ripple={Platform.isTV || deviceType !== 'tv'? { color: 'transparent' } : { color: Colors.dark.link }}
+          android_ripple={Platform.isTV || deviceType !== 'tv' ? { color: 'transparent' } : { color: Colors.dark.link }}
           ref={ref}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
+          onFocus={(e) => {
+            setIsFocused(true);
+            if (rest.onFocus) {
+              rest.onFocus(e);
+            }
+          }}
+          onBlur={(e) => {
+            setIsFocused(false);
+            if (rest.onBlur) {
+              rest.onBlur(e);
+            }
+          }}
           onLongPress={onLongPress}
           style={({ focused }) => [
             styles.button,
             variantStyles[variant].button,
             isSelected && (variantStyles[variant].selectedButton ?? styles.selectedButton),
-            focused && (variantStyles[variant].focusedButton ?? styles.focusedButton),
+            buttonStyle,
+            focused && (focusedStyle ?? variantStyles[variant].focusedButton ?? styles.focusedButton),
           ]}
           {...rest}
         >
@@ -131,6 +146,7 @@ export const StyledButton = forwardRef<View, StyledButtonProps>(
                 isSelected && (variantStyles[variant].selectedText ?? styles.selectedText),
                 textStyle,
               ]}
+              {...textProps}
             >
               {text}
             </ThemedText>
@@ -141,6 +157,6 @@ export const StyledButton = forwardRef<View, StyledButtonProps>(
       </Animated.View>
     );
   }
-);
+));
 
 StyledButton.displayName = "StyledButton";

@@ -1,11 +1,101 @@
-import React, { useMemo, useEffect } from "react";
-import { Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView, FlatList } from "react-native";
-import { Category, DoubanFilterKey } from "@/stores/homeStore";
+import React, { useMemo, useEffect, useCallback } from "react";
+import { Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView } from "react-native";
+import { Category, DoubanFilterKey, DoubanFilterGroup } from "@/services/dataTypes";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StyledButton } from "@/components/StyledButton";
 import { Colors } from "@/constants/Colors";
 import { useFocusStore } from "@/stores/focusStore";
 import { FocusPriority } from "@/types/focus";
+import { FlashList } from "@shopify/flash-list";
+
+// --- Sub-components ---
+
+interface TagListProps {
+  tags: string[];
+  selectedTag?: string;
+  onSelect: (tag: string) => void;
+  styles: any;
+}
+
+const TagList = React.memo(({ tags, selectedTag, onSelect, styles }: TagListProps) => {
+  if (!tags || tags.length === 0) return null;
+
+  return (
+    <View style={styles.filterGroup}>
+      <Text style={styles.filterGroupLabel}>标签</Text>
+      <View style={{ flex: 1 }}>
+        <FlashList
+          horizontal
+          data={tags}
+          showsHorizontalScrollIndicator={false}
+          keyExtractor={(tag) => tag}
+          // @ts-ignore
+          estimatedItemSize={60}
+          renderItem={({ item: tag, index }) => {
+            const isSelected = selectedTag === tag;
+            return (
+              <StyledButton
+                text={tag}
+                onPress={() => onSelect(tag)}
+                isSelected={isSelected}
+                style={styles.filterOptionButton}
+                textStyle={styles.filterOptionText}
+                variant="ghost"
+                hasTVPreferredFocus={index === 0}
+              />
+            );
+          }}
+        />
+      </View>
+    </View>
+  );
+});
+
+TagList.displayName = "TagList";
+
+interface FilterGroupListProps {
+  group: DoubanFilterGroup;
+  activeValue: string;
+  onSelect: (groupKey: DoubanFilterKey, value: string) => void;
+  styles: any;
+  isFirstGroup: boolean;
+  hasTags: boolean;
+}
+
+const FilterGroupList = React.memo(({ group, activeValue, onSelect, styles, isFirstGroup, hasTags }: FilterGroupListProps) => {
+  return (
+    <View style={styles.filterGroup}>
+      <Text style={styles.filterGroupLabel}>{group.label}</Text>
+      <View style={{ flex: 1 }}>
+        <FlashList
+          horizontal
+          data={group.options}
+          showsHorizontalScrollIndicator={false}
+          keyExtractor={(option) => option.value}
+          // @ts-ignore
+          estimatedItemSize={60}
+          renderItem={({ item: option, index: optionIndex }) => {
+            const isSelected = activeValue === option.value;
+            return (
+              <StyledButton
+                text={option.label}
+                onPress={() => onSelect(group.key, option.value)}
+                isSelected={isSelected}
+                style={styles.filterOptionButton}
+                textStyle={styles.filterOptionText}
+                hasTVPreferredFocus={!hasTags && isFirstGroup && optionIndex === 0}
+              />
+            );
+          }}
+        />
+      </View>
+    </View>
+  );
+});
+
+FilterGroupList.displayName = "FilterGroupList";
+
+// --- Main Component ---
 
 interface FilterPanelProps {
   isVisible: boolean;
@@ -68,87 +158,43 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ isVisible, onClose, category,
     },
   }), [colors]);
 
-  const handleTagSelect = (tag: string) => {
+  const handleTagSelect = useCallback((tag: string) => {
     onFilterChange({ tag });
-  };
+  }, [onFilterChange]);
 
-  const handleFilterSelect = (groupKey: DoubanFilterKey, value: string) => {
+  const handleFilterSelect = useCallback((groupKey: DoubanFilterKey, value: string) => {
     onFilterChange({ filterKey: groupKey, filterValue: value });
-  };
-
-  const renderTags = () => {
-    if (!category.tags || category.tags.length === 0) return null;
-    return (
-      <View style={styles.filterGroup}>
-        <Text style={styles.filterGroupLabel}>标签</Text>
-        <FlatList
-          horizontal
-          data={category.tags}
-          showsHorizontalScrollIndicator={false}
-          keyExtractor={(tag) => tag}
-          renderItem={({ item: tag, index }) => {
-            const isSelected = category.tag === tag;
-            return (
-              <StyledButton
-                text={tag}
-                onPress={() => handleTagSelect(tag)}
-                isSelected={isSelected}
-                style={styles.filterOptionButton}
-                textStyle={styles.filterOptionText}
-                variant="ghost"
-                hasTVPreferredFocus={index === 0 && !category.filterConfig} // Focus here if no other filters exist
-              />
-            );
-          }}
-        />
-      </View>
-    );
-  };
-
-  const renderFilters = () => {
-    if (!category.filterConfig) return null;
-
-    return (
-      <View style={styles.filterSection}>
-        {category.filterConfig.groups.map((group, groupIndex) => {
-          const activeValue = category.activeFilters?.[group.key] ?? group.defaultValue;
-
-          return (
-            <View key={group.key} style={styles.filterGroup}>
-              <Text style={styles.filterGroupLabel}>{group.label}</Text>
-              <FlatList
-                horizontal
-                data={group.options}
-                showsHorizontalScrollIndicator={false}
-                keyExtractor={(option) => option.value}
-                renderItem={({ item: option, index: optionIndex }) => {
-                  const isSelected = activeValue === option.value;
-                  return (
-                    <StyledButton
-                      text={option.label}
-                      onPress={() => handleFilterSelect(group.key, option.value)}
-                      isSelected={isSelected}
-                      style={styles.filterOptionButton}
-                      textStyle={styles.filterOptionText} // Simplified: no conditional style
-                      hasTVPreferredFocus={!category.tags && groupIndex === 0 && optionIndex === 0}
-                    />
-                  );
-                }}
-              />
-            </View>
-          );
-        })}
-      </View>
-    );
-  };
+  }, [onFilterChange]);
 
   return (
     <Modal transparent={true} visible={isVisible} onRequestClose={onClose} animationType="fade">
       <View style={{ flex: 1 }}>
         <View style={[styles.panel, { paddingTop: insets.top + 10, paddingBottom: insets.bottom + 20 }]}>
           <ScrollView>
-            {renderTags()}
-            {renderFilters()}
+            {category.tags && category.tags.length > 0 && (
+              <TagList
+                tags={category.tags}
+                selectedTag={category.tag}
+                onSelect={handleTagSelect}
+                styles={styles}
+              />
+            )}
+
+            {category.filterConfig && (
+              <View style={styles.filterSection}>
+                {category.filterConfig.groups.map((group, index) => (
+                  <FilterGroupList
+                    key={group.key}
+                    group={group}
+                    activeValue={category.activeFilters?.[group.key] ?? group.defaultValue}
+                    onSelect={handleFilterSelect}
+                    styles={styles}
+                    isFirstGroup={index === 0}
+                    hasTags={!!(category.tags && category.tags.length > 0)}
+                  />
+                ))}
+              </View>
+            )}
           </ScrollView>
         </View>
         <TouchableOpacity style={{ flex: 1 }} onPress={handleClose} activeOpacity={0} />

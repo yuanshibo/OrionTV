@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
-import { View, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, ActivityIndicator } from 'react-native';
+import { FlashList } from "@shopify/flash-list";
 import { ThemedText } from './ThemedText';
 import { api, DoubanRecommendationItem, SearchResult } from '@/services/api';
 import { fetchSearchResults } from '@/services/searchService';
@@ -13,9 +14,10 @@ import { FocusPriority } from '@/types/focus';
 interface RelatedSeriesProps {
   title: string;
   autoFocus?: boolean;
+  onFocus?: (item: any) => void;
 }
 
-const RelatedSeriesComponent: React.FC<RelatedSeriesProps> = ({ title, autoFocus = false }) => {
+const RelatedSeriesComponent: React.FC<RelatedSeriesProps> = ({ title, autoFocus = false, onFocus }) => {
   const [related, setRelated] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(true);
   const firstCardRef = useRef<View>(null);
@@ -106,9 +108,10 @@ const RelatedSeriesComponent: React.FC<RelatedSeriesProps> = ({ title, autoFocus
         year={item.year}
         sourceName={item.source_name}
         api={api}
+        onFocus={onFocus}
       />
     </View>
-  ), [styles.itemContainer]);
+  ), [styles.itemContainer, onFocus]);
 
   if (loading) {
     return (
@@ -125,13 +128,15 @@ const RelatedSeriesComponent: React.FC<RelatedSeriesProps> = ({ title, autoFocus
   return (
     <View style={styles.container}>
       <ThemedText style={styles.title}>{listTitle}</ThemedText>
-      <FlatList
+      <FlashList
         horizontal
         data={related}
         renderItem={renderItem}
         keyExtractor={(item, index) => `${item.id}-${index}`}
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.list}
+        // @ts-ignore
+        estimatedItemSize={150} // Approximate width of VideoCard
       />
     </View>
   );

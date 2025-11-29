@@ -1,34 +1,15 @@
 import React, { forwardRef, useMemo } from "react";
-import { View, StyleSheet, TouchableOpacity, useColorScheme, Text, StyleProp, ViewStyle } from "react-native";
+import { View, StyleSheet, TouchableOpacity, useColorScheme, Text } from "react-native";
 import { Image } from "expo-image";
 import { Star, Play } from "lucide-react-native";
 import Reanimated from "react-native-reanimated";
-import { API } from "@/services/api";
 import { ThemedText } from "@/components/ThemedText";
 import { Colors } from "@/constants/Colors";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import useAuthStore from "@/stores/authStore";
 import { useVideoCardInteractions } from "@/hooks/useVideoCardInteractions";
 
-interface VideoCardMobileProps extends React.ComponentProps<typeof TouchableOpacity> {
-  id: string;
-  source: string;
-  title: string;
-  poster: string;
-  year?: string;
-  rate?: string;
-  sourceName?: string;
-  progress?: number;
-  playTime?: number;
-  episodeIndex?: number;
-  totalEpisodes?: number;
-  onFocus?: () => void;
-  onRecordDeleted?: () => void;
-  onFavoriteDeleted?: () => void;
-  api: API;
-  type?: 'record' | 'favorite';
-  style?: StyleProp<ViewStyle>;
-}
+import { VideoCardMobileProps } from './VideoCard.types';
 
 const VideoCardMobile = forwardRef<View, VideoCardMobileProps>(
   (
