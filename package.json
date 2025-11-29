@@ -20,7 +20,10 @@
     "reset-project": "./scripts/reset-project.js"
   },
   "jest": {
-    "preset": "jest-expo"
+    "preset": "jest-expo",
+    "setupFilesAfterEnv": [
+      "<rootDir>/jest.setup.js"
+    ]
   },
   "resolutions": {
     "react-native": "npm:react-native-tvos@~0.81.5-0"
