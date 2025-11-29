@@ -9,12 +9,14 @@ import { useHomeDataStore } from "./homeDataStore";
 interface HomeUIState {
     categories: Category[];
     selectedCategory: Category;
+    focusedPoster: string | null;
 
     // Actions
     selectCategory: (category: Category) => void;
     updateFilterOption: (categoryTitle: string, key: DoubanFilterKey, value: string) => void;
     refreshPlayRecords: () => Promise<void>;
     initialize: () => Promise<void>;
+    setFocusedPoster: (poster: string | null) => void;
 }
 
 const isSameCategory = (a?: Category | null, b?: Category | null) => {
@@ -35,6 +37,7 @@ const ensureCategoryHasDefaultTag = (category: Category): Category => {
 export const useHomeUIStore = create<HomeUIState>((set, get) => ({
     categories: initialCategories,
     selectedCategory: initialCategories[0],
+    focusedPoster: null,
 
     initialize: async () => {
         const { apiBaseUrl } = useSettingsStore.getState();
@@ -188,4 +191,6 @@ export const useHomeUIStore = create<HomeUIState>((set, get) => ({
             return updates;
         });
     },
+
+    setFocusedPoster: (poster: string | null) => set({ focusedPoster: poster }),
 }));

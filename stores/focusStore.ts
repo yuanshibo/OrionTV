@@ -51,7 +51,7 @@ export const useFocusStore = create<FocusStore>((set, get) => ({
         const { currentFocusArea, focusHistory, debugMode } = get();
 
         if (debugMode) {
-            console.log(`[FocusStore] Setting focus area: ${currentFocusArea} → ${area} (priority: ${priority})`);
+            // console.log(`[FocusStore] Setting focus area: ${currentFocusArea} → ${area} (priority: ${priority})`);
         }
 
         // Add current area to history before changing
@@ -71,7 +71,7 @@ export const useFocusStore = create<FocusStore>((set, get) => ({
 
         if (focusHistory.length === 0) {
             if (debugMode) {
-                console.log('[FocusStore] No focus history to restore');
+                // console.log('[FocusStore] No focus history to restore');
             }
             return null;
         }
@@ -80,7 +80,7 @@ export const useFocusStore = create<FocusStore>((set, get) => ({
         const newHistory = focusHistory.slice(0, -1);
 
         if (debugMode) {
-            console.log(`[FocusStore] Restoring focus to: ${previousArea}`);
+            // console.log(`[FocusStore] Restoring focus to: ${previousArea}`);
         }
 
         set({
@@ -96,7 +96,7 @@ export const useFocusStore = create<FocusStore>((set, get) => ({
 
     clearHistory: () => {
         if (get().debugMode) {
-            console.log('[FocusStore] Clearing focus history');
+            // console.log('[FocusStore] Clearing focus history');
         }
         set({ focusHistory: [] });
     },
@@ -107,7 +107,7 @@ export const useFocusStore = create<FocusStore>((set, get) => ({
 
     reset: () => {
         if (get().debugMode) {
-            console.log('[FocusStore] Resetting focus store');
+            // console.log('[FocusStore] Resetting focus store');
         }
         set(initialState);
     },
