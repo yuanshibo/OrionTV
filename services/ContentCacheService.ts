@@ -32,7 +32,16 @@ class ContentCacheService {
   }
 
   public getCacheKey(category: Category) {
-    return `${category.type || 'unknown'}-${category.title}-${category.tag || ''}`;
+    let key = `${category.type || 'unknown'}-${category.title}-${category.tag || ''}`;
+    if (category.activeFilters) {
+      // Sort keys to ensure consistent order
+      const filterPart = Object.entries(category.activeFilters)
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([k, v]) => `${k}:${v}`)
+        .join('|');
+      key += `-${filterPart}`;
+    }
+    return key;
   }
 
   public isValidCache(cacheItem: CacheItem) {

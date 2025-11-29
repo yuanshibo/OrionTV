@@ -26,6 +26,7 @@ interface ContentDisplayProps {
   onShowFilterPanel: () => void;
   onRecordDeleted: () => void;
   firstItemRef?: React.RefObject<any>;
+  onFocus?: (item?: any) => void;
 }
 
 const styles = StyleSheet.create({
@@ -50,6 +51,7 @@ export const ContentDisplay: React.FC<ContentDisplayProps> = React.memo(({
   onShowFilterPanel,
   onRecordDeleted,
   firstItemRef,
+  onFocus,
 }) => {
   const animatedStyle = useAnimatedStyle(() => ({
     opacity: fadeAnim.value,
@@ -86,9 +88,10 @@ export const ContentDisplay: React.FC<ContentDisplayProps> = React.memo(({
         onRecordDeleted={onRecordDeleted}
         onLongPress={longPressAction}
         style={style}
+        onFocus={onFocus}
       />
     );
-  }, [selectedCategory, deviceType, onShowFilterPanel, onRecordDeleted, firstItemRef]);
+  }, [selectedCategory, deviceType, onShowFilterPanel, onRecordDeleted, firstItemRef, onFocus]);
 
   const footerComponent = useMemo(() => {
     if (!loadingMore) return null;

@@ -1,20 +1,22 @@
+import { render } from '@testing-library/react-native';
 import React from 'react';
-import { render, fireEvent } from '@testing-library/react-native';
 import VideoCard from '../VideoCard';
 
-// Mock dependencies
-jest.mock('@react-native-async-storage/async-storage', () =>
-    require('@react-native-async-storage/async-storage/jest/async-storage-mock')
-);
-
-jest.mock('expo-image', () => ({
-    Image: 'Image',
-}));
-
-jest.mock('lucide-react-native', () => ({
-    Star: 'Star',
-    Play: 'Play',
-}));
+// Mock the child components to avoid testing implementation details
+jest.mock('../VideoCard.tv', () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { View } = require('react-native');
+    const MockVideoCardTV = (props: any) => <View testID="video-card-tv" {...props} />;
+    MockVideoCardTV.displayName = 'VideoCardTV';
+    return MockVideoCardTV;
+});
+jest.mock('../ResponsiveVideoCard', () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { View } = require('react-native');
+    const MockResponsiveVideoCard = (props: any) => <View testID="video-card-mobile" {...props} />;
+    MockResponsiveVideoCard.displayName = 'ResponsiveVideoCard';
+    return MockResponsiveVideoCard;
+});
 
 jest.mock('@/hooks/useResponsiveLayout', () => ({
     useResponsiveLayout: () => ({
@@ -47,6 +49,7 @@ jest.mock('@/services/api', () => ({
 
 // Mock Reanimated
 jest.mock('react-native-reanimated', () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const Reanimated = require('react-native-reanimated/mock');
     Reanimated.default.call = () => { };
     return Reanimated;

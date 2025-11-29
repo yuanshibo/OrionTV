@@ -20,6 +20,8 @@ import { requestTVFocus } from "@/utils/tvUtils";
 import { useShallow } from "zustand/react/shallow";
 import { useFocusStore } from "@/stores/focusStore";
 import { FocusPriority } from "@/types/focus";
+import { Image } from "expo-image";
+import { api } from "@/services/api";
 
 export default function HomeScreen() {
   const fadeAnim = useSharedValue(0);
@@ -78,12 +80,19 @@ export default function HomeScreen() {
   const [categoryFocusTrigger, setCategoryFocusTrigger] = useState(0);
   const setFocusArea = useFocusStore(s => s.setFocusArea);
 
+  // Background Image State
+  const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
+
   // Set content focus area when content is displayed
   useEffect(() => {
     if (contentData.length > 0 && !loading) {
       setFocusArea('content', FocusPriority.CONTENT);
+      // Set initial background if available (for mobile/tablet)
+      if (deviceType !== 'tv' && contentData[0]?.poster) {
+        setBackgroundImage(contentData[0].poster);
+      }
     }
-  }, [contentData.length, loading, setFocusArea]);
+  }, [contentData.length, loading, setFocusArea, deviceType, contentData]);
 
   useEffect(() => {
     void hydrateFromStorage();
@@ -200,6 +209,12 @@ export default function HomeScreen() {
     }
   }, [selectedCategory, selectCategory, updateFilterOption]);
 
+  const handleItemFocus = useCallback((item: any) => {
+    if (item?.poster) {
+      setBackgroundImage(item.poster);
+    }
+  }, []);
+
   // 动态样式
   const dynamicContainerStyle = useMemo(() => ({ paddingTop: deviceType === "mobile" ? insets.top : deviceType === "tablet" ? insets.top + 20 : 20 }), [deviceType, insets.top]);
 
@@ -221,6 +236,21 @@ export default function HomeScreen() {
 
   const content = (
     <ThemedView style={[commonStyles.container, dynamicContainerStyle]}>
+      {/* Background Image Layer */}
+      {backgroundImage && (
+        <View style={StyleSheet.absoluteFill}>
+          <Image
+            source={{ uri: api.getImageProxyUrl(backgroundImage) }}
+            style={StyleSheet.absoluteFill}
+            contentFit="cover"
+            transition={500}
+            blurRadius={Platform.OS === 'ios' ? 20 : 10} // Stronger blur for better readability
+          />
+          {/* Dark Overlay for readability */}
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.7)' }]} />
+        </View>
+      )}
+
       {deviceType === "mobile" && <StatusBar barStyle="light-content" />}
       {deviceType !== "mobile" && <HomeHeader styles={headerStyles} />}
       <CategoryNavigation
@@ -250,6 +280,7 @@ export default function HomeScreen() {
         onShowFilterPanel={showFilterPanel}
         onRecordDeleted={initialize}
         firstItemRef={firstItemRef}
+        onFocus={handleItemFocus}
       />
       {selectedCategory && (
         <FilterPanel
