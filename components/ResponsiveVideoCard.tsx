@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, forwardRef, useMemo } from "react";
-import { View, Text, Image, StyleSheet, TouchableOpacity, Alert, Animated, useColorScheme } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Animated, useColorScheme } from "react-native";
+import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { Star, Play } from "lucide-react-native";
 import { PlayRecordManager } from "@/services/storage";
@@ -154,7 +155,13 @@ const ResponsiveVideoCard = forwardRef<View, VideoCardProps>(
           delayLongPress={responsiveConfig.deviceType === 'mobile' ? 500 : 1000}
         >
           <View style={[styles.card, isFocused && styles.cardFocused]}>
-            <Image source={{ uri: api.getImageProxyUrl(poster) }} style={styles.poster} />
+            <Image
+              source={{ uri: api.getImageProxyUrl(poster) }}
+              style={styles.poster}
+              contentFit="cover"
+              transition={500}
+              cachePolicy="memory-disk"
+            />
             {(isFocused && responsiveConfig.deviceType === 'tv') && (
               <View style={styles.overlay}>
                 {isContinueWatching && (
