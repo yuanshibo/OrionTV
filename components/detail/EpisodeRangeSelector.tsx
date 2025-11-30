@@ -11,6 +11,8 @@ interface EpisodeRangeSelectorProps {
     chunkSize?: number;
     styles?: any;
     colors?: any;
+    focusOffset?: number;
+    setFirstRangeRef?: (node: any) => void;
 }
 
 export const EpisodeRangeSelector = memo(({
@@ -20,6 +22,8 @@ export const EpisodeRangeSelector = memo(({
     chunkSize = 50,
     styles: propStyles,
     colors: propColors,
+    focusOffset = 0,
+    setFirstRangeRef,
 }: EpisodeRangeSelectorProps) => {
     const { deviceType } = useResponsiveLayout();
     const isMobile = deviceType === 'mobile';
@@ -50,23 +54,27 @@ export const EpisodeRangeSelector = memo(({
             onRangeSelect(index);
             // Use requestAnimationFrame for smoother and faster interaction with native focus
             requestAnimationFrame(() => {
+                // Align to second item by scrolling to index with offset
                 flatListRef.current?.scrollToIndex({
                     index,
                     animated: true,
-                    viewPosition: 0
+                    viewPosition: 0,
+                    viewOffset: index === 0 ? 0 : focusOffset
                 });
             });
         }
-    }, [isMobile, onRangeSelect]);
+    }, [isMobile, onRangeSelect, focusOffset]);
 
     // Scroll to current range when it changes externally (e.g. from episode list focus)
     React.useEffect(() => {
         if (ranges.length > 0 && currentRange >= 0 && currentRange < ranges.length) {
             requestAnimationFrame(() => {
+                // Align to second item by scrolling to currentRange with offset
                 flatListRef.current?.scrollToIndex({
                     index: currentRange,
                     animated: true,
-                    viewPosition: 0
+                    viewPosition: 0,
+                    viewOffset: currentRange === 0 ? 0 : focusOffset
                 });
             });
         }
@@ -74,6 +82,7 @@ export const EpisodeRangeSelector = memo(({
 
     const renderItem = React.useCallback(({ item }: { item: { label: string; index: number } }) => (
         <StyledButton
+            ref={item.index === 0 ? setFirstRangeRef : undefined}
             text={item.label}
             onPress={() => onRangeSelect(item.index)}
             onFocus={() => handleFocus(item.index)}
@@ -118,7 +127,12 @@ export const EpisodeRangeSelector = memo(({
                 onScrollToIndexFailed={(info: { index: number; highestMeasuredFrameIndex: number; averageItemLength: number }) => {
                     const wait = new Promise(resolve => setTimeout(resolve, 500));
                     wait.then(() => {
-                        flatListRef.current?.scrollToIndex({ index: info.index, animated: true, viewPosition: 0 });
+                        flatListRef.current?.scrollToIndex({
+                            index: info.index,
+                            animated: true,
+                            viewPosition: 0,
+                            viewOffset: info.index === 0 ? 0 : focusOffset
+                        });
                     });
                 }}
             />
@@ -140,25 +154,25 @@ const styles = StyleSheet.create({
     button: {
         borderRadius: 0,
         borderWidth: 0,
-        paddingHorizontal: 2,
-        paddingVertical: 2,
+        paddingHorizontal: 6,
+        paddingVertical: 6,
         backgroundColor: 'transparent',
     },
     mobileButton: {
-        minHeight: 28,
+        minHeight: 42,
     },
     tvButton: {
-        minHeight: 28,
+        minHeight: 42,
     },
     buttonText: {
-        fontSize: 12,
+        fontSize: 16,
         fontWeight: '600',
         color: 'rgba(255,255,255,0.5)',
     },
     selectedButtonText: {
         color: '#fff',
         fontWeight: 'bold',
-        fontSize: 14,
+        fontSize: 18,
     },
 });
 

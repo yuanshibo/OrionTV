@@ -108,11 +108,18 @@ export const DetailTVView: React.FC<DetailTVViewProps> = memo(({
 
   const [firstSourceTag, setFirstSourceTag] = useState<number | null>(null);
   const [targetEpisodeTag, setTargetEpisodeTag] = useState<number | null>(null);
+  const [firstRangeTag, setFirstRangeTag] = useState<number | null>(null);
   const episodeRefs = React.useRef<Map<number, any>>(new Map());
 
   const setFirstSourceRef = useCallback((node: any) => {
     if (node) {
       setFirstSourceTag(findNodeHandle(node));
+    }
+  }, []);
+
+  const handleSetFirstRangeRef = useCallback((node: any) => {
+    if (node) {
+      setFirstRangeTag(findNodeHandle(node));
     }
   }, []);
 
@@ -123,6 +130,7 @@ export const DetailTVView: React.FC<DetailTVViewProps> = memo(({
   // Assuming some padding (e.g. 40px total horizontal padding).
   const padding = 40;
   const itemWidth = (width - padding) / 10;
+  const focusOffset = itemWidth * 0.5;
 
   const updateTargetEpisode = useCallback((index: number) => {
     const node = episodeRefs.current.get(index);
@@ -132,13 +140,22 @@ export const DetailTVView: React.FC<DetailTVViewProps> = memo(({
   }, []);
 
   const handleRangeSelect = useCallback((index: number) => {
+    if (index === currentRange) return;
+
     setCurrentRange(index);
     const startIndex = index * chunkSize;
     // Scroll episode list to the start of the selected range
-    episodeListRef.current?.scrollToIndex({ index: startIndex, animated: true, viewPosition: 0 });
+    // Align to second item by scrolling to startIndex with offset
+    // Use animated: false for instant jump
+    episodeListRef.current?.scrollToIndex({
+      index: startIndex,
+      animated: false,
+      viewPosition: 0,
+      viewOffset: startIndex === 0 ? 0 : focusOffset
+    });
     // Try to update target to the start of the range (if rendered)
     updateTargetEpisode(startIndex);
-  }, [chunkSize, updateTargetEpisode]);
+  }, [chunkSize, updateTargetEpisode, focusOffset, currentRange]);
 
   const handleEpisodeFocus = useCallback((index: number) => {
     const newRange = Math.floor(index / chunkSize);
@@ -151,9 +168,15 @@ export const DetailTVView: React.FC<DetailTVViewProps> = memo(({
     // Use requestAnimationFrame for smoother and faster interaction with native focus
     // forcing the focused item to align to the left immediately
     requestAnimationFrame(() => {
-      episodeListRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0 });
+      // Align to second item by scrolling to index with offset
+      episodeListRef.current?.scrollToIndex({
+        index,
+        animated: true,
+        viewPosition: 0,
+        viewOffset: index === 0 ? 0 : focusOffset
+      });
     });
-  }, [chunkSize, currentRange, updateTargetEpisode]);
+  }, [chunkSize, currentRange, updateTargetEpisode, focusOffset]);
 
   const renderEpisodeItem = useCallback(({ item, index }: { item: any, index: number }) => {
     return (
@@ -175,6 +198,7 @@ export const DetailTVView: React.FC<DetailTVViewProps> = memo(({
           style={[dynamicStyles.episodeButton, { minHeight: 50 }]}
           textStyle={[dynamicStyles.episodeButtonText, { fontSize: 16 }]}
           onFocus={() => handleEpisodeFocus(index)}
+          nextFocusDown={index < 10 ? (firstRangeTag || undefined) : undefined}
         />
       </View>
     );
@@ -245,6 +269,8 @@ export const DetailTVView: React.FC<DetailTVViewProps> = memo(({
                   chunkSize={chunkSize}
                   styles={dynamicStyles}
                   colors={colors}
+                  focusOffset={focusOffset}
+                  setFirstRangeRef={handleSetFirstRangeRef}
                 />
               )}
             </View>

@@ -6,12 +6,13 @@ import { ThemedText } from '@/components/ThemedText';
 interface EpisodeButtonProps {
   index: number;
   onPlay: (index: number) => void;
-  style: any;
-  textStyle: any;
+  style?: any;
+  textStyle?: any;
   onFocus?: () => void;
+  nextFocusDown?: number | null;
 }
 
-export const EpisodeButton = memo(React.forwardRef<View, EpisodeButtonProps>(({ index, onPlay, style, textStyle, onFocus }, ref) => {
+export const EpisodeButton = memo(React.forwardRef<View, EpisodeButtonProps>(({ index, onPlay, style, textStyle, onFocus, nextFocusDown }, ref) => {
   const handlePress = useCallback(() => {
     onPlay(index);
   }, [onPlay, index]);
@@ -25,6 +26,7 @@ export const EpisodeButton = memo(React.forwardRef<View, EpisodeButtonProps>(({ 
       text={`${index + 1}集`}
       textStyle={textStyle}
       textProps={{ numberOfLines: 1, adjustsFontSizeToFit: true }}
+      nextFocusDown={nextFocusDown}
     />
   );
 }));
