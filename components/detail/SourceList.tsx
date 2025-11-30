@@ -68,10 +68,10 @@ const SourceButton = memo(React.forwardRef<View, SourceButtonProps>(({ item, isS
       nextFocusDown={nextFocusDown}
     >
       <View style={styles.sourceButtonContent}>
-        <ThemedText style={styles.sourceNameText} numberOfLines={1}>
+        <ThemedText style={styles.sourceNameText}>
           {item.source_name.slice(0, 2)}
         </ThemedText>
-        <ThemedText style={styles.sourceMetaText} numberOfLines={1}>
+        <ThemedText style={styles.sourceMetaText}>
           ・{item.episodes.length > 99 ? "99+" : item.episodes.length}集
         </ThemedText>
       </View>
