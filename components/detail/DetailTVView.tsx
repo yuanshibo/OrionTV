@@ -51,7 +51,6 @@ export const DetailTVView: React.FC<DetailTVViewProps> = memo(({
   const [firstSourceTag, setFirstSourceTag] = useState<number | null>(null);
   const [targetEpisodeTag, setTargetEpisodeTag] = useState<number | null>(null);
   const [firstRangeTag, setFirstRangeTag] = useState<number | null>(null);
-  const episodeRefs = React.useRef<Map<number, any>>(new Map());
 
   const setFirstSourceRef = useCallback((node: any) => {
     if (node) {
@@ -73,12 +72,8 @@ export const DetailTVView: React.FC<DetailTVViewProps> = memo(({
   const padding = 40;
   const itemWidth = (width - padding) / 10;
   const focusOffset = itemWidth * 0.5;
-
   const updateTargetEpisode = useCallback((index: number) => {
-    const node = episodeRefs.current.get(index);
-    if (node) {
-      setTargetEpisodeTag(findNodeHandle(node));
-    }
+    episodeListRef.current?.updateTargetEpisode(index);
   }, []);
 
   const handleRangeSelect = useCallback((index: number) => {
@@ -96,7 +91,14 @@ export const DetailTVView: React.FC<DetailTVViewProps> = memo(({
       viewOffset: startIndex === 0 ? 0 : focusOffset
     });
     // Try to update target to the start of the range (if rendered)
-    updateTargetEpisode(startIndex);
+    // We need to wait for layout/render? FlashList might not have mounted the new items yet.
+    // But updateTargetEpisode checks if node exists.
+    // For FlashList, we might need a small delay or rely on onFocus if focus moves there.
+    // However, for "nextFocusUp" to work immediately, we need the tag.
+    // Since we just scrolled, the item *should* be rendered soon.
+    requestAnimationFrame(() => {
+      updateTargetEpisode(startIndex);
+    });
   }, [chunkSize, updateTargetEpisode, focusOffset, currentRange]);
 
   const handleEpisodeFocus = useCallback((index: number) => {
@@ -122,7 +124,7 @@ export const DetailTVView: React.FC<DetailTVViewProps> = memo(({
     });
   }, [chunkSize, updateTargetEpisode, focusOffset]);
 
-  const posterUpdateTimer = React.useRef<NodeJS.Timeout | null>(null);
+  const posterUpdateTimer = React.useRef<any>(null);
 
   const handleTVTopInfoFocus = useCallback(() => {
     if (posterUpdateTimer.current) {

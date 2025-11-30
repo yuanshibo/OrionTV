@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useRef, forwardRef, useImperativeHandle } from 'react';
-import { View, FlatList, findNodeHandle } from 'react-native';
+import { View, findNodeHandle } from 'react-native';
+import { FlashList } from "@shopify/flash-list";
 import { EpisodeButton } from '@/components/detail/EpisodeList';
 
 interface EpisodeHorizontalListProps {
@@ -14,6 +15,7 @@ interface EpisodeHorizontalListProps {
 
 export interface EpisodeHorizontalListRef {
     scrollToIndex: (params: { index: number; animated?: boolean; viewOffset?: number; viewPosition?: number }) => void;
+    updateTargetEpisode: (index: number) => void;
 }
 
 export const EpisodeHorizontalList = memo(forwardRef<EpisodeHorizontalListRef, EpisodeHorizontalListProps>(({
@@ -25,13 +27,27 @@ export const EpisodeHorizontalList = memo(forwardRef<EpisodeHorizontalListRef, E
     dynamicStyles,
     setTargetEpisodeTag,
 }, ref) => {
-    const episodeListRef = useRef<FlatList>(null);
+    const episodeListRef = useRef<React.ElementRef<typeof FlashList>>(null);
     const episodeRefs = useRef<Map<number, any>>(new Map());
     const initialTargetSet = useRef(false);
 
     useImperativeHandle(ref, () => ({
         scrollToIndex: (params) => {
-            episodeListRef.current?.scrollToIndex(params);
+            const { index, animated, viewOffset = 0 } = params;
+            // Manually calculate offset to ensure consistent behavior with FlatList's viewOffset
+            // This guarantees the "second button" focus alignment (context preservation)
+            // We assume viewPosition is 0 (default) as used in DetailTVView
+            const offset = (index * itemWidth) - viewOffset;
+            episodeListRef.current?.scrollToOffset({
+                offset: Math.max(0, offset),
+                animated
+            });
+        },
+        updateTargetEpisode: (index: number) => {
+            const node = episodeRefs.current.get(index);
+            if (node) {
+                setTargetEpisodeTag(findNodeHandle(node));
+            }
         }
     }));
 
@@ -62,22 +78,20 @@ export const EpisodeHorizontalList = memo(forwardRef<EpisodeHorizontalListRef, E
         );
     }, [handlePlay, dynamicStyles, handleEpisodeFocus, itemWidth, firstRangeTag, setTargetEpisodeTag]);
 
+    const FlashListAny = FlashList as any;
+
     return (
         <View style={{ height: 60, marginBottom: 0 }}>
-            <FlatList
+            <FlashListAny
                 ref={episodeListRef}
                 data={episodes}
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 renderItem={renderEpisodeItem}
-                keyExtractor={(item, index) => `episode-${index}`}
+                keyExtractor={(item: any, index: number) => `episode-${index}`}
                 contentContainerStyle={{ paddingHorizontal: 0 }}
-                getItemLayout={(data, index) => (
-                    { length: itemWidth, offset: itemWidth * index, index }
-                )}
+                estimatedItemSize={itemWidth}
                 removeClippedSubviews={true}
-                windowSize={10}
-                initialNumToRender={10}
                 ListFooterComponent={<View style={{ width: itemWidth * 9 }} />}
             />
         </View>
