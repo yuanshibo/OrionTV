@@ -13,6 +13,7 @@ interface EpisodeRangeSelectorProps {
     colors?: any;
     focusOffset?: number;
     setFirstRangeRef?: (node: any) => void;
+    nextFocusUp?: number | null;
 }
 
 export const EpisodeRangeSelector = memo(({
@@ -24,6 +25,7 @@ export const EpisodeRangeSelector = memo(({
     colors: propColors,
     focusOffset = 0,
     setFirstRangeRef,
+    nextFocusUp,
 }: EpisodeRangeSelectorProps) => {
     const { deviceType } = useResponsiveLayout();
     const isMobile = deviceType === 'mobile';
@@ -78,7 +80,7 @@ export const EpisodeRangeSelector = memo(({
                 });
             });
         }
-    }, [currentRange, ranges.length]);
+    }, [currentRange, ranges.length, focusOffset]);
 
     const renderItem = React.useCallback(({ item }: { item: { label: string; index: number } }) => (
         <StyledButton
@@ -103,8 +105,9 @@ export const EpisodeRangeSelector = memo(({
                 styles.buttonText,
                 currentRange === item.index && styles.selectedButtonText
             ]}
+            nextFocusUp={item.index === 0 ? (nextFocusUp || undefined) : undefined}
         />
-    ), [currentRange, isMobile, onRangeSelect, handleFocus]);
+    ), [currentRange, isMobile, onRangeSelect, handleFocus, setFirstRangeRef, nextFocusUp]);
 
     if (ranges.length === 0) return null;
 

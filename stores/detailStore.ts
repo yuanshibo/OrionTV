@@ -244,7 +244,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
       }
 
       let validSourcesCount = 0;
-      const MAX_VALID_SOURCES = 8;
+      const MAX_VALID_SOURCES = 7;
       const loadedSourceKeys = new Set<string>();
 
       // Helper to process and add results

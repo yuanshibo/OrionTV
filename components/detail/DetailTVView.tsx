@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useState } from 'react';
-import { View, ScrollView, FlatList, useWindowDimensions, findNodeHandle, StyleSheet } from 'react-native';
+import { View, ScrollView, FlatList, useWindowDimensions, findNodeHandle } from 'react-native';
 import { EpisodeButton } from '@/components/detail/EpisodeList';
 import { ThemedText } from '@/components/ThemedText';
 import { StyledButton } from '@/components/StyledButton';
@@ -159,9 +159,11 @@ export const DetailTVView: React.FC<DetailTVViewProps> = memo(({
 
   const handleEpisodeFocus = useCallback((index: number) => {
     const newRange = Math.floor(index / chunkSize);
-    if (newRange !== currentRange) {
-      setCurrentRange(newRange);
-    }
+    setCurrentRange(prev => {
+      if (prev !== newRange) return newRange;
+      return prev;
+    });
+
     // Update the target tag for SourceList -> EpisodeList navigation
     updateTargetEpisode(index);
 
@@ -176,7 +178,7 @@ export const DetailTVView: React.FC<DetailTVViewProps> = memo(({
         viewOffset: index === 0 ? 0 : focusOffset
       });
     });
-  }, [chunkSize, currentRange, updateTargetEpisode, focusOffset]);
+  }, [chunkSize, updateTargetEpisode, focusOffset]);
 
   const renderEpisodeItem = useCallback(({ item, index }: { item: any, index: number }) => {
     return (
@@ -202,7 +204,7 @@ export const DetailTVView: React.FC<DetailTVViewProps> = memo(({
         />
       </View>
     );
-  }, [handlePlay, dynamicStyles, handleEpisodeFocus, itemWidth, targetEpisodeTag]);
+  }, [handlePlay, dynamicStyles, handleEpisodeFocus, itemWidth, targetEpisodeTag, firstRangeTag]);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -253,7 +255,7 @@ export const DetailTVView: React.FC<DetailTVViewProps> = memo(({
                   getItemLayout={(data, index) => (
                     { length: itemWidth, offset: itemWidth * index, index }
                   )}
-                  removeClippedSubviews={false}
+                  removeClippedSubviews={true}
                   windowSize={10}
                   initialNumToRender={10}
                   ListFooterComponent={<View style={{ width: itemWidth * 9 }} />}
@@ -271,6 +273,7 @@ export const DetailTVView: React.FC<DetailTVViewProps> = memo(({
                   colors={colors}
                   focusOffset={focusOffset}
                   setFirstRangeRef={handleSetFirstRangeRef}
+                  nextFocusUp={targetEpisodeTag}
                 />
               )}
             </View>
