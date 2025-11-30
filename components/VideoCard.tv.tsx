@@ -164,7 +164,7 @@ const VideoCard = forwardRef<View, VideoCardProps>(
             )}
           </View>
           <View style={styles.infoContainer}>
-            <ThemedText numberOfLines={1}>{title}</ThemedText>
+            <ThemedText numberOfLines={2}>{title}</ThemedText>
             {isContinueWatching && (
               <View style={styles.infoRow}>
                 <ThemedText style={styles.continueLabel}>

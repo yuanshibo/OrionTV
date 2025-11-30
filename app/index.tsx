@@ -28,6 +28,7 @@ export default function HomeScreen() {
   const listRef = useRef<FlashListRef<RowItem>>(null);
   const firstItemRef = useRef<View>(null);
   const lastCheckedPlayRecords = useRef<number>(0);
+  const posterUpdateTimer = useRef<any>(null);
 
   // 响应式布局配置
   const responsiveConfig = useResponsiveLayout();
@@ -208,10 +209,23 @@ export default function HomeScreen() {
   }, [selectedCategory, selectCategory, updateFilterOption]);
 
   const handleItemFocus = useCallback((item: any) => {
+    if (posterUpdateTimer.current) {
+      clearTimeout(posterUpdateTimer.current);
+    }
     if (item?.poster) {
-      setFocusedPoster(item.poster);
+      posterUpdateTimer.current = setTimeout(() => {
+        setFocusedPoster(item.poster);
+      }, 300);
     }
   }, [setFocusedPoster]);
+
+  useEffect(() => {
+    return () => {
+      if (posterUpdateTimer.current) {
+        clearTimeout(posterUpdateTimer.current);
+      }
+    };
+  }, []);
 
   // 动态样式
   const dynamicContainerStyle = useMemo(() => ({ paddingTop: deviceType === "mobile" ? insets.top : deviceType === "tablet" ? insets.top + 20 : 20 }), [deviceType, insets.top]);
