@@ -108,9 +108,28 @@ export class HomeService {
     };
   }
 
+  private lastPlayRecordsFingerprint: string = "";
+  private lastPlayRecordsData: RowItem[] = [];
+
   public async fetchPlayRecords(): Promise<RowItem[]> {
     const records = await PlayRecordManager.getAllLatestByTitle();
-    return this.transformPlayRecordsToRowItems(records);
+
+    // Generate fingerprint based on keys and save_time
+    // We sort keys to ensure consistent order, although getAllLatestByTitle might not guarantee it
+    const keys = Object.keys(records).sort();
+    const fingerprintParts = keys.map(key => `${key}:${records[key].save_time}`);
+    const currentFingerprint = fingerprintParts.join('|');
+
+    if (currentFingerprint === this.lastPlayRecordsFingerprint && this.lastPlayRecordsData.length > 0) {
+      return this.lastPlayRecordsData;
+    }
+
+    const newRows = this.transformPlayRecordsToRowItems(records);
+
+    this.lastPlayRecordsFingerprint = currentFingerprint;
+    this.lastPlayRecordsData = newRows;
+
+    return newRows;
   }
 }
 

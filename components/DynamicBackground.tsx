@@ -26,11 +26,12 @@ export const DynamicBackground = React.memo(({ poster, useProxy = true }: Dynami
                 style={StyleSheet.absoluteFill}
                 contentFit="cover"
                 transition={500}
-                blurRadius={Platform.OS === 'ios' ? 10 : 5} // Reduced blur for better visibility
-                cachePolicy="memory-disk"
+                blurRadius={Platform.OS === 'ios' ? 10 : 1} // Restore slight blur for premium feel
+                cachePolicy="disk"
+                recyclingKey={imageUrl}
             />
             <LinearGradient
-                colors={['rgba(0,0,0,0.3)', 'rgba(0,0,0,0.6)', 'rgba(0,0,0,0.9)']}
+                colors={['rgba(0,0,0,0.5)', 'rgba(0,0,0,0.8)', 'rgba(0,0,0,1)']}
                 style={StyleSheet.absoluteFill}
             />
         </View>

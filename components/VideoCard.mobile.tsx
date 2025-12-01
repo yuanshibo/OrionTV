@@ -59,6 +59,7 @@ const VideoCardMobile = forwardRef<View, VideoCardMobileProps>(
       () => ({
         uri: api.getImageProxyUrl(poster),
         headers: authCookie ? { Cookie: authCookie } : undefined,
+        width: 200,
       }),
       [poster, authCookie, api]
     );
@@ -79,7 +80,8 @@ const VideoCardMobile = forwardRef<View, VideoCardMobileProps>(
               style={styles.poster}
               contentFit="cover"
               transition={200}
-              cachePolicy="memory-disk"
+              recyclingKey={poster}
+              cachePolicy="disk"
             />
 
             {isContinueWatching && (
