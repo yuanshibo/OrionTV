@@ -83,12 +83,15 @@ const CustomScrollView = forwardRef<React.ElementRef<typeof FlashList>, CustomSc
       const { contentOffset, layoutMeasurement, contentSize } = event;
 
       // Scroll To Top Logic
-      if (contentOffset.y > 200 && opacity.value === 0) {
-        opacity.value = withTiming(1);
-        runOnJS(updateShowScrollToTop)(true);
-      } else if (contentOffset.y <= 200 && opacity.value === 1) {
-        opacity.value = withTiming(0);
-        runOnJS(updateShowScrollToTop)(false);
+      // Scroll To Top Logic
+      if (deviceType !== 'tv') {
+        if (contentOffset.y > 200 && opacity.value === 0) {
+          opacity.value = withTiming(1);
+          runOnJS(updateShowScrollToTop)(true);
+        } else if (contentOffset.y <= 200 && opacity.value === 1) {
+          opacity.value = withTiming(0);
+          runOnJS(updateShowScrollToTop)(false);
+        }
       }
 
       // End Reached Logic
@@ -206,6 +209,14 @@ const CustomScrollView = forwardRef<React.ElementRef<typeof FlashList>, CustomSc
         renderItem={renderGridItem}
         numColumns={effectiveColumns}
         estimatedItemSize={responsiveConfig.cardHeight + responsiveConfig.spacing + 60}
+        overrideItemLayout={
+          deviceType === "tv"
+            ? (layout: { span?: number; size?: number }) => {
+              layout.size = responsiveConfig.cardHeight + responsiveConfig.spacing + 60;
+              layout.span = 1;
+            }
+            : undefined
+        }
         contentContainerStyle={dynamicStyles.listContent}
         onScroll={scrollHandler}
         scrollEventThrottle={16}

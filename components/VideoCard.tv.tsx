@@ -110,6 +110,7 @@ const VideoCard = forwardRef<View, VideoCardProps>(
       () => ({
         uri: api.getImageProxyUrl(poster),
         headers: authCookie ? { Cookie: authCookie } : undefined,
+        width: 200,
       }),
       [poster, authCookie]
     );
@@ -128,7 +129,13 @@ const VideoCard = forwardRef<View, VideoCardProps>(
           {...rest}
         >
           <View style={styles.card}>
-            <Image source={imageSource} style={styles.poster} contentFit="cover" transition={300} cachePolicy="memory-disk" />
+            <Image
+              source={imageSource}
+              style={styles.poster}
+              contentFit="cover"
+              recyclingKey={poster}
+              cachePolicy="disk"
+            />
 
             {/* Overlay is always mounted, opacity controlled by SharedValue */}
             <Reanimated.View style={[styles.overlay, overlayStyle]} pointerEvents="none">

@@ -5,17 +5,23 @@
 ## ✨ 功能特性
 
 - **框架跨平台支持**: 同时支持构建 Apple TV 和 Android TV。
+- **沉浸式视觉体验**: 专为大屏设计的 UI，包含动态背景、卡片光效 (Glow Effect) 和流畅的动画交互。
+- **高性能列表**: 集成 FlashList，轻松应对数千集剧集的流畅渲染与快速滚动。
+- **智能焦点管理**: 深度优化的遥控器导航，支持剧集分段选择、自动焦点记忆与恢复。
 - **现代化前端**: 使用 Expo、React Native TVOS 和 TypeScript 构建，性能卓越。
 - **Expo Router**: 基于文件系统的路由，使导航逻辑清晰简单。
-- **TV 优化的 UI**: 专为电视遥控器交互设计的用户界面。
 
 ## 🛠️ 技术栈
 
 - **前端**:
-  - [React Native TVOS](https://github.com/react-native-tvos/react-native-tvos)
-  - [Expo](https://expo.dev/) (~51.0)
+  - [React Native TVOS](https://github.com/react-native-tvos/react-native-tvos) (~0.81)
+  - [Expo](https://expo.dev/) (~54.0)
   - [Expo Router](https://docs.expo.dev/router/introduction/)
-  - [Expo AV](https://docs.expo.dev/versions/latest/sdk/av/)
+  - [Reanimated](https://docs.swmansion.com/react-native-reanimated/) (动画)
+  - [FlashList](https://shopify.github.io/flash-list/) (高性能列表)
+  - [Zustand](https://github.com/pmndrs/zustand) (状态管理)
+  - [Expo Video](https://docs.expo.dev/versions/latest/sdk/video/) (播放器)
+  - [Lucide React Native](https://lucide.dev/guide/packages/lucide-react-native) (图标)
   - TypeScript
 
 ## 📂 项目结构
