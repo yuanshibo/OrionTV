@@ -25,8 +25,8 @@ export const DynamicBackground = React.memo(({ poster, useProxy = true }: Dynami
                 source={{ uri: imageUrl }}
                 style={StyleSheet.absoluteFill}
                 contentFit="cover"
-                transition={500}
-                blurRadius={Platform.OS === 'ios' ? 10 : 1} // Restore slight blur for premium feel
+                transition={Platform.OS === 'android' ? 0 : 500}
+                blurRadius={Platform.OS === 'ios' ? 10 : Platform.OS === 'android' ? 0 : 1} // Remove blur on Android to save GPU
                 cachePolicy="disk"
                 recyclingKey={imageUrl}
             />
