@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useRef, forwardRef, useImperativeHandle } from 'react';
+import React, { memo, useCallback, useRef, forwardRef, useImperativeHandle, useMemo } from 'react';
 import { View, findNodeHandle } from 'react-native';
 import { FlashList } from "@shopify/flash-list";
 import { EpisodeButton } from '@/components/detail/EpisodeList';
@@ -51,9 +51,13 @@ export const EpisodeHorizontalList = memo(forwardRef<EpisodeHorizontalListRef, E
         }
     }));
 
+    const itemContainerStyle = useMemo(() => ({ padding: 4, width: itemWidth }), [itemWidth]);
+    const buttonStyleOverride = useMemo(() => ({ minHeight: 50 }), []);
+    const textStyleOverride = useMemo(() => ({ fontSize: 16 }), []);
+
     const renderEpisodeItem = useCallback(({ item, index }: { item: any, index: number }) => {
         return (
-            <View style={{ padding: 4, width: itemWidth }}>
+            <View style={itemContainerStyle}>
                 <EpisodeButton
                     ref={(node) => {
                         if (node) {
@@ -69,14 +73,14 @@ export const EpisodeHorizontalList = memo(forwardRef<EpisodeHorizontalListRef, E
                     }}
                     index={index}
                     onPlay={handlePlay}
-                    style={[dynamicStyles.episodeButton, { minHeight: 50 }]}
-                    textStyle={[dynamicStyles.episodeButtonText, { fontSize: 16 }]}
+                    style={[dynamicStyles.episodeButton, buttonStyleOverride]}
+                    textStyle={[dynamicStyles.episodeButtonText, textStyleOverride]}
                     onFocus={() => handleEpisodeFocus(index)}
                     nextFocusDown={index < 10 ? (firstRangeTag || undefined) : undefined}
                 />
             </View>
         );
-    }, [handlePlay, dynamicStyles, handleEpisodeFocus, itemWidth, firstRangeTag, setTargetEpisodeTag]);
+    }, [handlePlay, dynamicStyles, handleEpisodeFocus, itemContainerStyle, buttonStyleOverride, textStyleOverride, firstRangeTag, setTargetEpisodeTag]);
 
     const FlashListAny = FlashList as any;
 
