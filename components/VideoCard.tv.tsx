@@ -76,15 +76,17 @@ const VideoCard = forwardRef<View, VideoCardProps>(
     const animatedStyle = useAnimatedStyle(() => {
       const scale = isFocusedSV.value ? 1.05 : 1;
       return {
-        transform: [{ scale: withSpring(scale, { damping: 15, stiffness: 200 }) }],
+        // Tighter spring for better performance and snappier feel on TV
+        transform: [{ scale: withSpring(scale, { damping: 20, stiffness: 250, mass: 1 }) }],
         opacity: fadeSV.value,
         zIndex: isFocusedSV.value ? 999 : 1,
       };
     });
 
     const overlayStyle = useAnimatedStyle(() => {
+      // Use simpler timing or remove specific easing for performance
       return {
-        opacity: withTiming(isFocusedSV.value ? 1 : 0, { duration: 200 }),
+        opacity: withTiming(isFocusedSV.value ? 1 : 0, { duration: 150 }),
       };
     });
 
