@@ -19,7 +19,7 @@ export const DynamicBackground = React.memo(({ poster, useProxy = true }: Dynami
     const imageUrl = useProxy ? api.getImageProxyUrl(backgroundPoster) : backgroundPoster;
 
     return (
-        <View style={StyleSheet.absoluteFill}>
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
             <Image
                 key={imageUrl}
                 source={{ uri: imageUrl }}
