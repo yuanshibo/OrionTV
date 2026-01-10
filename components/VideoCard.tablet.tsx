@@ -29,6 +29,7 @@ interface VideoCardTabletProps extends React.ComponentProps<typeof TouchableOpac
   onFocus?: () => void;
   onRecordDeleted?: () => void;
   api: API;
+  deviceType?: 'mobile' | 'tablet' | 'tv';
 }
 
 const VideoCardTablet = forwardRef<View, VideoCardTabletProps>(
@@ -72,7 +73,7 @@ const VideoCardTablet = forwardRef<View, VideoCardTabletProps>(
         longPressTriggered.current = false;
         return;
       }
-      
+
       if (progress !== undefined && episodeIndex !== undefined) {
         router.push({
           pathname: "/play",
@@ -197,7 +198,7 @@ const VideoCardTablet = forwardRef<View, VideoCardTabletProps>(
         >
           <View style={[styles.card, isPressed && styles.cardPressed]}>
             <Image source={imageSource} style={styles.poster} contentFit="cover" transition={300} />
-            
+
             {/* 悬停效果遮罩 */}
             {isPressed && (
               <View style={styles.pressOverlay}>

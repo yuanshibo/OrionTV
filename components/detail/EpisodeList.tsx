@@ -8,7 +8,7 @@ interface EpisodeButtonProps {
   onPlay: (index: number) => void;
   style?: any;
   textStyle?: any;
-  onFocus?: () => void;
+  onFocus?: (index: number) => void;
   nextFocusDown?: number | null;
 }
 
@@ -17,12 +17,16 @@ export const EpisodeButton = memo(React.forwardRef<View, EpisodeButtonProps>(({ 
     onPlay(index);
   }, [onPlay, index]);
 
+  const handleFocus = useCallback(() => {
+    onFocus?.(index);
+  }, [onFocus, index]);
+
   return (
     <StyledButton
       ref={ref}
       style={style}
       onPress={handlePress}
-      onFocus={onFocus}
+      onFocus={handleFocus}
       text={`${index + 1}集`}
       textStyle={textStyle}
       textProps={{ numberOfLines: 1, adjustsFontSizeToFit: true }}

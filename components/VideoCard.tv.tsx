@@ -54,7 +54,8 @@ const VideoCard = forwardRef<View, VideoCardProps>(
     const fadeSV = useSharedValue(0);
 
     // JS State refs for logic that doesn't need re-render
-    const deviceType = useResponsiveLayout().deviceType;
+    const { deviceType: hookDeviceType } = useResponsiveLayout();
+    const deviceType = rest.deviceType ?? hookDeviceType;
 
     const { handlePress, handleLongPress } = useVideoCardInteractions({
       id,

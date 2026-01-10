@@ -9,6 +9,7 @@ import VideoCard from '@/components/VideoCard';
 import { api } from '@/services/api';
 
 const LOAD_MORE_THRESHOLD = 200;
+const NO_OP = () => { };
 
 interface ContentDisplayProps {
   apiConfigStatus: any;
@@ -67,7 +68,7 @@ export const ContentDisplay: React.FC<ContentDisplayProps> = React.memo(({
     if (deviceType === "tv") {
       if (isFilterable) longPressAction = onShowFilterPanel;
       else if (isRecord) longPressAction = undefined;
-      else longPressAction = () => { };
+      else longPressAction = NO_OP;
     }
 
     return (
@@ -89,6 +90,7 @@ export const ContentDisplay: React.FC<ContentDisplayProps> = React.memo(({
         onLongPress={longPressAction}
         style={style}
         onFocus={onFocus}
+        deviceType={deviceType}
       />
     );
   }, [selectedCategory, deviceType, onShowFilterPanel, onRecordDeleted, firstItemRef, onFocus]);
