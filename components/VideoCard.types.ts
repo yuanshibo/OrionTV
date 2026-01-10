@@ -19,6 +19,7 @@ export interface VideoCardBaseProps extends Omit<React.ComponentProps<typeof Tou
     api: API;
     type?: 'record' | 'favorite';
     style?: StyleProp<ViewStyle>;
+    deviceType?: 'mobile' | 'tablet' | 'tv';
 }
 
 export interface VideoCardTVProps extends VideoCardBaseProps {

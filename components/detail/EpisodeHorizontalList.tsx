@@ -75,7 +75,7 @@ export const EpisodeHorizontalList = memo(forwardRef<EpisodeHorizontalListRef, E
                     onPlay={handlePlay}
                     style={[dynamicStyles.episodeButton, buttonStyleOverride]}
                     textStyle={[dynamicStyles.episodeButtonText, textStyleOverride]}
-                    onFocus={() => handleEpisodeFocus(index)}
+                    onFocus={handleEpisodeFocus}
                     nextFocusDown={index < 10 ? (firstRangeTag || undefined) : undefined}
                 />
             </View>
@@ -92,9 +92,14 @@ export const EpisodeHorizontalList = memo(forwardRef<EpisodeHorizontalListRef, E
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 renderItem={renderEpisodeItem}
-                keyExtractor={(item: any, index: number) => `episode-${index}`}
+                keyExtractor={(item: any, index: number) => index.toString()}
                 contentContainerStyle={{ paddingHorizontal: 0 }}
                 estimatedItemSize={itemWidth}
+                overrideItemLayout={(layout: { size?: number; span?: number }, item: any, index: number, maxColumns: number, extraData: any) => {
+                    layout.size = itemWidth;
+                    layout.span = 1;
+                }}
+                drawDistance={itemWidth * 10}
                 removeClippedSubviews={true}
                 ListFooterComponent={<View style={{ width: itemWidth * 9 }} />}
             />

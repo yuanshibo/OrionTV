@@ -4,8 +4,7 @@ import { ThemedText } from '@/components/ThemedText';
 import { SourceList } from '@/components/detail/SourceList';
 import RelatedSeries from '@/components/RelatedSeries';
 import { EpisodeRangeSelector } from '@/components/detail/EpisodeRangeSelector';
-import { DynamicBackground } from '@/components/DynamicBackground';
-
+import { PureDynamicBackground } from '@/components/DynamicBackground';
 import { TVTopInfo } from '@/components/detail/TVTopInfo';
 import { EpisodeHorizontalList, EpisodeHorizontalListRef } from '@/components/detail/EpisodeHorizontalList';
 
@@ -24,6 +23,109 @@ interface DetailTVViewProps {
   colors: any;
   deviceType: 'mobile' | 'tablet' | 'tv';
 }
+
+// Extracted content component to prevent re-renders when background changes
+const DetailTVContent = memo(({
+  dynamicStyles,
+  detail,
+  isFavorited,
+  toggleFavorite,
+  handlePrimaryPlay,
+  playButtonLabel,
+  isPlayDisabled,
+  colors,
+  firstSourceTag,
+  handleTVTopInfoFocus,
+  searchResults,
+  deviceType,
+  allSourcesLoaded,
+  setDetail,
+  setFirstSourceRef,
+  targetEpisodeTag,
+  episodes,
+  itemWidth,
+  handlePlay,
+  handleEpisodeFocus,
+  firstRangeTag,
+  episodeListRef,
+  setTargetEpisodeTag,
+  chunkSize,
+  currentRange,
+  handleRangeSelect,
+  focusOffset,
+  handleSetFirstRangeRef,
+  handleRelatedSeriesFocus
+}: any) => {
+  return (
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={dynamicStyles.scrollContainer}>
+      <TVTopInfo
+        detail={detail}
+        isFavorited={isFavorited}
+        toggleFavorite={toggleFavorite}
+        handlePrimaryPlay={handlePrimaryPlay}
+        playButtonLabel={playButtonLabel}
+        isPlayDisabled={isPlayDisabled}
+        dynamicStyles={dynamicStyles}
+        colors={colors}
+        nextFocusDown={firstSourceTag}
+        onFocus={handleTVTopInfoFocus}
+      />
+      <View style={dynamicStyles.bottomContainer}>
+        <SourceList
+          searchResults={searchResults}
+          currentSource={detail.source}
+          onSelect={setDetail}
+          loading={!allSourcesLoaded}
+          deviceType={deviceType}
+          styles={dynamicStyles}
+          colors={colors}
+          setFirstSourceRef={setFirstSourceRef}
+          nextFocusDown={targetEpisodeTag}
+        />
+
+        {episodes.length > 0 && (
+          <View>
+            <ThemedText style={dynamicStyles.episodesTitle}>播放列表</ThemedText>
+
+            {/* Episode List (Horizontal) */}
+            <EpisodeHorizontalList
+              ref={episodeListRef}
+              episodes={episodes}
+              itemWidth={itemWidth}
+              handlePlay={handlePlay}
+              handleEpisodeFocus={handleEpisodeFocus}
+              firstRangeTag={firstRangeTag}
+              dynamicStyles={dynamicStyles}
+              setTargetEpisodeTag={setTargetEpisodeTag}
+            />
+
+            {/* Range Selector (Bottom) */}
+            {episodes.length > chunkSize && (
+              <EpisodeRangeSelector
+                totalEpisodes={episodes.length}
+                currentRange={currentRange}
+                onRangeSelect={handleRangeSelect}
+                chunkSize={chunkSize}
+                styles={dynamicStyles}
+                colors={colors}
+                focusOffset={focusOffset}
+                setFirstRangeRef={handleSetFirstRangeRef}
+                nextFocusUp={targetEpisodeTag}
+              />
+            )}
+          </View>
+        )}
+
+        <RelatedSeries
+          title={detail.title}
+          onFocus={handleRelatedSeriesFocus}
+        />
+      </View>
+    </ScrollView>
+  );
+});
+
+DetailTVContent.displayName = 'DetailTVContent';
 
 export const DetailTVView: React.FC<DetailTVViewProps> = memo(({
   detail,
@@ -156,73 +258,39 @@ export const DetailTVView: React.FC<DetailTVViewProps> = memo(({
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       {/* Background Atmosphere */}
       {/* Detail page poster URL works better without proxy (direct access or already proxied) */}
-      <DynamicBackground poster={activePoster} useProxy={false} />
+      <PureDynamicBackground poster={activePoster} useProxy={false} />
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={dynamicStyles.scrollContainer}>
-        <TVTopInfo
-          detail={detail}
-          isFavorited={isFavorited}
-          toggleFavorite={toggleFavorite}
-          handlePrimaryPlay={handlePrimaryPlay}
-          playButtonLabel={playButtonLabel}
-          isPlayDisabled={isPlayDisabled}
-          dynamicStyles={dynamicStyles}
-          colors={colors}
-          nextFocusDown={firstSourceTag}
-          onFocus={handleTVTopInfoFocus}
-        />
-        <View style={dynamicStyles.bottomContainer}>
-          <SourceList
-            searchResults={searchResults}
-            currentSource={detail.source}
-            onSelect={setDetail}
-            loading={!allSourcesLoaded}
-            deviceType={deviceType}
-            styles={dynamicStyles}
-            colors={colors}
-            setFirstSourceRef={setFirstSourceRef}
-            nextFocusDown={targetEpisodeTag}
-          />
-
-          {episodes.length > 0 && (
-            <View>
-              <ThemedText style={dynamicStyles.episodesTitle}>播放列表</ThemedText>
-
-              {/* Episode List (Horizontal) */}
-              <EpisodeHorizontalList
-                ref={episodeListRef}
-                episodes={episodes}
-                itemWidth={itemWidth}
-                handlePlay={handlePlay}
-                handleEpisodeFocus={handleEpisodeFocus}
-                firstRangeTag={firstRangeTag}
-                dynamicStyles={dynamicStyles}
-                setTargetEpisodeTag={setTargetEpisodeTag}
-              />
-
-              {/* Range Selector (Bottom) */}
-              {episodes.length > chunkSize && (
-                <EpisodeRangeSelector
-                  totalEpisodes={episodes.length}
-                  currentRange={currentRange}
-                  onRangeSelect={handleRangeSelect}
-                  chunkSize={chunkSize}
-                  styles={dynamicStyles}
-                  colors={colors}
-                  focusOffset={focusOffset}
-                  setFirstRangeRef={handleSetFirstRangeRef}
-                  nextFocusUp={targetEpisodeTag}
-                />
-              )}
-            </View>
-          )}
-
-          <RelatedSeries
-            title={detail.title}
-            onFocus={handleRelatedSeriesFocus}
-          />
-        </View>
-      </ScrollView>
+      <DetailTVContent
+        dynamicStyles={dynamicStyles}
+        detail={detail}
+        isFavorited={isFavorited}
+        toggleFavorite={toggleFavorite}
+        handlePrimaryPlay={handlePrimaryPlay}
+        playButtonLabel={playButtonLabel}
+        isPlayDisabled={isPlayDisabled}
+        colors={colors}
+        firstSourceTag={firstSourceTag}
+        handleTVTopInfoFocus={handleTVTopInfoFocus}
+        searchResults={searchResults}
+        deviceType={deviceType}
+        allSourcesLoaded={allSourcesLoaded}
+        setDetail={setDetail}
+        setFirstSourceRef={setFirstSourceRef}
+        targetEpisodeTag={targetEpisodeTag}
+        episodes={episodes}
+        itemWidth={itemWidth}
+        handlePlay={handlePlay}
+        handleEpisodeFocus={handleEpisodeFocus}
+        firstRangeTag={firstRangeTag}
+        episodeListRef={episodeListRef}
+        setTargetEpisodeTag={setTargetEpisodeTag}
+        chunkSize={chunkSize}
+        currentRange={currentRange}
+        handleRangeSelect={handleRangeSelect}
+        focusOffset={focusOffset}
+        handleSetFirstRangeRef={handleSetFirstRangeRef}
+        handleRelatedSeriesFocus={handleRelatedSeriesFocus}
+      />
     </View>
   );
 });

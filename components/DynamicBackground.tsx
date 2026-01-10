@@ -10,18 +10,14 @@ interface DynamicBackgroundProps {
     useProxy?: boolean;
 }
 
-export const DynamicBackground = React.memo(({ poster, useProxy = true }: DynamicBackgroundProps) => {
-    const storeFocusedPoster = useHomeUIStore((state) => state.focusedPoster);
-    const backgroundPoster = poster !== undefined ? poster : storeFocusedPoster;
+export const PureDynamicBackground = React.memo(({ poster, useProxy = true }: DynamicBackgroundProps) => {
+    if (!poster) return null;
 
-    if (!backgroundPoster) return null;
-
-    const imageUrl = useProxy ? api.getImageProxyUrl(backgroundPoster) : backgroundPoster;
+    const imageUrl = useProxy ? api.getImageProxyUrl(poster) : poster;
 
     return (
         <View style={StyleSheet.absoluteFill} pointerEvents="none">
             <Image
-                key={imageUrl}
                 source={{ uri: imageUrl }}
                 style={StyleSheet.absoluteFill}
                 contentFit="cover"
@@ -36,6 +32,15 @@ export const DynamicBackground = React.memo(({ poster, useProxy = true }: Dynami
             />
         </View>
     );
+});
+
+PureDynamicBackground.displayName = 'PureDynamicBackground';
+
+export const DynamicBackground = React.memo(({ poster, useProxy = true }: DynamicBackgroundProps) => {
+    const storeFocusedPoster = useHomeUIStore((state) => state.focusedPoster);
+    const backgroundPoster = poster !== undefined ? poster : storeFocusedPoster;
+
+    return <PureDynamicBackground poster={backgroundPoster} useProxy={useProxy} />;
 });
 
 DynamicBackground.displayName = 'DynamicBackground';
