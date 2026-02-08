@@ -90,7 +90,9 @@ export const ContentDisplay: React.FC<ContentDisplayProps> = React.memo(({
         onLongPress={longPressAction}
         style={style}
         onFocus={onFocus}
+        onFocus={onFocus}
         deviceType={deviceType}
+        mediaType={item.type}
       />
     );
   }, [selectedCategory, deviceType, onShowFilterPanel, onRecordDeleted, firstItemRef, onFocus]);

@@ -325,6 +325,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
           total_time: status.durationMillis ? Math.floor(status.durationMillis / 1000) : 0,
           source_name: detail.source_name,
           year: detail.year || "",
+          type: detail.type || "",
           introEndTime,
           outroStartTime,
           ...updates,

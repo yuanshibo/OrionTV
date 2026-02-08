@@ -176,7 +176,15 @@ export class PlayRecordManager {
     return storageConfig.getStorageType();
   }
 
+  private static cache: Record<string, PlayRecord> | null = null;
+  private static cacheTimestamp: number = 0;
+  private static CACHE_TTL = 60000; // 1 minute auto-expire just in case
+
   static async getAll(): Promise<Record<string, PlayRecord>> {
+    if (this.cache && (Date.now() - this.cacheTimestamp < this.CACHE_TTL)) {
+      return this.cache;
+    }
+
     const perfStart = performance.now();
     const storageType = this.getStorageType();
     // logger.debug(`[PERF] PlayRecordManager.getAll START - storageType: ${storageType}`);
@@ -215,6 +223,8 @@ export class PlayRecordManager {
     const perfEnd = performance.now();
     // logger.debug(`[PERF] PlayRecordManager.getAll END - took ${(perfEnd - perfStart).toFixed(2)}ms, total records: ${Object.keys(mergedRecords).length}`);
 
+    this.cache = mergedRecords;
+    this.cacheTimestamp = Date.now();
     return mergedRecords;
   }
 
@@ -235,6 +245,8 @@ export class PlayRecordManager {
       }
 
       const normTitle = (record?.title ?? '').trim().replace(/\s+/g, ' ');
+      // Composite key for strict deduplication: Title + Year + Type
+      const uniqueKey = `${normTitle}|${record.year || ''}|${record.type || 'unknown'}`;
 
       // 3. If title is empty, treat it as unique and add it
       if (!normTitle) {
@@ -242,19 +254,45 @@ export class PlayRecordManager {
         continue;
       }
 
-      // 4. If we haven't seen this title yet, add it to our results
-      if (!seenTitles.has(normTitle)) {
+      // 4. If we haven't seen this content uniqueKey yet, add it
+      if (!seenTitles.has(uniqueKey)) {
         latestByTitle[key] = record;
-        seenTitles.add(normTitle);
+        seenTitles.add(uniqueKey);
       }
     }
 
     return latestByTitle;
   }
 
+  static async getLatestByTitle(title: string, year?: string, type?: string): Promise<PlayRecord | null> {
+    const allRecords = await this.getAll();
+    const records = Object.values(allRecords);
+
+    // Find records with matching title
+    let matches = records.filter(r => r.title === title);
+
+    // Filter by year if provided and record has year
+    if (year) {
+      const yearMatches = matches.filter(r => r.year === year);
+      if (yearMatches.length > 0) matches = yearMatches;
+    }
+
+    // Filter by type if provided and record has type
+    if (type) {
+      const typeMatches = matches.filter(r => r.type === type);
+      // Only apply if matches found (progressive filtering)
+      if (typeMatches.length > 0) matches = typeMatches;
+    }
+
+    return matches.sort((a, b) => (b.save_time ?? 0) - (a.save_time ?? 0))[0] || null;
+  }
+
   static async save(source: string, id: string, record: Omit<PlayRecord, "save_time">): Promise<void> {
     const key = generateKey(source, id);
     const { introEndTime, outroStartTime, description, ...apiRecord } = record;
+
+    // Invalidate cache
+    this.cache = null;
 
     // Player settings are always saved locally
     await PlayerSettingsManager.save(source, id, { introEndTime, outroStartTime });
@@ -335,6 +373,8 @@ export class PlayRecordManager {
 
   static async remove(source: string, id: string): Promise<void> {
     const key = generateKey(source, id);
+    this.cache = null;
+
     await PlayerSettingsManager.remove(source, id); // Always remove local settings
 
     if (this.getStorageType() === "localstorage") {
@@ -347,6 +387,8 @@ export class PlayRecordManager {
   }
 
   static async clearAll(): Promise<void> {
+    this.cache = null;
+
     await PlayerSettingsManager.clearAll(); // Always clear local settings
 
     if (this.getStorageType() === "localstorage") {

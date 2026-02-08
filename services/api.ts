@@ -108,6 +108,7 @@ export interface SearchResult {
   year: string;
   desc?: string;
   type_name?: string;
+  type?: string;
 }
 
 export interface SearchResultWithResolution extends SearchResult {
@@ -136,6 +137,8 @@ export interface PlayRecord {
   total_time: number;
   save_time: number;
   year: string;
+  type?: string;
+  duration?: number;
 }
 
 export interface ApiSite {
@@ -242,11 +245,23 @@ export class API {
   }
 
   async login(username?: string | undefined, password?: string): Promise<{ ok: boolean }> {
-    return this._fetchData("/api/login", {
+    const response = await this._fetch("/api/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, password }),
     });
+
+    const data = await response.json();
+
+    // Manual saving of cookie for persistence checks
+    if (data?.ok) {
+      const setCookie = response.headers.get("set-cookie");
+      if (setCookie) {
+        await AsyncStorage.setItem("authCookies", setCookie);
+      }
+    }
+
+    return data;
   }
 
   async logout(): Promise<{ ok: boolean }> {

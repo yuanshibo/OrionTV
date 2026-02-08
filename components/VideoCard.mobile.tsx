@@ -48,7 +48,9 @@ const VideoCardMobile = forwardRef<View, VideoCardMobileProps>(
       playTime,
       episodeIndex,
       onRecordDeleted,
+      onRecordDeleted,
       onFavoriteDeleted,
+      mediaType: rest.mediaType,
     });
 
     const isContinueWatching = progress !== undefined && progress > 0 && progress < 1;

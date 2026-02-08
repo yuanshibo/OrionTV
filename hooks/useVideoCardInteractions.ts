@@ -20,6 +20,8 @@ interface InteractionProps {
   episodeIndex?: number;
   onRecordDeleted?: () => void;
   onFavoriteDeleted?: () => void;
+  year?: string;
+  mediaType?: string;
 }
 
 export const useVideoCardInteractions = ({
@@ -33,6 +35,7 @@ export const useVideoCardInteractions = ({
   episodeIndex,
   onRecordDeleted,
   onFavoriteDeleted,
+  ...rest
 }: InteractionProps) => {
   const router = useRouter();
   const navigation = useNavigation();
@@ -60,6 +63,8 @@ export const useVideoCardInteractions = ({
       const params = {
         q: title,
         poster,
+        year: (rest as any).year,
+        type: (rest as any).mediaType,
         ...(isDouban ? {} : { source, id })
       };
 

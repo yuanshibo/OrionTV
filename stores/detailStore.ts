@@ -1,8 +1,8 @@
 import { create } from "zustand";
-import { SearchResult, api, isNetworkStatusZeroError, SearchResultWithResolution } from "@/services/api";
+import { SearchResult, api, isNetworkStatusZeroError, SearchResultWithResolution, PlayRecord } from "@/services/api";
 import { getResolutionFromM3U8 } from "@/services/m3u8";
 import { useSettingsStore } from "@/stores/settingsStore";
-import { FavoriteManager } from "@/services/storage";
+import { FavoriteManager, PlayRecordManager } from "@/services/storage";
 import Logger from "@/utils/Logger";
 import { APP_CONFIG } from "@/constants/AppConfig";
 import {
@@ -140,7 +140,11 @@ interface DetailState {
   isFavorited: boolean;
   failedSources: Set<string>; // 记录失败的source列表
 
-  init: (q: string, preferredSource?: string, id?: string) => Promise<void>;
+  resumeRecord: PlayRecord | null;
+
+  resumeRecord: PlayRecord | null;
+
+  init: (q: string, preferredSource?: string, id?: string, year?: string, type?: string) => Promise<void>;
   setDetail: (detail: SearchResultWithResolution) => Promise<void>;
   abort: () => void;
   toggleFavorite: () => Promise<void>;
@@ -159,8 +163,9 @@ const useDetailStore = create<DetailState>((set, get) => ({
   controller: null,
   isFavorited: false,
   failedSources: new Set(),
+  resumeRecord: null,
 
-  init: async (q, preferredSource, id) => {
+  init: async (q, preferredSource, id, year, type) => {
     const perfStart = performance.now();
     logger.debug(`[PERF] DetailStore.init START - q: ${q}, preferredSource: ${preferredSource}, id: ${id}`);
 
@@ -171,7 +176,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
     const newController = new AbortController();
     const signal = newController.signal;
 
-    const cacheKey = buildDetailCacheKey(q, preferredSource, id);
+    const cacheKey = buildDetailCacheKey(q, preferredSource, id, year, type);
     lastCacheKey = cacheKey;
     const cachedEntry = getDetailCacheEntry(cacheKey);
     const cachedSearchResults = cachedEntry ? cachedEntry.searchResults.map((item) => ({ ...item })) : [];
@@ -185,11 +190,21 @@ const useDetailStore = create<DetailState>((set, get) => ({
 
     // --- Guard: Skip if already loaded and matches ---
     const currentState = get();
-    if (currentState.q === q && currentState.detail && !currentState.loading) {
-      logger.debug(`[INIT] Guard: Already matched and loaded "${q}", skipping re-fetch.`);
-      return;
-    }
+    // Check if query matches AND if we are already on the preferred source (if specified)
+    const isSameQuery = currentState.q === q;
+    const isSameSource = !preferredSource || (currentState.detail?.source === preferredSource);
 
+    if (isSameQuery && currentState.detail && isSameSource && !currentState.loading) {
+      if (!hasValidCache) {
+        logger.debug(`[INIT] Guard: Already loaded "${q}" with source "${currentState.detail.source}", skipping.`);
+        // Refresh resume record just in case (silent update)
+        if (currentState.detail?.title) {
+          PlayRecordManager.getLatestByTitle(currentState.detail.title, currentState.detail.year, currentState.detail.type)
+            .then(r => set({ resumeRecord: r }));
+        }
+        return;
+      }
+    }
     set({
       q,
       loading: !hasValidCache,
@@ -201,6 +216,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
       sources: cachedSources,
       failedSources: new Set(),
       isFavorited: false,
+      resumeRecord: null,
     });
 
     if (hasValidCache) {
@@ -210,9 +226,14 @@ const useDetailStore = create<DetailState>((set, get) => ({
           cachedDetail!.source,
           cachedDetail!.id.toString()
         );
-        set({ isFavorited: isFavFromCache });
-      } catch (favoriteError) {
-        logger.warn("[WARN] Failed to restore favorite status from cache:", favoriteError);
+        const resumeRecord = await PlayRecordManager.getLatestByTitle(
+          cachedDetail!.title,
+          cachedDetail!.year,
+          cachedDetail!.type
+        );
+        set({ isFavorited: isFavFromCache, resumeRecord });
+      } catch (e) {
+        logger.warn("[WARN] Failed to restore aux data from cache:", e);
       }
       return;
     }
@@ -241,13 +262,35 @@ const useDetailStore = create<DetailState>((set, get) => ({
 
       // 3. Determine Target Source (History Priority)
       let historySourceKey: string | null = null;
+      let matchedRecord: any = null;
+
       if (playRecords) {
-        const records = Object.values(playRecords || {});
-        const match = records.find(r => r.title === q);
-        if (match) {
-          const res = resources.find(r => r.name === match.source_name);
+        // Precise matching using metadata if available
+        if (year || type) {
+          const records = Object.values(playRecords || {});
+          matchedRecord = records.find(r =>
+            r.title === q &&
+            (!year || r.year === year) &&
+            (!type || r.type === type)
+          );
+        }
+
+        // Fallback to title-only match if no metadata or no strict match found
+        if (!matchedRecord) {
+          const records = Object.values(playRecords || {});
+          matchedRecord = records.find(r => r.title === q);
+        }
+
+        if (matchedRecord) {
+          const res = resources.find(r => r.name === matchedRecord.source_name);
           if (res) historySourceKey = res.key;
         }
+      }
+
+      // Pre-set resume record if found in the bulk fetch (optimization)
+      // We will refine this later with getLatestByTitle for metadata, but this is a good start
+      if (matchedRecord) {
+        set({ resumeRecord: matchedRecord });
       }
 
       let validSourcesCount = 0;
@@ -276,6 +319,28 @@ const useDetailStore = create<DetailState>((set, get) => ({
             updates.detail = firstDetail;
             updates.loading = false;
             logger.info(`[INFO] First valid source loaded: ${sourceKey}. UI displayed.`);
+
+            // Trigger parallel fetch for aux data (favorite & precise resume)
+            Promise.all([
+              FavoriteManager.isFavorited(firstDetail.source, firstDetail.id.toString()),
+              PlayRecordManager.getLatestByTitle(firstDetail.title, firstDetail.year, firstDetail.type)
+            ]).then(([isFav, resumeRec]) => {
+              set({ isFavorited: isFav, resumeRecord: resumeRec });
+            });
+          }
+        } else {
+          // If already loaded, check if the new result has MORE episodes (e.g., Weekly update)
+          const newDetail = newSearchResults.find(r => r.source === sourceKey);
+          if (newDetail && snapshot.detail && newDetail.episodes.length > snapshot.detail.episodes.length) {
+            logger.info(`[AUTO-SWITCH] Switching to source "${newDetail.source}" because it has more episodes (${newDetail.episodes.length} > ${snapshot.detail.episodes.length})`);
+            updates.detail = newDetail;
+            // Also update favorited status for the new source
+            Promise.all([
+              FavoriteManager.isFavorited(newDetail.source, newDetail.id.toString()),
+              PlayRecordManager.getLatestByTitle(newDetail.title, newDetail.year, newDetail.type)
+            ]).then(([isFav, resumeRec]) => {
+              set({ isFavorited: isFav, resumeRecord: resumeRec });
+            });
           }
         }
 
@@ -327,9 +392,8 @@ const useDetailStore = create<DetailState>((set, get) => ({
                 let targetIndex = 0; // Default to first episode
 
                 // Check if we have history for this title
-                if (playRecords) {
-                  const records = Object.values(playRecords);
-                  const match = records.find(r => r.title === q);
+                if (snapshot.resumeRecord) {
+                  const match = snapshot.resumeRecord;
                   if (match && match.index > 0 && match.index <= snapshot.detail.episodes.length) {
                     targetIndex = match.index - 1;
                     logger.debug(`[PREWARM] Target identified from history: Episode ${match.index}`);
@@ -375,7 +439,9 @@ const useDetailStore = create<DetailState>((set, get) => ({
     set({ detail });
     const { source, id } = detail;
     const isFavorited = await FavoriteManager.isFavorited(source, id.toString());
-    set({ isFavorited });
+    const resumeRecord = await PlayRecordManager.getLatestByTitle(detail.title, detail.year, detail.type);
+
+    set({ isFavorited, resumeRecord });
 
     if (lastCacheKey) {
       const state = get();

@@ -66,7 +66,9 @@ const VideoCard = forwardRef<View, VideoCardProps>(
       playTime,
       episodeIndex,
       onRecordDeleted,
+      onRecordDeleted,
       onFavoriteDeleted,
+      mediaType: rest.mediaType,
     });
 
     useEffect(() => {

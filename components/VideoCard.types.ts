@@ -18,6 +18,7 @@ export interface VideoCardBaseProps extends Omit<React.ComponentProps<typeof Tou
     onFavoriteDeleted?: () => void;
     api: API;
     type?: 'record' | 'favorite';
+    mediaType?: string;
     style?: StyleProp<ViewStyle>;
     deviceType?: 'mobile' | 'tablet' | 'tv';
 }
