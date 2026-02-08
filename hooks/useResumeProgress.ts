@@ -65,5 +65,11 @@ export const useResumeProgress = (detail: SearchResult | null) => {
     setInfo(getResumeInfo());
   }, [detail, resumeRecord]);
 
-  return { resumeInfo: info, refresh: () => { } }; // refresh is no longer needed as store updates auto-propagate
+  return {
+    resumeInfo: info,
+    refresh: () => {
+      // Trigger a store refresh. The effect above will catch the updated store state.
+      useDetailStore.getState().refreshResumeRecord();
+    }
+  };
 };

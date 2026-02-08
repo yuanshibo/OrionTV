@@ -148,6 +148,7 @@ interface DetailState {
   toggleFavorite: () => Promise<void>;
   markSourceAsFailed: (source: string, reason: string) => void;
   getNextAvailableSource: (currentSource: string, episodeIndex: number) => SearchResultWithResolution | null;
+  refreshResumeRecord: () => Promise<void>;
 }
 
 const useDetailStore = create<DetailState>((set, get) => ({
@@ -191,8 +192,11 @@ const useDetailStore = create<DetailState>((set, get) => ({
     // Check if query matches AND if we are already on the preferred source (if specified)
     const isSameQuery = currentState.q === q;
     const isSameSource = !preferredSource || (currentState.detail?.source === preferredSource);
+    // Strict metadata check: if year/type provided, they MUST match
+    const isSameYear = !year || (currentState.detail?.year === year);
+    const isSameType = !type || (currentState.detail?.type === type);
 
-    if (isSameQuery && currentState.detail && isSameSource && !currentState.loading) {
+    if (isSameQuery && currentState.detail && isSameSource && isSameYear && isSameType && !currentState.loading) {
       if (!hasValidCache) {
         logger.debug(`[INIT] Guard: Already loaded "${q}" with source "${currentState.detail.source}", skipping.`);
         // Refresh resume record just in case (silent update)
@@ -545,6 +549,20 @@ const useDetailStore = create<DetailState>((set, get) => ({
     logger.info(`[SOURCE_SELECTION] Selected fallback source: ${selectedSource.source} (${selectedSource.source_name}) with resolution: ${selectedSource.resolution || 'unknown'}`);
 
     return selectedSource;
+  },
+
+  refreshResumeRecord: async () => {
+    const { detail } = get();
+    if (!detail) return;
+    try {
+      const record = await PlayRecordManager.getLatestByTitle(detail.title, detail.year, detail.type);
+      if (record) {
+        set({ resumeRecord: record });
+        logger.debug(`[REFRESH] Resume record refreshed for "${detail.title}"`);
+      }
+    } catch (error) {
+      logger.warn("[WARN] Failed to refresh resume record:", error);
+    }
   },
 }));
 

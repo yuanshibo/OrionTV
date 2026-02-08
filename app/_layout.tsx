@@ -39,29 +39,13 @@ export default function RootLayout() {
   // Use global memory management
   useMemoryManagement();
 
-  const [isReady, setIsReady] = useState(false);
+  const [isSettingsLoaded, setIsSettingsLoaded] = useState(false);
 
+  // 1. Initial Data Load (Settings, Auth, Server)
   useEffect(() => {
-    async function prepare() {
+    async function init() {
       try {
-        // Parallelize settings loading and font loading
-        await Promise.all([
-          loadSettings(),
-          // Wait for fonts to load or error
-          new Promise<void>((resolve) => {
-            if (loaded || error) resolve();
-            else {
-              // This is a bit hacky but ensures we don't block forever if font hook is slow
-              const checkInterval = setInterval(() => {
-                if (loaded || error) {
-                  clearInterval(checkInterval);
-                  resolve();
-                }
-              }, 50);
-            }
-          })
-        ]);
-
+        await loadSettings();
         // After settings are loaded, check auth status if we have a base URL
         const currentApiBaseUrl = useSettingsStore.getState().apiBaseUrl;
         if (currentApiBaseUrl) {
@@ -70,19 +54,20 @@ export default function RootLayout() {
       } catch (e) {
         logger.warn(`Error during initialization: ${e}`);
       } finally {
-        setIsReady(true);
+        setIsSettingsLoaded(true);
       }
     }
 
-    prepare();
+    init();
     initUpdateStore();
-  }, [loadSettings, checkLoginStatus, loaded, error]);
+  }, [loadSettings, checkLoginStatus]);
 
+  // 2. Hide Splash when EVERYTHING is ready (Fonts + Settings)
   useEffect(() => {
-    if (isReady) {
+    if ((loaded || error) && isSettingsLoaded) {
       SplashScreen.hideAsync();
     }
-  }, [isReady]);
+  }, [loaded, error, isSettingsLoaded]);
 
   // 检查更新
   useEffect(() => {
