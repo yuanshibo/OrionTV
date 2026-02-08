@@ -48,7 +48,6 @@ const VideoCardMobile = forwardRef<View, VideoCardMobileProps>(
       playTime,
       episodeIndex,
       onRecordDeleted,
-      onRecordDeleted,
       onFavoriteDeleted,
       mediaType: rest.mediaType,
     });

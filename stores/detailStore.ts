@@ -142,8 +142,6 @@ interface DetailState {
 
   resumeRecord: PlayRecord | null;
 
-  resumeRecord: PlayRecord | null;
-
   init: (q: string, preferredSource?: string, id?: string, year?: string, type?: string) => Promise<void>;
   setDetail: (detail: SearchResultWithResolution) => Promise<void>;
   abort: () => void;
