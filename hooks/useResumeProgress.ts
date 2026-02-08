@@ -1,5 +1,5 @@
-import { useState, useCallback, useEffect } from "react";
-import { PlayRecordManager } from "@/services/storage";
+import { useState, useEffect } from "react";
+import useDetailStore from "@/stores/detailStore";
 import { SearchResult } from "@/services/api";
 
 export interface ResumeInfo {
@@ -9,73 +9,67 @@ export interface ResumeInfo {
 }
 
 export const useResumeProgress = (detail: SearchResult | null) => {
-  const [resumeInfo, setResumeInfo] = useState<ResumeInfo>({
-    hasRecord: false,
-    episodeIndex: 0,
-    position: undefined,
-  });
+  const resumeRecord = useDetailStore((state) => state.resumeRecord);
 
-  const loadResumeInfo = useCallback(async (): Promise<ResumeInfo> => {
-    if (!detail) {
+  // Derive resume info directly from state (logic moved from effect to render)
+  // This ensures 0 latency when the updated store value propagates.
+  const getResumeInfo = (): ResumeInfo => {
+    if (!detail || !resumeRecord) {
       return { hasRecord: false, episodeIndex: 0, position: undefined };
     }
 
-    try {
-      const record = await PlayRecordManager.get(detail.source, detail.id.toString());
-      const totalEpisodes = detail.episodes?.length ?? 0;
-
-      if (record && totalEpisodes > 0) {
-        const rawIndex = typeof record.index === "number" ? record.index - 1 : 0;
-        const clampedIndex = Math.min(Math.max(rawIndex, 0), totalEpisodes - 1);
-        const resumePosition =
-          record.play_time && record.play_time > 0
-            ? Math.max(0, Math.floor(record.play_time * 1000))
-            : undefined;
-
-        return {
-          hasRecord: true,
-          episodeIndex: clampedIndex,
-          position: resumePosition,
-        };
-      }
-    } catch {
-      // Ignore errors and fall back to default resume info
+    // Verify title match (double check, though store logic should ensure this)
+    if (resumeRecord.title !== detail.title) {
+      return { hasRecord: false, episodeIndex: 0, position: undefined };
     }
 
-    return { hasRecord: false, episodeIndex: 0, position: undefined };
-  }, [detail]);
+    const totalEpisodes = detail.episodes?.length ?? 0;
+    if (totalEpisodes === 0) {
+      return { hasRecord: false, episodeIndex: 0, position: undefined };
+    }
 
-  const applyResumeInfo = useCallback((next: ResumeInfo) => {
-    setResumeInfo((prev) => {
-      if (
-        prev.hasRecord === next.hasRecord &&
-        prev.episodeIndex === next.episodeIndex &&
-        prev.position === next.position
-      ) {
-        return prev;
+    let rawIndex = typeof resumeRecord.index === "number" ? resumeRecord.index - 1 : 0;
+
+    // --- Completion Logic / Auto-Advance ---
+    if (resumeRecord.duration && resumeRecord.play_time) {
+      const progress = resumeRecord.play_time / resumeRecord.duration;
+      const isNearEnd = progress > 0.95;
+
+      // If watched > 95% and there is a next episode, advance
+      if (isNearEnd && rawIndex + 1 < totalEpisodes) {
+        return {
+          hasRecord: true,
+          episodeIndex: rawIndex + 1,
+          position: 0,
+        };
       }
-      return next;
-    });
-  }, []);
+    }
 
-  const refresh = useCallback(async () => {
-    const info = await loadResumeInfo();
-    applyResumeInfo(info);
-  }, [loadResumeInfo, applyResumeInfo]);
+    const clampedIndex = Math.min(Math.max(rawIndex, 0), totalEpisodes - 1);
+    const resumePosition =
+      resumeRecord.play_time && resumeRecord.play_time > 0
+        ? Math.max(0, Math.floor(resumeRecord.play_time * 1000))
+        : undefined;
 
-  useEffect(() => {
-    let isActive = true;
-
-    loadResumeInfo().then((info) => {
-      if (isActive) {
-        applyResumeInfo(info);
-      }
-    });
-
-    return () => {
-      isActive = false;
+    return {
+      hasRecord: true,
+      episodeIndex: clampedIndex,
+      position: resumePosition,
     };
-  }, [loadResumeInfo, applyResumeInfo]);
+  };
 
-  return { resumeInfo, refresh };
+  const [info, setInfo] = useState<ResumeInfo>(getResumeInfo());
+
+  // Sync state when dependencies change
+  useEffect(() => {
+    setInfo(getResumeInfo());
+  }, [detail, resumeRecord]);
+
+  return {
+    resumeInfo: info,
+    refresh: () => {
+      // Trigger a store refresh. The effect above will catch the updated store state.
+      useDetailStore.getState().refreshResumeRecord();
+    }
+  };
 };

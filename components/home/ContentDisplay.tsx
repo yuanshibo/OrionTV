@@ -91,6 +91,7 @@ export const ContentDisplay: React.FC<ContentDisplayProps> = React.memo(({
         style={style}
         onFocus={onFocus}
         deviceType={deviceType}
+        mediaType={item.type}
       />
     );
   }, [selectedCategory, deviceType, onShowFilterPanel, onRecordDeleted, firstItemRef, onFocus]);

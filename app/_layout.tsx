@@ -2,8 +2,9 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Platform, View, StyleSheet } from "react-native";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Toast from "react-native-toast-message";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
@@ -16,6 +17,7 @@ import { UpdateModal } from "@/components/UpdateModal";
 import { DeleteConfirmationModal } from "@/components/DeleteConfirmationModal";
 import { UPDATE_CONFIG } from "@/constants/UpdateConfig";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { useMemoryManagement } from "@/hooks/useMemoryManagement";
 import Logger from '@/utils/Logger';
 
 const logger = Logger.withTag('RootLayout');
@@ -28,34 +30,44 @@ export default function RootLayout() {
   const [loaded, error] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
-  const { loadSettings, remoteInputEnabled, apiBaseUrl } = useSettingsStore();
+  const { loadSettings, remoteInputEnabled } = useSettingsStore();
   const { startServer, stopServer } = useRemoteControlStore();
   const { checkLoginStatus } = useAuthStore();
   const { checkForUpdate, lastCheckTime } = useUpdateStore();
   const responsiveConfig = useResponsiveLayout();
 
-  useEffect(() => {
-    const initializeApp = async () => {
-      await loadSettings();
-    };
-    initializeApp();
-    initUpdateStore(); // 初始化更新存储
-  }, [loadSettings]);
+  // Use global memory management
+  useMemoryManagement();
 
-  useEffect(() => {
-    if (apiBaseUrl) {
-      checkLoginStatus(apiBaseUrl);
-    }
-  }, [apiBaseUrl, checkLoginStatus]);
+  const [isSettingsLoaded, setIsSettingsLoaded] = useState(false);
 
+  // 1. Initial Data Load (Settings, Auth, Server)
   useEffect(() => {
-    if (loaded || error) {
-      SplashScreen.hideAsync();
-      if (error) {
-        logger.warn(`Error in loading fonts: ${error}`);
+    async function init() {
+      try {
+        await loadSettings();
+        // After settings are loaded, check auth status if we have a base URL
+        const currentApiBaseUrl = useSettingsStore.getState().apiBaseUrl;
+        if (currentApiBaseUrl) {
+          await checkLoginStatus(currentApiBaseUrl);
+        }
+      } catch (e) {
+        logger.warn(`Error during initialization: ${e}`);
+      } finally {
+        setIsSettingsLoaded(true);
       }
     }
-  }, [loaded, error]);
+
+    init();
+    initUpdateStore();
+  }, [loadSettings, checkLoginStatus]);
+
+  // 2. Hide Splash when EVERYTHING is ready (Fonts + Settings)
+  useEffect(() => {
+    if ((loaded || error) && isSettingsLoaded) {
+      SplashScreen.hideAsync();
+    }
+  }, [loaded, error, isSettingsLoaded]);
 
   // 检查更新
   useEffect(() => {
@@ -82,27 +94,25 @@ export default function RootLayout() {
   }
 
   return (
-    <SafeAreaProvider>
-      <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-        <View style={styles.container}>
-          <Stack>
-            <Stack.Screen name="index" options={{ headerShown: false }} />
-            <Stack.Screen name="detail" options={{ headerShown: false }} />
-            {Platform.OS !== "web" && <Stack.Screen name="play" options={{ headerShown: false }} />}
-            <Stack.Screen name="related" options={{ headerShown: false }} />
-            <Stack.Screen name="search" options={{ headerShown: false }} />
-            <Stack.Screen name="live" options={{ headerShown: false }} />
-            <Stack.Screen name="settings" options={{ headerShown: false }} />
-            <Stack.Screen name="favorites" options={{ headerShown: false }} />
-            <Stack.Screen name="+not-found" />
-          </Stack>
-        </View>
-        <Toast />
-        <LoginModal />
-        <UpdateModal />
-        <DeleteConfirmationModal />
-      </ThemeProvider>
-    </SafeAreaProvider>
+    <ErrorBoundary>
+      <SafeAreaProvider>
+        <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+          <View style={styles.container}>
+            <Stack>
+              <Stack.Screen name="index" options={{ headerShown: false }} />
+              <Stack.Screen name="detail" options={{ headerShown: false }} />
+              <Stack.Screen name="play" options={{ headerShown: false }} />
+              <Stack.Screen name="related" options={{ headerShown: false, presentation: 'modal' }} />
+              <Stack.Screen name="+not-found" />
+            </Stack>
+          </View>
+          <Toast />
+          <LoginModal />
+          <UpdateModal />
+          <DeleteConfirmationModal />
+        </ThemeProvider>
+      </SafeAreaProvider>
+    </ErrorBoundary>
   );
 }
 

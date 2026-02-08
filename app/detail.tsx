@@ -20,7 +20,7 @@ import { useFocusStore } from "@/stores/focusStore";
 import { FocusPriority } from "@/types/focus";
 
 export default function DetailScreen() {
-  const { q, source, id, poster } = useLocalSearchParams<{ q: string; source?: string; id?: string; poster?: string }>();
+  const { q, source, id, poster, year, type } = useLocalSearchParams<{ q: string; source?: string; id?: string; poster?: string; year?: string; type?: string }>();
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'dark';
   const colors = Colors[colorScheme];
@@ -69,12 +69,12 @@ export default function DetailScreen() {
 
   useEffect(() => {
     if (q) {
-      init(q, source, id);
+      init(q, source, id, year, type);
     }
     return () => {
       abort();
     };
-  }, [init, q, source, id, abort]);
+  }, [init, q, source, id, year, type, abort]);
 
   useFocusEffect(
     useCallback(() => {

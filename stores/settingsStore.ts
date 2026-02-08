@@ -55,7 +55,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     });
     if (settings.apiBaseUrl) {
       api.setBaseUrl(settings.apiBaseUrl);
-      await get().fetchServerConfig();
+      // Fire and forget server config fetch to unblock UI hydration
+      void get().fetchServerConfig();
     }
   },
   fetchServerConfig: async () => {
@@ -65,6 +66,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       if (config) {
         storageConfig.setStorageType(config.StorageType);
         set({ serverConfig: config });
+        // Trigger auth check reactively once config is available
+        const useAuthStore = (await import("./authStore")).default;
+        void useAuthStore.getState().checkLoginStatus(get().apiBaseUrl);
       }
     } catch (error) {
       set({ serverConfig: null });

@@ -208,11 +208,11 @@ const CustomScrollView = forwardRef<React.ElementRef<typeof FlashList>, CustomSc
         keyExtractor={getItemKey}
         renderItem={renderGridItem}
         numColumns={effectiveColumns}
-        estimatedItemSize={responsiveConfig.cardHeight + responsiveConfig.spacing + 60}
+        estimatedItemSize={responsiveConfig.cardHeight + responsiveConfig.spacing + (deviceType === 'tv' ? 40 : 30)}
         overrideItemLayout={
           deviceType === "tv"
             ? (layout: { span?: number; size?: number }) => {
-              layout.size = responsiveConfig.cardHeight + responsiveConfig.spacing + 60;
+              layout.size = responsiveConfig.cardHeight + responsiveConfig.spacing + 40;
               layout.span = 1;
             }
             : undefined

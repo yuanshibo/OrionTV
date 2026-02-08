@@ -41,11 +41,13 @@ export const normalizeSourceName = (sourceName?: string | null): string => {
     return stripVariantSuffixes(normalized);
 };
 
-export const buildDetailCacheKey = (query: string, preferredSource?: string, resourceId?: string) => {
+export const buildDetailCacheKey = (query: string, preferredSource?: string, resourceId?: string, year?: string, type?: string) => {
     const normalizedQuery = normalizeIdentifier(query);
     const normalizedSource = preferredSource ? normalizeIdentifier(preferredSource) : "";
     const normalizedId = resourceId ? resourceId.toString() : "";
-    return `${normalizedQuery}::${normalizedSource}::${normalizedId}`;
+    const normalizedYear = year ? year.toString() : "";
+    const normalizedType = type ? type.toString() : "";
+    return `${normalizedQuery}::${normalizedSource}::${normalizedId}::${normalizedYear}::${normalizedType}`;
 };
 
 export const buildResultDedupeKey = (

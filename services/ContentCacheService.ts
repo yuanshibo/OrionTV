@@ -206,6 +206,11 @@ class ContentCacheService {
 
     await this.hydrationPromise;
   }
+
+  public clear() {
+    this.dataCache.clear();
+    void AsyncStorage.removeItem(HOME_CACHE_STORAGE_KEY);
+  }
 }
 
 export const contentCacheService = new ContentCacheService();
