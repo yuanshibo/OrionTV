@@ -147,8 +147,12 @@ export default function HomeScreen() {
     if (!selectedCategory || (selectedCategory.tags && !selectedCategory.tag) || !apiConfigStatus.isConfigured || apiConfigStatus.needsConfiguration) {
       return;
     }
-    initialize();
-  }, [selectedCategory, selectedCategory?.tag, apiConfigStatus.isConfigured, apiConfigStatus.needsConfiguration, initialize]);
+
+    // Initial data hydration if empty
+    if (contentData.length === 0 && !loading) {
+      initialize();
+    }
+  }, [selectedCategory, selectedCategory?.tag, apiConfigStatus.isConfigured, apiConfigStatus.needsConfiguration, initialize, contentData.length, loading]);
 
   // 错误状态清理
   useEffect(() => {

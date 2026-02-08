@@ -2,8 +2,9 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Platform, View, StyleSheet } from "react-native";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Toast from "react-native-toast-message";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
@@ -16,6 +17,7 @@ import { UpdateModal } from "@/components/UpdateModal";
 import { DeleteConfirmationModal } from "@/components/DeleteConfirmationModal";
 import { UPDATE_CONFIG } from "@/constants/UpdateConfig";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { useMemoryManagement } from "@/hooks/useMemoryManagement";
 import Logger from '@/utils/Logger';
 
 const logger = Logger.withTag('RootLayout');
@@ -28,34 +30,59 @@ export default function RootLayout() {
   const [loaded, error] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
-  const { loadSettings, remoteInputEnabled, apiBaseUrl } = useSettingsStore();
+  const { loadSettings, remoteInputEnabled } = useSettingsStore();
   const { startServer, stopServer } = useRemoteControlStore();
   const { checkLoginStatus } = useAuthStore();
   const { checkForUpdate, lastCheckTime } = useUpdateStore();
   const responsiveConfig = useResponsiveLayout();
 
-  useEffect(() => {
-    const initializeApp = async () => {
-      await loadSettings();
-    };
-    initializeApp();
-    initUpdateStore(); // 初始化更新存储
-  }, [loadSettings]);
+  // Use global memory management
+  useMemoryManagement();
+
+  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    if (apiBaseUrl) {
-      checkLoginStatus(apiBaseUrl);
-    }
-  }, [apiBaseUrl, checkLoginStatus]);
+    async function prepare() {
+      try {
+        // Parallelize settings loading and font loading
+        await Promise.all([
+          loadSettings(),
+          // Wait for fonts to load or error
+          new Promise<void>((resolve) => {
+            if (loaded || error) resolve();
+            else {
+              // This is a bit hacky but ensures we don't block forever if font hook is slow
+              const checkInterval = setInterval(() => {
+                if (loaded || error) {
+                  clearInterval(checkInterval);
+                  resolve();
+                }
+              }, 50);
+            }
+          })
+        ]);
 
-  useEffect(() => {
-    if (loaded || error) {
-      SplashScreen.hideAsync();
-      if (error) {
-        logger.warn(`Error in loading fonts: ${error}`);
+        // After settings are loaded, check auth status if we have a base URL
+        const currentApiBaseUrl = useSettingsStore.getState().apiBaseUrl;
+        if (currentApiBaseUrl) {
+          await checkLoginStatus(currentApiBaseUrl);
+        }
+      } catch (e) {
+        logger.warn(`Error during initialization: ${e}`);
+      } finally {
+        setIsReady(true);
       }
     }
-  }, [loaded, error]);
+
+    prepare();
+    initUpdateStore();
+  }, [loadSettings, checkLoginStatus, loaded, error]);
+
+  useEffect(() => {
+    if (isReady) {
+      SplashScreen.hideAsync();
+    }
+  }, [isReady]);
 
   // 检查更新
   useEffect(() => {
@@ -82,27 +109,25 @@ export default function RootLayout() {
   }
 
   return (
-    <SafeAreaProvider>
-      <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-        <View style={styles.container}>
-          <Stack>
-            <Stack.Screen name="index" options={{ headerShown: false }} />
-            <Stack.Screen name="detail" options={{ headerShown: false }} />
-            {Platform.OS !== "web" && <Stack.Screen name="play" options={{ headerShown: false }} />}
-            <Stack.Screen name="related" options={{ headerShown: false }} />
-            <Stack.Screen name="search" options={{ headerShown: false }} />
-            <Stack.Screen name="live" options={{ headerShown: false }} />
-            <Stack.Screen name="settings" options={{ headerShown: false }} />
-            <Stack.Screen name="favorites" options={{ headerShown: false }} />
-            <Stack.Screen name="+not-found" />
-          </Stack>
-        </View>
-        <Toast />
-        <LoginModal />
-        <UpdateModal />
-        <DeleteConfirmationModal />
-      </ThemeProvider>
-    </SafeAreaProvider>
+    <ErrorBoundary>
+      <SafeAreaProvider>
+        <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+          <View style={styles.container}>
+            <Stack>
+              <Stack.Screen name="index" options={{ headerShown: false }} />
+              <Stack.Screen name="detail" options={{ headerShown: false }} />
+              <Stack.Screen name="play" options={{ headerShown: false }} />
+              <Stack.Screen name="related" options={{ headerShown: false, presentation: 'modal' }} />
+              <Stack.Screen name="+not-found" />
+            </Stack>
+          </View>
+          <Toast />
+          <LoginModal />
+          <UpdateModal />
+          <DeleteConfirmationModal />
+        </ThemeProvider>
+      </SafeAreaProvider>
+    </ErrorBoundary>
   );
 }
 

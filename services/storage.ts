@@ -272,6 +272,17 @@ export class PlayRecordManager {
         newRecord.description = description;
       }
       allRecords[key] = newRecord;
+
+      // --- LRU Purge ---
+      const recordKeys = Object.keys(allRecords);
+      const MAX_RECORDS = 200;
+      if (recordKeys.length > MAX_RECORDS) {
+        const sorted = recordKeys.sort((a, b) => (allRecords[a].save_time || 0) - (allRecords[b].save_time || 0));
+        const toDelete = sorted.slice(0, recordKeys.length - MAX_RECORDS);
+        toDelete.forEach(k => delete allRecords[k]);
+        logger.info(`[Storage] Purged ${toDelete.length} old play records.`);
+      }
+
       await AsyncStorage.setItem(STORAGE_KEYS.PLAY_RECORDS, JSON.stringify(allRecords));
     } else {
       const recordToSave = { ...apiRecord } as Omit<ApiPlayRecord, "save_time"> & { description?: string };

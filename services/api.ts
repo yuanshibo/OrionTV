@@ -152,6 +152,7 @@ export interface ServerConfig {
 
 export class API {
   public baseURL: string = "";
+  private inflightRequests = new Map<string, Promise<any>>();
 
   constructor(baseURL?: string) {
     if (baseURL) {
@@ -161,6 +162,46 @@ export class API {
 
   public setBaseUrl(url: string) {
     this.baseURL = url;
+  }
+
+  private async _fetchData<T>(url: string, options: RequestInit = {}, retries = 2): Promise<T> {
+    const isGet = !options.method || options.method === "GET";
+    const cacheKey = `${url}:${JSON.stringify(options.headers || {})}`;
+
+    if (isGet && this.inflightRequests.has(cacheKey)) {
+      return this.inflightRequests.get(cacheKey);
+    }
+
+    const requestPromise = (async () => {
+      let lastError: any;
+      for (let i = 0; i <= retries; i++) {
+        try {
+          const response = await this._fetch(url, options);
+          return await response.json();
+        } catch (error) {
+          lastError = error;
+          // Only retry on network status 0 or potential transient network issues
+          if (isNetworkStatusZeroError(error) && i < retries) {
+            const delay = Math.pow(2, i) * 1000;
+            logger.warn(`[API] Transient error on ${url}, retrying in ${delay}ms... (Attempt ${i + 1}/${retries})`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+          throw error;
+        }
+      }
+      throw lastError;
+    })().finally(() => {
+      if (isGet) {
+        this.inflightRequests.delete(cacheKey);
+      }
+    });
+
+    if (isGet) {
+      this.inflightRequests.set(cacheKey, requestPromise);
+    }
+
+    return requestPromise;
   }
 
   private async _fetch(url: string, options: RequestInit = {}): Promise<Response> {
@@ -201,94 +242,76 @@ export class API {
   }
 
   async login(username?: string | undefined, password?: string): Promise<{ ok: boolean }> {
-    const response = await this._fetch("/api/login", {
+    return this._fetchData("/api/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, password }),
     });
-
-    // 存储cookie到AsyncStorage
-    const cookies = response.headers.get("Set-Cookie");
-    if (cookies) {
-      await AsyncStorage.setItem("authCookies", cookies);
-    }
-
-    return response.json();
   }
 
   async logout(): Promise<{ ok: boolean }> {
-    const response = await this._fetch("/api/logout", {
+    const res = await this._fetchData<{ ok: boolean }>("/api/logout", {
       method: "POST",
     });
     await AsyncStorage.setItem("authCookies", '');
-    return response.json();
+    return res;
   }
 
   async getServerConfig(): Promise<ServerConfig> {
-    const response = await this._fetch("/api/server-config");
-    return response.json();
+    return this._fetchData("/api/server-config");
   }
 
   async getFavorites(key?: string): Promise<Record<string, Favorite> | Favorite | null> {
     const url = key ? `/api/favorites?key=${encodeURIComponent(key)}` : "/api/favorites";
-    const response = await this._fetch(url);
-    return response.json();
+    return this._fetchData(url);
   }
 
   async addFavorite(key: string, favorite: Omit<Favorite, "save_time">): Promise<{ success: boolean }> {
-    const response = await this._fetch("/api/favorites", {
+    return this._fetchData("/api/favorites", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ key, favorite }),
     });
-    return response.json();
   }
 
   async deleteFavorite(key?: string): Promise<{ success: boolean }> {
     const url = key ? `/api/favorites?key=${encodeURIComponent(key)}` : "/api/favorites";
-    const response = await this._fetch(url, { method: "DELETE" });
-    return response.json();
+    return this._fetchData(url, { method: "DELETE" });
   }
 
   async getPlayRecords(key?: string): Promise<Record<string, PlayRecord> | PlayRecord | null> {
     const url = key ? `/api/playrecords?key=${encodeURIComponent(key)}` : "/api/playrecords";
-    const response = await this._fetch(url);
-    return response.json();
+    return this._fetchData(url);
   }
 
   async savePlayRecord(key: string, record: Omit<PlayRecord, "save_time">): Promise<{ success: boolean }> {
-    const response = await this._fetch("/api/playrecords", {
+    return this._fetchData("/api/playrecords", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ key, record }),
     });
-    return response.json();
   }
 
   async deletePlayRecord(key?: string): Promise<{ success: boolean }> {
     const url = key ? `/api/playrecords?key=${encodeURIComponent(key)}` : "/api/playrecords";
-    const response = await this._fetch(url, { method: "DELETE" });
-    return response.json();
+    return this._fetchData(url, { method: "DELETE" });
   }
 
   async getSearchHistory(): Promise<string[]> {
-    const response = await this._fetch("/api/searchhistory");
-    return response.json();
+    return this._fetchData("/api/searchhistory");
   }
 
   async addSearchHistory(keyword: string): Promise<string[]> {
-    const response = await this._fetch("/api/searchhistory", {
+    return this._fetchData("/api/searchhistory", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ keyword }),
     });
-    return response.json();
   }
 
   async deleteSearchHistory(keyword?: string): Promise<{ success: boolean }> {
     const url = keyword ? `/api/searchhistory?keyword=${keyword}` : "/api/searchhistory";
-    const response = await this._fetch(url, { method: "DELETE" });
-    return response.json();
+    return this._fetchData(url, { method: "DELETE" });
   }
 
   getImageProxyUrl(imageUrl: string): string {
@@ -303,8 +326,7 @@ export class API {
     signal?: AbortSignal
   ): Promise<DoubanResponse> {
     const url = `/api/douban?type=${type}&tag=${encodeURIComponent(tag)}&pageSize=${pageSize}&pageStart=${pageStart}`;
-    const response = await this._fetch(url, { signal });
-    return response.json();
+    return this._fetchData(url, { signal });
   }
 
   async getDoubanRecommendations(
@@ -324,49 +346,39 @@ export class API {
     params.set("sort", filters.sort ?? "T");
     params.set("label", filters.label ?? "all");
 
-    const response = await this._fetch('/api/douban/recommends?' + params.toString(), { signal });
-    return response.json();
+    return this._fetchData('/api/douban/recommends?' + params.toString(), { signal });
   }
 
   async discover(page: number, limit: number): Promise<DiscoverResponse> {
-    const response = await this._fetch(`/api/discover?page=${page}&limit=${limit}`);
-    const data = await response.json();
+    const data = await this._fetchData<any>(`/api/discover?page=${page}&limit=${limit}`);
     return { list: data.results || [] };
   }
 
   async aiAssistantSearch(query: string, signal?: AbortSignal): Promise<{ results: SearchResult[] }> {
-    const response = await this._fetch('/api/ai/assistant', {
+    return this._fetchData('/api/ai/assistant', {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query }),
       signal
     });
-    return response.json();
   }
 
   async searchVideos(query: string): Promise<{ results: SearchResult[] }> {
-    const url = `/api/search?q=${encodeURIComponent(query)}`;
-    const response = await this._fetch(url);
-    return response.json();
+    return this._fetchData(`/api/search?q=${encodeURIComponent(query)}`);
   }
 
   async searchVideo(query: string, resourceId: string, signal?: AbortSignal): Promise<{ results: SearchResult[] }> {
     const url = `/api/search/one?q=${encodeURIComponent(query)}&resourceId=${encodeURIComponent(resourceId)}`;
-    const response = await this._fetch(url, { signal });
-    const { results } = await response.json();
-    return { results: results.filter((item: any) => item.title === query )};
+    const { results } = await this._fetchData<any>(url, { signal });
+    return { results: results.filter((item: any) => item.title === query) };
   }
 
   async getResources(signal?: AbortSignal): Promise<ApiSite[]> {
-    const url = `/api/search/resources`;
-    const response = await this._fetch(url, { signal });
-    return response.json();
+    return this._fetchData(`/api/search/resources`, { signal });
   }
 
   async getVideoDetail(source: string, id: string): Promise<VideoDetail> {
-    const url = `/api/detail?source=${source}&id=${id}`;
-    const response = await this._fetch(url);
-    return response.json();
+    return this._fetchData(`/api/detail?source=${source}&id=${id}`);
   }
 }
 

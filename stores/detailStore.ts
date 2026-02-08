@@ -183,6 +183,13 @@ const useDetailStore = create<DetailState>((set, get) => ({
     const hasValidCache = cachedEntry && cachedDetail && cachedSearchResults.length > 0;
     logger.debug(`[CACHE] Cache status for "${q}": ${hasValidCache ? 'VALID' : 'MISS'}`);
 
+    // --- Guard: Skip if already loaded and matches ---
+    const currentState = get();
+    if (currentState.q === q && currentState.detail && !currentState.loading) {
+      logger.debug(`[INIT] Guard: Already matched and loaded "${q}", skipping re-fetch.`);
+      return;
+    }
+
     set({
       q,
       loading: !hasValidCache,
@@ -200,8 +207,8 @@ const useDetailStore = create<DetailState>((set, get) => ({
       logger.debug(`[CACHE] Using cached data for "${q}", skipping fetch`);
       try {
         const isFavFromCache = await FavoriteManager.isFavorited(
-          cachedDetail.source,
-          cachedDetail.id.toString()
+          cachedDetail!.source,
+          cachedDetail!.id.toString()
         );
         set({ isFavorited: isFavFromCache });
       } catch (favoriteError) {
@@ -298,29 +305,47 @@ const useDetailStore = create<DetailState>((set, get) => ({
       // We iterate through resources and fetch them one by one (or small batches)
       // skipping the history source if it was already attempted.
 
+      // 5. Batch Parallel Load of Remaining Sources
       const remainingResources = resources.filter(r => r.key !== historySourceKey);
+      const BATCH_SIZE = APP_CONFIG.DETAIL.MAX_CONCURRENT_SOURCE_REQUESTS || 3;
 
-      // We can use a loop to fetch sequentially
-      for (const res of remainingResources) {
+      for (let i = 0; i < remainingResources.length; i += BATCH_SIZE) {
         if (signal.aborted) break;
-        if (validSourcesCount >= MAX_VALID_SOURCES) {
-          logger.info(`[INFO] Reached limit of ${MAX_VALID_SOURCES} valid sources. Stopping.`);
-          break;
-        }
+        if (validSourcesCount >= MAX_VALID_SOURCES) break;
 
-        try {
-          // Fetch one by one to strictly control the order and limit
-          // We could parallelize slightly (e.g. 2 at a time) if speed is too slow,
-          // but user requested "sequential" and "limit 8", so strict sequential is safest for logic.
-          const { results } = await api.searchVideo(q, res.key, signal);
-          if (signal.aborted) break;
+        const batch = remainingResources.slice(i, i + BATCH_SIZE);
+        await Promise.all(batch.map(async (res) => {
+          if (signal.aborted || validSourcesCount >= MAX_VALID_SOURCES) return;
+          try {
+            const { results } = await api.searchVideo(q, res.key, signal);
+            if (results.length > 0 && !signal.aborted) {
+              addResults(results, res.key);
 
-          if (results.length > 0) {
-            addResults(results, res.key);
+              // Pre-warm resolution for the primary source (Resume Play priority)
+              const snapshot = get();
+              if (snapshot.detail && snapshot.detail.episodes) {
+                let targetIndex = 0; // Default to first episode
+
+                // Check if we have history for this title
+                if (playRecords) {
+                  const records = Object.values(playRecords);
+                  const match = records.find(r => r.title === q);
+                  if (match && match.index > 0 && match.index <= snapshot.detail.episodes.length) {
+                    targetIndex = match.index - 1;
+                    logger.debug(`[PREWARM] Target identified from history: Episode ${match.index}`);
+                  }
+                }
+
+                const targetEpisode = snapshot.detail.episodes[targetIndex];
+                if (targetEpisode) {
+                  void getResolutionWithCache(targetEpisode, signal).catch(() => { });
+                }
+              }
+            }
+          } catch (e) {
+            logger.warn(`[WARN] Source "${res.key}" failed:`, e);
           }
-        } catch (e) {
-          logger.warn(`[WARN] Source "${res.key}" failed:`, e);
-        }
+        }));
       }
 
       // 6. Finalize
