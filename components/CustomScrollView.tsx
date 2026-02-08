@@ -33,9 +33,11 @@ interface CustomScrollViewProps {
   emptyMessage?: string;
   ListFooterComponent?: React.ComponentType<any> | React.ReactElement | null;
   drawDistance?: number;
+  estimatedItemSize?: number;
+  overrideItemLayout?: (layout: { span?: number; size?: number }, item: any, index: number, maxColumns: number, extraData: any) => void;
 }
 
-const CustomScrollView = forwardRef<React.ElementRef<typeof FlashList>, CustomScrollViewProps>((
+const CustomScrollView = React.memo(forwardRef<React.ElementRef<typeof FlashList>, CustomScrollViewProps>((
   {
     data,
     renderItem,
@@ -48,6 +50,8 @@ const CustomScrollView = forwardRef<React.ElementRef<typeof FlashList>, CustomSc
     emptyMessage = "暂无内容",
     ListFooterComponent,
     drawDistance,
+    estimatedItemSize,
+    overrideItemLayout,
   },
   ref
 ) => {
@@ -208,14 +212,14 @@ const CustomScrollView = forwardRef<React.ElementRef<typeof FlashList>, CustomSc
         keyExtractor={getItemKey}
         renderItem={renderGridItem}
         numColumns={effectiveColumns}
-        estimatedItemSize={responsiveConfig.cardHeight + responsiveConfig.spacing + (deviceType === 'tv' ? 40 : 30)}
+        estimatedItemSize={estimatedItemSize ?? (responsiveConfig.cardHeight + responsiveConfig.spacing + (deviceType === 'tv' ? 40 : 30))}
         overrideItemLayout={
-          deviceType === "tv"
+          overrideItemLayout ?? (deviceType === "tv"
             ? (layout: { span?: number; size?: number }) => {
               layout.size = responsiveConfig.cardHeight + responsiveConfig.spacing + 40;
               layout.span = 1;
             }
-            : undefined
+            : undefined)
         }
         contentContainerStyle={dynamicStyles.listContent}
         onScroll={scrollHandler}
@@ -241,7 +245,7 @@ const CustomScrollView = forwardRef<React.ElementRef<typeof FlashList>, CustomSc
       )}
     </View>
   );
-});
+}));
 
 CustomScrollView.displayName = "CustomScrollView";
 
