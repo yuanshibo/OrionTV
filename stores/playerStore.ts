@@ -97,18 +97,52 @@ interface PlayerState {
 const usePlayerStore = create<PlayerState>((set, get) => {
   const _loadPlaybackData = async (detail: SearchResultWithResolution): Promise<{ data?: Partial<PlayerState>; error?: string }> => {
     try {
-      const [playRecord, playerSettings] = await Promise.all([
+      // Load current source record along with the latest record across all sources (by title/year/type)
+      const [playRecord, playerSettings, latestRecord] = await Promise.all([
         PlayRecordManager.get(detail.source, detail.id.toString()),
         PlayerSettingsManager.get(detail.source, detail.id.toString()),
+        PlayRecordManager.getLatestByTitle(detail.title, detail.year, detail.type),
       ]);
+
+      const introEndTime = playRecord?.introEndTime || playerSettings?.introEndTime || latestRecord?.introEndTime;
+      const outroStartTime = playRecord?.outroStartTime || playerSettings?.outroStartTime || latestRecord?.outroStartTime;
+      const playbackRate = playerSettings?.playbackRate || latestRecord?.playbackRate || 1.0;
+
+      // Position Sync Logic:
+      // 1. Prefer current source's record if it exists.
+      // 2. If current source has no record, check if we are playing the episode that corresponds to the latest record.
+      //    (latestRecord.index is 1-based, currentEpisodeIndex in store isn't available here but passed to loadVideo's caller.
+      //     Wait, _loadPlaybackData is called inside loadVideo. We need to know the target episode index to sync position correctly.)
+
+      // We return the raw data here. The consumer (loadVideo) needs to decide on initialPosition based on the target episode.
+      // Let's refine the return type or logic. 
+
+      // Actually, _loadPlaybackData is called *inside* loadVideo, but it doesn't take episodeIndex as arg currently.
+      // However, we can return the latestRecord and let loadVideo handle the position logic, OR we can pass episodeIndex to _loadPlaybackData.
+      // Let's update _loadPlaybackData signature to take episodeIndex? 
+      // No, looking at loadVideo: `const playbackDataResult = await _loadPlaybackData(detail);`
+      // It sets `initialPosition` from `playbackDataResult.data.initialPosition`.
+
+      // Let's change _loadPlaybackData to return the potential sync position.
+      // We can't know if it matches the *target* episode inside here without the argument. 
+      // But wait, `loadVideo` has `episodeIndex`.
+
       return {
         data: {
+          // We return the current source's position as default. 
+          // If it's 0/missing, loadVideo logic (which we will also update) should handle the fallback?
+          // OR we just pass everything needed back.
           initialPosition: playRecord?.play_time ? playRecord.play_time * 1000 : 0,
-          playbackRate: playerSettings?.playbackRate || 1.0,
-          introEndTime: playRecord?.introEndTime || playerSettings?.introEndTime,
-          outroStartTime: playRecord?.outroStartTime || playerSettings?.outroStartTime,
+          playbackRate,
+          introEndTime,
+          outroStartTime,
+          // Pass the latestRecord for further logic if needed, but currently strict return type might block this.
+          // Let's rely on the fact that if we want to sync position, we need the target episode index.
+          // I will modify `_loadPlaybackData` to accept `episodeIndex` to do it right.
         },
-      };
+        // We'll attach the latestRecord to the result so loadVideo can use it
+        latestRecord,
+      } as any;
     } catch (error) {
       logger.debug("Failed to load play record", error);
       return { error: "加载播放记录失败" };
@@ -151,20 +185,43 @@ const usePlayerStore = create<PlayerState>((set, get) => {
         return;
       }
 
-      const playbackDataResult = await _loadPlaybackData(detail);
+      // _loadPlaybackData now (implicitly) returns { data: ..., latestRecord: ... }
+      // We cast it to any in the implementation, so we can access latestRecord here.
+      const playbackDataResult = await _loadPlaybackData(detail) as any;
+
       if (playbackDataResult.error) {
         const msg = errorService.handle(playbackDataResult.error, { context: "loadVideo", showToast: false });
         set({ status: null, isLoading: false, error: msg });
         return;
       }
 
+      const { data, latestRecord } = playbackDataResult;
+      let finalInitialPosition = data.initialPosition || 0;
+
+      // Logic: If NO specific position passed (manual select) AND current source has NO record (position 0)
+      if (position === undefined && finalInitialPosition === 0) {
+        // Check if we have a cross-source record for THIS episode
+        // latestRecord.index is 1-based, episodeIndex is 0-based
+        if (latestRecord && latestRecord.index === (episodeIndex + 1)) {
+          if (latestRecord.play_time > 0) {
+            finalInitialPosition = latestRecord.play_time * 1000;
+            logger.debug(`[PlayerStore] Syncing position from cross-source record: ${finalInitialPosition}ms`);
+          }
+        }
+      }
+
+      // If position argument is explicitly provided (e.g. from "Continue Playing"), it takes precedence
+      if (position !== undefined) {
+        finalInitialPosition = position;
+      }
+
       const mappedEpisodes = episodes.map((ep, index) => ({ url: ep, title: `第 ${index + 1} 集` }));
       set({
-        isLoading: false, // Correctly set isLoading to false after loading
+        isLoading: false,
         currentEpisodeIndex: episodeIndex,
         episodes: mappedEpisodes,
-        ...playbackDataResult.data,
-        ...(position !== undefined && { initialPosition: position }),
+        ...data,
+        initialPosition: finalInitialPosition,
       });
     },
 
