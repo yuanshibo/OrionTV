@@ -102,6 +102,7 @@ export default function RootLayout() {
               <Stack.Screen name="index" options={{ headerShown: false }} />
               <Stack.Screen name="detail" options={{ headerShown: false }} />
               <Stack.Screen name="play" options={{ headerShown: false }} />
+              <Stack.Screen name="search" options={{ headerShown: false }} />
               <Stack.Screen name="related" options={{ headerShown: false, presentation: 'modal' }} />
               <Stack.Screen name="+not-found" />
             </Stack>
