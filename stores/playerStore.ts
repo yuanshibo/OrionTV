@@ -132,7 +132,8 @@ const usePlayerStore = create<PlayerState>((set, get) => {
           // We return the current source's position as default. 
           // If it's 0/missing, loadVideo logic (which we will also update) should handle the fallback?
           // OR we just pass everything needed back.
-          initialPosition: playRecord?.play_time ? playRecord.play_time * 1000 : 0,
+          // If playRecord exists, use its time (even if 0). If not, undefined.
+          initialPosition: playRecord ? playRecord.play_time * 1000 : undefined,
           playbackRate,
           introEndTime,
           outroStartTime,
@@ -196,23 +197,26 @@ const usePlayerStore = create<PlayerState>((set, get) => {
       }
 
       const { data, latestRecord } = playbackDataResult;
-      let finalInitialPosition = data.initialPosition || 0;
 
-      // Logic: If NO specific position passed (manual select) AND current source has NO record (position 0)
-      if (position === undefined && finalInitialPosition === 0) {
-        // Check if we have a cross-source record for THIS episode
-        // latestRecord.index is 1-based, episodeIndex is 0-based
+      // Default to 0 if nothing found
+      let finalInitialPosition = 0;
+
+      // Priority 1: Explicit position argument (e.g. "Continue Playing")
+      if (position !== undefined) {
+        finalInitialPosition = position;
+      }
+      // Priority 2: Current source record (if exists, even if 0)
+      else if (data.initialPosition !== undefined) {
+        finalInitialPosition = data.initialPosition;
+      }
+      // Priority 3: Cross-source record (only if current source has NO record)
+      else {
         if (latestRecord && latestRecord.index === (episodeIndex + 1)) {
           if (latestRecord.play_time > 0) {
             finalInitialPosition = latestRecord.play_time * 1000;
             logger.debug(`[PlayerStore] Syncing position from cross-source record: ${finalInitialPosition}ms`);
           }
         }
-      }
-
-      // If position argument is explicitly provided (e.g. from "Continue Playing"), it takes precedence
-      if (position !== undefined) {
-        finalInitialPosition = position;
       }
 
       const mappedEpisodes = episodes.map((ep, index) => ({ url: ep, title: `第 ${index + 1} 集` }));
