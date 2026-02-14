@@ -334,15 +334,23 @@ const useDetailStore = create<DetailState>((set, get) => ({
           // If already loaded, check if the new result has MORE episodes (e.g., Weekly update)
           const newDetail = newSearchResults.find(r => r.source === sourceKey);
           if (newDetail && snapshot.detail && newDetail.episodes.length > snapshot.detail.episodes.length) {
-            logger.info(`[AUTO-SWITCH] Switching to source "${newDetail.source}" because it has more episodes (${newDetail.episodes.length} > ${snapshot.detail.episodes.length})`);
-            updates.detail = newDetail;
-            // Also update favorited status for the new source
-            Promise.all([
-              FavoriteManager.isFavorited(newDetail.source, newDetail.id.toString()),
-              PlayRecordManager.getLatestByTitle(newDetail.title, newDetail.year, newDetail.type)
-            ]).then(([isFav, resumeRec]) => {
-              set({ isFavorited: isFav, resumeRecord: resumeRec });
-            });
+            // Strict check: Only auto-switch if metadata matches to avoid switching to a different show with same title
+            const isSameYear = !snapshot.detail.year || !newDetail.year || snapshot.detail.year === newDetail.year;
+            const isSameType = !snapshot.detail.type || !newDetail.type || snapshot.detail.type === newDetail.type;
+
+            if (isSameYear && isSameType) {
+              logger.info(`[AUTO-SWITCH] Switching to source "${newDetail.source}" because it has more episodes (${newDetail.episodes.length} > ${snapshot.detail.episodes.length})`);
+              updates.detail = newDetail;
+              // Also update favorited status for the new source
+              Promise.all([
+                FavoriteManager.isFavorited(newDetail.source, newDetail.id.toString()),
+                PlayRecordManager.getLatestByTitle(newDetail.title, newDetail.year, newDetail.type)
+              ]).then(([isFav, resumeRec]) => {
+                set({ isFavorited: isFav, resumeRecord: resumeRec });
+              });
+            } else {
+              logger.warn(`[AUTO-SWITCH] Skipped switching to "${newDetail.source}" despite more episodes: Metadata mismatch (Year: ${snapshot.detail.year} vs ${newDetail.year}, Type: ${snapshot.detail.type} vs ${newDetail.type})`);
+            }
           }
         }
 
@@ -511,12 +519,21 @@ const useDetailStore = create<DetailState>((set, get) => ({
     logger.info(`[SOURCE_SELECTION] Failed sources: [${Array.from(failedSources).join(', ')}]`);
 
     // 过滤掉当前source和已失败的sources
-    const availableSources = searchResults.filter(result =>
-      result.source !== currentSource &&
-      !failedSources.has(result.source) &&
-      result.episodes &&
-      result.episodes.length > episodeIndex
-    );
+    const availableSources = searchResults.filter(result => {
+      // Basic checks
+      if (result.source === currentSource) return false;
+      if (failedSources.has(result.source)) return false;
+      if (!result.episodes || result.episodes.length <= episodeIndex) return false;
+
+      // Strict Metadata Check (if current detail exists)
+      const currentDetail = get().detail;
+      if (currentDetail) {
+        if (currentDetail.year && result.year && currentDetail.year !== result.year) return false;
+        if (currentDetail.type && result.type && currentDetail.type !== result.type) return false;
+      }
+
+      return true;
+    });
 
     logger.info(`[SOURCE_SELECTION] Available sources: ${availableSources.length}`);
     availableSources.forEach(source => {

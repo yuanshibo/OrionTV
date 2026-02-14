@@ -13,14 +13,26 @@ export const SourceSelectionModal: React.FC = () => {
   const { showSourceModal, setShowSourceModal, loadVideo, currentEpisodeIndex, status, _savePlayRecord } = usePlayerStore();
   const { searchResults, detail, setDetail } = useDetailStore();
 
+  const filteredSearchResults = React.useMemo(() => {
+    if (!detail) return searchResults;
+    return searchResults.filter((item) => {
+      // Strict filter: If year or type is present in both, they MUST match.
+      if (detail.year && item.year && detail.year !== item.year) return false;
+      if (detail.type && item.type && detail.type !== item.type) return false;
+      return true;
+    });
+  }, [searchResults, detail]);
+
   const onSelectSource = (index: number) => {
-    logger.debug("onSelectSource", index, searchResults[index].source, detail?.source);
-    if (searchResults[index].source !== detail?.source) {
+    // Note: index is now based on filteredSearchResults
+    const selectedItem = filteredSearchResults[index];
+    logger.debug("onSelectSource", index, selectedItem.source, detail?.source);
+    if (selectedItem.source !== detail?.source) {
       // Force save current progress before switching
       // This ensures the new source loading logic can find the up-to-date record via getLatestByTitle
       _savePlayRecord({}, { immediate: true });
 
-      const newDetail = searchResults[index];
+      const newDetail = selectedItem;
       setDetail(newDetail);
 
       // Reload the video with the new source, preserving current position
@@ -45,7 +57,7 @@ export const SourceSelectionModal: React.FC = () => {
         <View style={styles.modalContent}>
           <Text style={styles.modalTitle}>选择播放源</Text>
           <FlatList
-            data={searchResults}
+            data={filteredSearchResults}
             numColumns={4}
             contentContainerStyle={styles.sourceList}
             keyExtractor={(item, index) => `source-${item.source}-${index}`}
