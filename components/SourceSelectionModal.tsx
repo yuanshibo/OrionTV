@@ -9,20 +9,16 @@ import { useRouter } from "expo-router";
 const logger = Logger.withTag('SourceSelectionModal');
 
 export const SourceSelectionModal: React.FC = () => {
-  const router = useRouter();
-  const { showSourceModal, setShowSourceModal, loadVideo, currentEpisodeIndex, status, _savePlayRecord } = usePlayerStore();
+    const router = useRouter();
+  const { showSourceModal, setShowSourceModal, loadVideo, currentEpisodeIndex, status } = usePlayerStore();
   const { searchResults, detail, setDetail } = useDetailStore();
 
   const onSelectSource = (index: number) => {
     logger.debug("onSelectSource", index, searchResults[index].source, detail?.source);
     if (searchResults[index].source !== detail?.source) {
-      // Force save current progress before switching
-      // This ensures the new source loading logic can find the up-to-date record via getLatestByTitle
-      _savePlayRecord({}, { immediate: true });
-
       const newDetail = searchResults[index];
       setDetail(newDetail);
-
+      
       // Reload the video with the new source, preserving current position
       const currentPosition = status?.isLoaded ? status.positionMillis : undefined;
       loadVideo({

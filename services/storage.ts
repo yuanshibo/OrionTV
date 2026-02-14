@@ -21,7 +21,6 @@ export type PlayRecord = ApiPlayRecord & {
   description?: string;
   introEndTime?: number;
   outroStartTime?: number;
-  playbackRate?: number;
 };
 export type Favorite = ApiFavorite;
 

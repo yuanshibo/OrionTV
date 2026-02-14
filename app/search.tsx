@@ -279,75 +279,61 @@ export default function SearchScreen() {
     return <ActivityIndicator style={{ marginVertical: 20 }} size="large" />;
   }, [loadingMore]);
 
-  const renderSearchContent = () => {
-    const TV_ITEM_HEIGHT = 240 + 60 + spacing; // Card height + meta height + spacing
-    const MOBILE_ITEM_HEIGHT = (responsiveConfig.cardHeight) + 40 + spacing;
-
-    return (
-      <>
-        <View style={dynamicStyles.searchContainer}>
-          <TouchableOpacity
-            activeOpacity={1}
-            style={[
-              dynamicStyles.inputContainer,
-              {
-                borderColor: isInputFocused ? colors.primary : "transparent",
-              },
-            ]}
-            onPress={() => textInputRef.current?.focus()}
-          >
-            <TextInput
-              ref={textInputRef}
-              style={dynamicStyles.input}
-              placeholder="搜索电影、剧集..."
-              placeholderTextColor={colors.icon}
-              value={keyword}
-              onChangeText={setKeyword}
-              onSubmitEditing={onSearchPress}
-              onFocus={() => setIsInputFocused(true)}
-              onBlur={() => setIsInputFocused(false)}
-              returnKeyType="search"
-            />
-          </TouchableOpacity>
-          <StyledButton style={dynamicStyles.searchButton} onPress={onSearchPress}>
-            <Search size={deviceType === 'mobile' ? 20 : 24} color={colors.text} />
-          </StyledButton>
-          {deviceType !== 'mobile' && (
-            <StyledButton style={dynamicStyles.qrButton} onPress={handleQrPress}>
-              <QrCode size={deviceType === 'tv' ? 24 : 20} color={colors.text} />
-            </StyledButton>
-          )}
-        </View>
-
-        {loading && results.length === 0 ? (
-          <VideoLoadingAnimation showProgressBar={false} />
-        ) : error && results.length === 0 ? (
-          <View style={[commonStyles.center, { flex: 1 }]}>
-            <ThemedText style={dynamicStyles.errorText}>{error}</ThemedText>
-          </View>
-        ) : (
-          <CustomScrollView
-            data={results}
-            renderItem={renderItem}
-            onEndReached={handleLoadMore}
-            loadMoreThreshold={300}
-            ListFooterComponent={footerComponent}
-            emptyMessage="输入关键词开始搜索"
-            estimatedItemSize={deviceType === 'tv' ? TV_ITEM_HEIGHT : MOBILE_ITEM_HEIGHT}
-            overrideItemLayout={
-              deviceType === 'tv'
-                ? (layout: { span?: number; size?: number }) => {
-                  layout.size = TV_ITEM_HEIGHT;
-                  layout.span = 1;
-                }
-                : undefined
-            }
+  const renderSearchContent = () => (
+    <>
+      <View style={dynamicStyles.searchContainer}>
+        <TouchableOpacity
+          activeOpacity={1}
+          style={[
+            dynamicStyles.inputContainer,
+            {
+              borderColor: isInputFocused ? colors.primary : "transparent",
+            },
+          ]}
+          onPress={() => textInputRef.current?.focus()}
+        >
+          <TextInput
+            ref={textInputRef}
+            style={dynamicStyles.input}
+            placeholder="搜索电影、剧集..."
+            placeholderTextColor={colors.icon}
+            value={keyword}
+            onChangeText={setKeyword}
+            onSubmitEditing={onSearchPress}
+            onFocus={() => setIsInputFocused(true)}
+            onBlur={() => setIsInputFocused(false)}
+            returnKeyType="search"
           />
+        </TouchableOpacity>
+        <StyledButton style={dynamicStyles.searchButton} onPress={onSearchPress}>
+          <Search size={deviceType === 'mobile' ? 20 : 24} color={colors.text} />
+        </StyledButton>
+        {deviceType !== 'mobile' && (
+          <StyledButton style={dynamicStyles.qrButton} onPress={handleQrPress}>
+            <QrCode size={deviceType === 'tv' ? 24 : 20} color={colors.text} />
+          </StyledButton>
         )}
-        <RemoteControlModal />
-      </>
-    );
-  };
+      </View>
+
+      {loading && results.length === 0 ? (
+        <VideoLoadingAnimation showProgressBar={false} />
+      ) : error && results.length === 0 ? (
+        <View style={[commonStyles.center, { flex: 1 }]}>
+          <ThemedText style={dynamicStyles.errorText}>{error}</ThemedText>
+        </View>
+      ) : (
+        <CustomScrollView
+          data={results}
+          renderItem={renderItem}
+          onEndReached={handleLoadMore}
+          loadMoreThreshold={300}
+          ListFooterComponent={footerComponent}
+          emptyMessage="输入关键词开始搜索"
+        />
+      )}
+      <RemoteControlModal />
+    </>
+  );
 
   const content = (
     <ThemedView style={[
