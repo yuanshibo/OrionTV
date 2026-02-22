@@ -19,7 +19,11 @@ import { Colors } from "@/constants/Colors";
  * The component only re-renders on theme changes — instead of 4x/second during
  * playback as it did when subscribed to the Zustand store.
  */
-export const PlayerProgressBar = () => {
+interface PlayerProgressBarProps {
+  style?: object;
+}
+
+export const PlayerProgressBar = ({ style }: PlayerProgressBarProps = {}) => {
   const colorScheme = useColorScheme() ?? "dark";
   const colors = Colors[colorScheme];
 
@@ -31,7 +35,6 @@ export const PlayerProgressBar = () => {
       width: "100%",
       height: 8,
       position: "relative",
-      marginTop: 10,
       borderRadius: 4,
       overflow: 'hidden',
     },
@@ -81,7 +84,7 @@ export const PlayerProgressBar = () => {
   });
 
   return (
-    <View style={styles.progressBarContainer}>
+    <View style={[styles.progressBarContainer, style]}>
       <View style={styles.progressBarBackground} />
       <Reanimated.View style={[styles.progressBarLoaded, bufferedAnimStyle]} />
       <Reanimated.View style={[styles.progressBarFilled, progressAnimStyle]} />

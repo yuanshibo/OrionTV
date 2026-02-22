@@ -82,7 +82,7 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
       playEpisode(currentEpisodeIndex + 1);
     }
   };
-  
+
   const styles = useMemo(() => StyleSheet.create({
     controlsOverlay: {
       ...StyleSheet.absoluteFillObject,
@@ -127,7 +127,7 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
       </View>
 
       <View style={styles.bottomControlsContainer}>
-        <PlayerProgressBar />
+        <PlayerProgressBar style={{ marginTop: 10 }} />
         <PlayerTimeDisplay />
 
         <View style={styles.bottomControls}>
