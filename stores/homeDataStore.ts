@@ -29,6 +29,8 @@ let currentFetchAbortController: AbortController | null = null;
 let currentRequestToken = 0;
 let pendingFetchKey: string | null = null;
 const prefetchingCacheKeys = new Set<string>();
+let prefetchConcurrency = 0;
+const MAX_PREFETCH_CONCURRENT = 2;
 
 const createRequestToken = () => {
     currentRequestToken += 1;
@@ -64,7 +66,11 @@ const schedulePrefetchForTag = (category: Category, tag: string) => {
     const cacheKey = contentCacheService.getCacheKey(categoryWithTag);
     if (contentCacheService.getValidCacheEntry(categoryWithTag) || prefetchingCacheKeys.has(cacheKey)) return;
 
+    // Limit concurrent background prefetches to avoid starving foreground requests on slow networks
+    if (prefetchConcurrency >= MAX_PREFETCH_CONCURRENT) return;
+
     prefetchingCacheKeys.add(cacheKey);
+    prefetchConcurrency++;
 
     void (async () => {
         try {
@@ -75,6 +81,7 @@ const schedulePrefetchForTag = (category: Category, tag: string) => {
             // silent fail
         } finally {
             prefetchingCacheKeys.delete(cacheKey);
+            prefetchConcurrency--;
         }
     })();
 };

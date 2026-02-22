@@ -2,7 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { RowItem, CacheItem, Category } from "./dataTypes";
 
 const CACHE_EXPIRE_TIME = 5 * 60 * 1000; // 5 minutes
-const MAX_CACHE_SIZE = 10; // max in-memory buckets
+const MAX_CACHE_SIZE = 20; // max in-memory buckets (increased from 10 for better multi-category UX)
 const MAX_ITEMS_PER_CACHE = 40; // max items persisted per bucket
 
 const HOME_CACHE_STORAGE_KEY = "home_content_cache_v1";
@@ -61,6 +61,9 @@ class ContentCacheService {
       return undefined;
     }
 
+    // LRU: re-insert to mark as most-recently-used (Map preserves insertion order)
+    this.dataCache.delete(key);
+    this.dataCache.set(key, cached);
     return cached;
   }
 

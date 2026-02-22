@@ -11,87 +11,95 @@ interface AuthState {
   isLoggedIn: boolean;
   authCookie: string | null;
   isLoginModalVisible: boolean;
+  /** 认证流程是否已经完成（用于控制 Splash Screen） */
+  isAuthChecked: boolean;
   showLoginModal: () => void;
   hideLoginModal: () => void;
   checkLoginStatus: (apiBaseUrl?: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
-const useAuthStore = create<AuthState>((set) => ({
-  isLoggedIn: false,
-  authCookie: null,
-  isLoginModalVisible: false,
-  showLoginModal: () => set({ isLoginModalVisible: true }),
-  hideLoginModal: () => set({ isLoginModalVisible: false }),
-  checkLoginStatus: async (apiBaseUrl?: string) => {
-    if (!apiBaseUrl) {
-      set({ isLoggedIn: false, isLoginModalVisible: false, authCookie: null });
-      return;
-    }
-    try {
-      // Wait for server config to be loaded if it's currently loading
-      const settingsState = useSettingsStore.getState();
-      let serverConfig = settingsState.serverConfig;
+const useAuthStore = create<AuthState>((set) => {
+  // 注册全局 401 处理回调：任何 API 请求收到 401 时自动退出登录
+  api.onUnauthorized = async () => {
+    logger.warn("401 Unauthorized: clearing auth state");
+    await AsyncStorage.removeItem('authCookies');
+    set({ isLoggedIn: false, isLoginModalVisible: true, authCookie: null });
+  };
 
-      // If server config is loading, wait a bit for it to complete
-      if (settingsState.isLoadingServerConfig) {
-        // Wait up to 3 seconds for server config to load
-        const maxWaitTime = 3000;
-        const checkInterval = 100;
-        let waitTime = 0;
+  return {
+    isLoggedIn: false,
+    authCookie: null,
+    isLoginModalVisible: false,
+    isAuthChecked: false,
 
-        while (waitTime < maxWaitTime) {
-          await new Promise(resolve => setTimeout(resolve, checkInterval));
-          waitTime += checkInterval;
-          const currentState = useSettingsStore.getState();
-          if (!currentState.isLoadingServerConfig) {
-            serverConfig = currentState.serverConfig;
-            break;
-          }
+    showLoginModal: () => set({ isLoginModalVisible: true }),
+    hideLoginModal: () => set({ isLoginModalVisible: false }),
+
+    checkLoginStatus: async (apiBaseUrl?: string) => {
+      try {
+        if (!apiBaseUrl) {
+          set({ isLoggedIn: false, isLoginModalVisible: false, authCookie: null });
+          return;
         }
-      }
 
-      if (!serverConfig?.StorageType) {
-        // Only show error if we're not loading and have tried to fetch the config
-        if (!settingsState.isLoadingServerConfig) {
+        // 此处 serverConfig 已由 settingsStore.fetchServerConfig 设置完毕
+        // 无需再轮询等待（fetchServerConfig await 了 checkLoginStatus）
+        const serverConfig = useSettingsStore.getState().serverConfig;
+
+        if (!serverConfig?.StorageType) {
           Toast.show({ type: "error", text1: "请检查网络或者服务器地址是否可用" });
+          return;
         }
-        return;
-      }
 
-      const authToken = await AsyncStorage.getItem('authCookies');
-      if (!authToken) {
-        if (serverConfig && serverConfig.StorageType === "localstorage") {
-          const loginResult = await api.login().catch(() => {
+        const authToken = await AsyncStorage.getItem('authCookies');
+        // authToken 空字符串也视为未登录（api.logout() 会将其设为 ''）
+        if (!authToken) {
+          if (serverConfig.StorageType === "localstorage") {
+            // LocalStorage 模式：无密码，尝试匿名自动登录
+            const loginResult = await api.login().catch((err) => {
+              logger.warn("Auto-login failed:", err);
+              set({ isLoggedIn: false, isLoginModalVisible: true, authCookie: null });
+            });
+            if (loginResult && loginResult.ok) {
+              const newCookie = await AsyncStorage.getItem('authCookies');
+              set({ isLoggedIn: true, authCookie: newCookie });
+            } else if (loginResult && !loginResult.ok) {
+              // 服务器需要密码
+              Toast.show({ type: "info", text1: "需要登录", text2: "请输入账号密码" });
+              set({ isLoggedIn: false, isLoginModalVisible: true, authCookie: null });
+            }
+          } else {
             set({ isLoggedIn: false, isLoginModalVisible: true, authCookie: null });
-          });
-          if (loginResult && loginResult.ok) {
-            const newCookie = await AsyncStorage.getItem('authCookies');
-            set({ isLoggedIn: true, authCookie: newCookie });
           }
         } else {
-          set({ isLoggedIn: false, isLoginModalVisible: true, authCookie: null });
+          // 有 Cookie，直接恢复登录状态（401 由 onUnauthorized 回调兜底处理）
+          set({ isLoggedIn: true, isLoginModalVisible: false, authCookie: authToken });
         }
-      } else {
-        set({ isLoggedIn: true, isLoginModalVisible: false, authCookie: authToken });
+      } catch (error) {
+        logger.error("Failed to check login status:", error);
+        if (error instanceof Error && error.message === "UNAUTHORIZED") {
+          set({ isLoggedIn: false, isLoginModalVisible: true, authCookie: null });
+        } else {
+          set({ isLoggedIn: false, authCookie: null });
+        }
+      } finally {
+        // 无论成功或失败，标记认证流程已完成，允许 Splash 隐藏
+        set({ isAuthChecked: true });
       }
-    } catch (error) {
-      logger.error("Failed to check login status:", error);
-      if (error instanceof Error && error.message === "UNAUTHORIZED") {
+    },
+
+    logout: async () => {
+      try {
+        await api.logout();
+        // 彻底清除本地 Cookie（api.logout 只会将其设为空字符串）
+        await AsyncStorage.removeItem('authCookies');
         set({ isLoggedIn: false, isLoginModalVisible: true, authCookie: null });
-      } else {
-        set({ isLoggedIn: false, authCookie: null });
+      } catch (error) {
+        logger.error("Failed to logout:", error);
       }
-    }
-  },
-  logout: async () => {
-    try {
-      await api.logout();
-      set({ isLoggedIn: false, isLoginModalVisible: true, authCookie: null });
-    } catch (error) {
-      logger.error("Failed to logout:", error);
-    }
-  },
-}));
+    },
+  };
+});
 
 export default useAuthStore;

@@ -7,6 +7,13 @@ import Logger from '@/utils/Logger';
 import errorService from "@/services/ErrorService";
 import { SearchResultWithResolution } from "@/services/api";
 import { useRouter } from "expo-router";
+import {
+  progressPositionSV,
+  bufferedPositionSV,
+  isSeekingSV,
+  seekPositionSV,
+  resetPlayerSharedValues,
+} from "@/utils/playerSharedValues";
 
 const logger = Logger.withTag('PlayerStore');
 
@@ -50,7 +57,6 @@ interface PlayerState {
   isLoading: boolean;
   error?: string;
   showControls: boolean;
-  showDetails: boolean;
   showEpisodeModal: boolean;
   showSourceModal: boolean;
   showSpeedModal: boolean;
@@ -79,12 +85,11 @@ interface PlayerState {
   setLoading: (loading: boolean) => void;
   setError: (error?: string) => void;
   setShowControls: (show: boolean) => void;
-  setShowDetails: (show: boolean) => void;
   setShowEpisodeModal: (show: boolean) => void;
   setShowSourceModal: (show: boolean) => void;
   setShowSpeedModal: (show: boolean) => void;
-  setShowRelatedVideos: (show: boolean) => void;
   setShowNextEpisodeOverlay: (show: boolean) => void;
+  setShowRelatedVideos: (show: boolean) => void;
   setPlaybackRate: (rate: number) => void;
   setIntroEndTime: () => void;
   setOutroStartTime: () => void;
@@ -94,8 +99,15 @@ interface PlayerState {
   handleVideoError: (errorType: 'ssl' | 'network' | 'other', failedUrl: string) => Promise<void>;
 }
 
+/** Typed result for _loadPlaybackData, replacing the previous `as any` escape hatch */
+interface PlaybackDataResult {
+  data?: Partial<PlayerState>;
+  error?: string;
+  latestRecord?: PlayRecord;
+}
+
 const usePlayerStore = create<PlayerState>((set, get) => {
-  const _loadPlaybackData = async (detail: SearchResultWithResolution): Promise<{ data?: Partial<PlayerState>; error?: string }> => {
+  const _loadPlaybackData = async (detail: SearchResultWithResolution): Promise<PlaybackDataResult> => {
     try {
       // Load current source record along with the latest record across all sources (by title/year/type)
       const [playRecord, playerSettings, latestRecord] = await Promise.all([
@@ -129,21 +141,16 @@ const usePlayerStore = create<PlayerState>((set, get) => {
 
       return {
         data: {
-          // We return the current source's position as default. 
-          // If it's 0/missing, loadVideo logic (which we will also update) should handle the fallback?
-          // OR we just pass everything needed back.
-          // If playRecord exists, use its time (even if 0). If not, undefined.
+          // Return the current source's position if its record exists (even if 0).
+          // If no record exists, return undefined so loadVideo can check the cross-source latestRecord.
           initialPosition: playRecord ? playRecord.play_time * 1000 : undefined,
           playbackRate,
           introEndTime,
           outroStartTime,
-          // Pass the latestRecord for further logic if needed, but currently strict return type might block this.
-          // Let's rely on the fact that if we want to sync position, we need the target episode index.
-          // I will modify `_loadPlaybackData` to accept `episodeIndex` to do it right.
         },
-        // We'll attach the latestRecord to the result so loadVideo can use it
-        latestRecord,
-      } as any;
+        // Pass latestRecord back so loadVideo can apply cross-source position sync
+        latestRecord: latestRecord ?? undefined,
+      };
     } catch (error) {
       logger.debug("Failed to load play record", error);
       return { error: "加载播放记录失败" };
@@ -158,7 +165,6 @@ const usePlayerStore = create<PlayerState>((set, get) => {
     isLoading: true,
     error: undefined,
     showControls: false,
-    showDetails: false,
     showEpisodeModal: false,
     showSourceModal: false,
     showSpeedModal: false,
@@ -186,9 +192,8 @@ const usePlayerStore = create<PlayerState>((set, get) => {
         return;
       }
 
-      // _loadPlaybackData now (implicitly) returns { data: ..., latestRecord: ... }
-      // We cast it to any in the implementation, so we can access latestRecord here.
-      const playbackDataResult = await _loadPlaybackData(detail) as any;
+      // _loadPlaybackData now returns a typed PlaybackDataResult
+      const playbackDataResult = await _loadPlaybackData(detail);
 
       if (playbackDataResult.error) {
         const msg = errorService.handle(playbackDataResult.error, { context: "loadVideo", showToast: false });
@@ -206,7 +211,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
         finalInitialPosition = position;
       }
       // Priority 2: Current source record (if exists, even if 0)
-      else if (data.initialPosition !== undefined) {
+      else if (data?.initialPosition !== undefined) {
         finalInitialPosition = data.initialPosition;
       }
       // Priority 3: Cross-source record (only if current source has NO record)
@@ -243,6 +248,11 @@ const usePlayerStore = create<PlayerState>((set, get) => {
           error: undefined,
           isSeekBuffering: false,
         });
+        // Reset SharedValues for the new episode
+        progressPositionSV.value = 0;
+        bufferedPositionSV.value = 0;
+        isSeekingSV.value = false;
+        seekPositionSV.value = 0;
         videoPlayer?.replay();
       }
     },
@@ -261,9 +271,14 @@ const usePlayerStore = create<PlayerState>((set, get) => {
       const durationMillis = status.durationMillis;
       const currentPosition = isSeeking ? seekPosition * durationMillis : status.positionMillis;
       const newPosition = Math.max(0, Math.min(currentPosition + duration, durationMillis));
-      set({ isSeeking: true, isSeekBuffering: true, seekPosition: newPosition / durationMillis });
+      const newSeekPosition = newPosition / durationMillis;
+      set({ isSeeking: true, isSeekBuffering: true, seekPosition: newSeekPosition });
+      // Mirror to SharedValues so PlayerProgressBar can update on the UI thread
+      isSeekingSV.value = true;
+      seekPositionSV.value = newSeekPosition;
       seekTimeoutId = setTimeout(() => {
         set({ isSeeking: false });
+        isSeekingSV.value = false;
         seekTimeoutId = undefined;
       }, SEEK_UI_TIMEOUT);
     },
@@ -324,7 +339,13 @@ const usePlayerStore = create<PlayerState>((set, get) => {
       }
 
       if (newStatus.durationMillis) {
-        nextState.progressPosition = newStatus.positionMillis / newStatus.durationMillis;
+        const newProgress = newStatus.positionMillis / newStatus.durationMillis;
+        nextState.progressPosition = newProgress;
+        // Update SharedValues directly → PlayerProgressBar renders on UI thread, no React cycle
+        progressPositionSV.value = newProgress;
+        bufferedPositionSV.value = newStatus.playableDurationMillis
+          ? newStatus.playableDurationMillis / newStatus.durationMillis
+          : 0;
       }
 
       if (nextState.error === undefined && oldStatus?.error) {
@@ -397,7 +418,6 @@ const usePlayerStore = create<PlayerState>((set, get) => {
     setLoading: (loading) => set({ isLoading: loading }),
     setError: (error) => set({ error, isLoading: false, status: null }),
     setShowControls: (show) => set({ showControls: show }),
-    setShowDetails: (show) => set({ showDetails: show }),
     setShowEpisodeModal: (show) => set({ showEpisodeModal: show }),
     setShowSourceModal: (show) => set({ showSourceModal: show }),
     setShowSpeedModal: (show) => set({ showSpeedModal: show }),
@@ -418,11 +438,12 @@ const usePlayerStore = create<PlayerState>((set, get) => {
       if (seekTimeoutId) clearTimeout(seekTimeoutId);
       set({
         videoPlayer: null, episodes: [], currentEpisodeIndex: 0, status: null, isLoading: true, showControls: false,
-        showDetails: false,
         showEpisodeModal: false, showSourceModal: false, showSpeedModal: false, showNextEpisodeOverlay: false,
         initialPosition: 0, playbackRate: 1.0, introEndTime: undefined, outroStartTime: undefined, error: undefined,
         isSeeking: false, isSeekBuffering: false,
       });
+      // Reset SharedValues so stale progress doesn't bleed into the next video
+      resetPlayerSharedValues();
     },
 
     handleVideoError: async (errorType, failedUrl) => {
@@ -438,6 +459,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
       const fallbackSource = useDetailStore.getState().getNextAvailableSource(currentSource, currentEpisodeIndex);
 
       if (!fallbackSource) {
+        logger.warn(`[SOURCE_SELECTION] All sources exhausted. Last failed: type=${errorType}, url=${failedUrl}`);
         const msg = errorService.handle("所有播放源均不可用", { context: "handleVideoError", showToast: true });
         set({ error: msg, isLoading: false, status: null });
         return;

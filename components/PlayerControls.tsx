@@ -54,10 +54,13 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
     }))
   );
 
-  const { title: videoTitle, source } = useDetailStore(
+  const { title: videoTitle, source, year, type_name, desc } = useDetailStore(
     useShallow((state) => ({
       title: state.detail?.title,
       source: state.detail?.source,
+      year: state.detail?.year,
+      type_name: state.detail?.type_name,
+      desc: state.detail?.desc,
     }))
   );
 
@@ -82,7 +85,7 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
       playEpisode(currentEpisodeIndex + 1);
     }
   };
-  
+
   const styles = useMemo(() => StyleSheet.create({
     controlsOverlay: {
       ...StyleSheet.absoluteFillObject,
@@ -97,11 +100,29 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
     },
     controlTitle: {
       color: colors.text,
-      fontSize: 16,
+      fontSize: 24,
       fontWeight: "bold",
+      marginBottom: 4,
+    },
+    detailContainer: {
       flex: 1,
-      textAlign: "center",
-      marginHorizontal: 10,
+      paddingTop: 10,
+    },
+    metaContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      marginBottom: 10,
+    },
+    metaText: {
+      fontSize: 14,
+      color: "rgba(255, 255, 255, 0.6)",
+    },
+    description: {
+      fontSize: 14,
+      color: "rgba(255, 255, 255, 0.8)",
+      lineHeight: 20,
+      maxWidth: "70%",
     },
     bottomControlsContainer: {
       width: "100%",
@@ -120,14 +141,25 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
   return (
     <View style={styles.controlsOverlay}>
       <View style={styles.topControls}>
-        <Text style={styles.controlTitle}>
-          {videoTitle} {currentEpisodeTitle ? `- ${currentEpisodeTitle}` : ""}
-          {currentSourceName ? `(${currentSourceName})` : ""}
-        </Text>
+        <View style={styles.detailContainer}>
+          <Text style={styles.controlTitle}>
+            {videoTitle} {currentEpisodeTitle ? `- ${currentEpisodeTitle}` : ""}
+            {currentSourceName ? ` (${currentSourceName})` : ""}
+          </Text>
+          <View style={styles.metaContainer}>
+            {year && <Text style={styles.metaText}>{year}</Text>}
+            {type_name && <Text style={styles.metaText}>{type_name}</Text>}
+          </View>
+          {desc && (
+            <Text style={styles.description} numberOfLines={4}>
+              {desc}
+            </Text>
+          )}
+        </View>
       </View>
 
       <View style={styles.bottomControlsContainer}>
-        <PlayerProgressBar />
+        <PlayerProgressBar style={{ marginTop: 10 }} />
         <PlayerTimeDisplay />
 
         <View style={styles.bottomControls}>

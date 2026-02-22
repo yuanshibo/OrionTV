@@ -231,7 +231,7 @@ const CustomScrollView = React.memo(forwardRef<React.ElementRef<typeof FlashList
           </View>
         )}
         ListFooterComponent={renderFooter}
-        drawDistance={drawDistance ?? 400}
+        drawDistance={drawDistance ?? (deviceType === 'tv' ? 800 : 400)}
       />
       {deviceType !== 'tv' && (
         <Animated.View style={[dynamicStyles.scrollToTopButton, animatedButtonStyle]} pointerEvents={showScrollToTop ? 'auto' : 'none'}>

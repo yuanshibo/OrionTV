@@ -32,7 +32,7 @@ export default function RootLayout() {
   });
   const { loadSettings, remoteInputEnabled } = useSettingsStore();
   const { startServer, stopServer } = useRemoteControlStore();
-  const { checkLoginStatus } = useAuthStore();
+  const { isAuthChecked } = useAuthStore();
   const { checkForUpdate, lastCheckTime } = useUpdateStore();
   const responsiveConfig = useResponsiveLayout();
 
@@ -45,12 +45,9 @@ export default function RootLayout() {
   useEffect(() => {
     async function init() {
       try {
+        // loadSettings will call fetchServerConfig which in turn calls checkLoginStatus
+        // so we don't need to call checkLoginStatus directly here (avoids double-call)
         await loadSettings();
-        // After settings are loaded, check auth status if we have a base URL
-        const currentApiBaseUrl = useSettingsStore.getState().apiBaseUrl;
-        if (currentApiBaseUrl) {
-          await checkLoginStatus(currentApiBaseUrl);
-        }
       } catch (e) {
         logger.warn(`Error during initialization: ${e}`);
       } finally {
@@ -60,14 +57,14 @@ export default function RootLayout() {
 
     init();
     initUpdateStore();
-  }, [loadSettings, checkLoginStatus]);
+  }, [loadSettings]);
 
-  // 2. Hide Splash when EVERYTHING is ready (Fonts + Settings)
+  // 2. Hide Splash when EVERYTHING is ready (Fonts + Settings + Auth)
   useEffect(() => {
-    if ((loaded || error) && isSettingsLoaded) {
+    if ((loaded || error) && isSettingsLoaded && isAuthChecked) {
       SplashScreen.hideAsync();
     }
-  }, [loaded, error, isSettingsLoaded]);
+  }, [loaded, error, isSettingsLoaded, isAuthChecked]);
 
   // 检查更新
   useEffect(() => {

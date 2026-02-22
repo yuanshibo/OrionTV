@@ -526,10 +526,20 @@ const useDetailStore = create<DetailState>((set, get) => ({
       if (!result.episodes || result.episodes.length <= episodeIndex) return false;
 
       // Strict Metadata Check (if current detail exists)
+      // Use normalized comparison to tolerate minor format differences between sources
+      // e.g. "2023年" vs "2023", "TV" vs "tv"
+      const normalizeYear = (y?: string) => y?.replace(/[年\s]/g, '').trim() ?? '';
+      const normalizeType = (t?: string) => t?.toLowerCase().trim() ?? '';
+
       const currentDetail = get().detail;
       if (currentDetail) {
-        if (currentDetail.year && result.year && currentDetail.year !== result.year) return false;
-        if (currentDetail.type && result.type && currentDetail.type !== result.type) return false;
+        const currentYear = normalizeYear(currentDetail.year);
+        const resultYear = normalizeYear(result.year);
+        if (currentYear && resultYear && currentYear !== resultYear) return false;
+
+        const currentType = normalizeType(currentDetail.type);
+        const resultType = normalizeType(result.type);
+        if (currentType && resultType && currentType !== resultType) return false;
       }
 
       return true;

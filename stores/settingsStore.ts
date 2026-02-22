@@ -55,25 +55,47 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     });
     if (settings.apiBaseUrl) {
       api.setBaseUrl(settings.apiBaseUrl);
-      // Fire and forget server config fetch to unblock UI hydration
-      void get().fetchServerConfig();
+      // 等待 fetchServerConfig 完成（其内部也会等待 checkLoginStatus）
+      // 由此保证 Splash Screen 在认证流程完成后才隐藏
+      await get().fetchServerConfig();
+    } else {
+      // 没有配置服务器地址，直接标记认证完成，避免 Splash 卡住
+      const useAuthStore = (await import("./authStore")).default;
+      useAuthStore.setState({ isAuthChecked: true });
     }
   },
   fetchServerConfig: async () => {
     set({ isLoadingServerConfig: true });
+    const maxRetries = 2;
+    let lastError: unknown;
+
     try {
-      const config = await api.getServerConfig();
-      if (config) {
-        storageConfig.setStorageType(config.StorageType);
-        set({ serverConfig: config });
-        // Trigger auth check reactively once config is available
-        const useAuthStore = (await import("./authStore")).default;
-        void useAuthStore.getState().checkLoginStatus(get().apiBaseUrl);
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+          if (attempt > 0) {
+            // 指数退避：1s, 2s
+            await new Promise(resolve => setTimeout(resolve, attempt * 1000));
+            logger.info(`Retrying fetchServerConfig (attempt ${attempt}/${maxRetries})...`);
+          }
+          const config = await api.getServerConfig();
+          if (config) {
+            storageConfig.setStorageType(config.StorageType);
+            set({ serverConfig: config });
+            // 等待认证流程完成，确保 isAuthChecked 在 loadSettings 返回前设为 true
+            const useAuthStore = (await import("./authStore")).default;
+            await useAuthStore.getState().checkLoginStatus(get().apiBaseUrl);
+          }
+          return; // 成功，退出循环
+        } catch (error) {
+          lastError = error;
+          logger.warn(`fetchServerConfig attempt ${attempt + 1} failed:`, error);
+        }
       }
-    } catch (error) {
+      // 所有重试失败
       set({ serverConfig: null });
-      logger.error("Failed to fetch server config:", error);
+      logger.error("fetchServerConfig failed after all retries:", lastError);
     } finally {
+      // 无论成功或失败，都要重置加载状态
       set({ isLoadingServerConfig: false });
     }
   },

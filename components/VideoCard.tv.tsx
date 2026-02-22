@@ -1,4 +1,4 @@
-import React, { useCallback, forwardRef, useMemo, useEffect } from "react";
+import React, { useCallback, forwardRef, useMemo, useEffect, useRef } from "react";
 import { View, Text, StyleSheet, Pressable, Platform, useColorScheme } from "react-native";
 import { Image } from "expo-image";
 import { Star, Play } from "lucide-react-native";
@@ -18,9 +18,9 @@ import { useVideoCardInteractions } from "@/hooks/useVideoCardInteractions";
 
 import { VideoCardTVProps } from './VideoCard.types';
 
-// Use the shared type but alias it to VideoCardProps for local usage if needed, 
+// Use the shared type but alias it to VideoCardProps for local usage if needed,
 // or just use VideoCardTVProps directly.
-type VideoCardProps = VideoCardTVProps;
+type VideoCardProps = VideoCardTVProps & { index?: number };
 
 const VideoCard = forwardRef<View, VideoCardProps>(
   (
@@ -42,6 +42,7 @@ const VideoCard = forwardRef<View, VideoCardProps>(
       playTime = 0,
       type = 'record',
       style,
+      index = 0,
       ...rest
     }: VideoCardProps,
     ref
@@ -70,10 +71,14 @@ const VideoCard = forwardRef<View, VideoCardProps>(
       mediaType: rest.mediaType,
     });
 
+    // Guard against re-triggering entrance animation on re-renders (e.g. tab switches)
+    const hasAnimated = useRef(false);
     useEffect(() => {
-      // Entrance Animation
-      fadeSV.value = withDelay(Math.random() * 200, withTiming(1, { duration: 400 }));
-    }, [fadeSV]);
+      if (hasAnimated.current) return;
+      hasAnimated.current = true;
+      // Use index-based delay (capped at 10 items) instead of Math.random() for stable, deterministic animation
+      fadeSV.value = withDelay((index % 10) * 50, withTiming(1, { duration: 400 }));
+    }, [fadeSV, index]);
 
     const animatedStyle = useAnimatedStyle(() => {
       const scale = isFocusedSV.value ? 1.05 : 1;
@@ -108,7 +113,8 @@ const VideoCard = forwardRef<View, VideoCardProps>(
     const onLongPressHandler = onLongPress || handleLongPress;
 
     const isContinueWatching = progress !== undefined && progress > 0 && progress < 1;
-    const styles = useMemo(() => createStyles(colors), [colors]);
+    // Use the module-level cached styles instead of recreating on every render
+    const styles = stylesCache[colorScheme];
     const authCookie = useAuthStore((state) => state.authCookie);
     const imageSource = useMemo(
       () => ({
@@ -316,5 +322,12 @@ const createStyles = (colors: typeof Colors.dark) => StyleSheet.create({
     fontSize: 12,
   },
 });
+
+// Module-level style cache: create styles once per color scheme, not per component instance
+// Must be declared AFTER createStyles to avoid "used before assignment" TS error
+const stylesCache = {
+  dark: createStyles(Colors.dark),
+  light: createStyles(Colors.light),
+};
 
 export default React.memo(VideoCard);
