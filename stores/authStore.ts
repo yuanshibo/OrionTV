@@ -30,11 +30,9 @@ const useAuthStore = create<AuthState>((set) => ({
     }
     try {
       // Wait for server config to be loaded if it's currently loading
-      const settingsState = useSettingsStore.getState();
-      let serverConfig = settingsState.serverConfig;
+      let serverConfig = useSettingsStore.getState().serverConfig;
 
-      // If server config is loading, wait a bit for it to complete
-      if (settingsState.isLoadingServerConfig) {
+      if (useSettingsStore.getState().isLoadingServerConfig) {
         // Wait up to 3 seconds for server config to load
         const maxWaitTime = 3000;
         const checkInterval = 100;
@@ -52,22 +50,29 @@ const useAuthStore = create<AuthState>((set) => ({
       }
 
       if (!serverConfig?.StorageType) {
-        // Only show error if we're not loading and have tried to fetch the config
-        if (!settingsState.isLoadingServerConfig) {
+        // Use latest state to avoid stale snapshot bug
+        if (!useSettingsStore.getState().isLoadingServerConfig) {
           Toast.show({ type: "error", text1: "请检查网络或者服务器地址是否可用" });
         }
         return;
       }
 
       const authToken = await AsyncStorage.getItem('authCookies');
+      // Treat empty string the same as null (api.logout() sets it to '')
       if (!authToken) {
-        if (serverConfig && serverConfig.StorageType === "localstorage") {
-          const loginResult = await api.login().catch(() => {
+        if (serverConfig.StorageType === "localstorage") {
+          // Auto-login (anonymous mode, no password required)
+          const loginResult = await api.login().catch((err) => {
+            logger.warn("Auto-login failed:", err);
             set({ isLoggedIn: false, isLoginModalVisible: true, authCookie: null });
           });
           if (loginResult && loginResult.ok) {
             const newCookie = await AsyncStorage.getItem('authCookies');
             set({ isLoggedIn: true, authCookie: newCookie });
+          } else if (loginResult && !loginResult.ok) {
+            // Server requires password
+            Toast.show({ type: "info", text1: "需要登录", text2: "请输入账号密码" });
+            set({ isLoggedIn: false, isLoginModalVisible: true, authCookie: null });
           }
         } else {
           set({ isLoggedIn: false, isLoginModalVisible: true, authCookie: null });
@@ -87,6 +92,8 @@ const useAuthStore = create<AuthState>((set) => ({
   logout: async () => {
     try {
       await api.logout();
+      // Fully remove cookie from storage (api.logout sets it to '', not null)
+      await AsyncStorage.removeItem('authCookies');
       set({ isLoggedIn: false, isLoginModalVisible: true, authCookie: null });
     } catch (error) {
       logger.error("Failed to logout:", error);

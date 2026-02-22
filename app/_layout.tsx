@@ -11,7 +11,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useRemoteControlStore } from "@/stores/remoteControlStore";
 import LoginModal from "@/components/LoginModal";
-import useAuthStore from "@/stores/authStore";
+// useAuthStore is used indirectly via settingsStore.fetchServerConfig
 import { useUpdateStore, initUpdateStore } from "@/stores/updateStore";
 import { UpdateModal } from "@/components/UpdateModal";
 import { DeleteConfirmationModal } from "@/components/DeleteConfirmationModal";
@@ -32,7 +32,6 @@ export default function RootLayout() {
   });
   const { loadSettings, remoteInputEnabled } = useSettingsStore();
   const { startServer, stopServer } = useRemoteControlStore();
-  const { checkLoginStatus } = useAuthStore();
   const { checkForUpdate, lastCheckTime } = useUpdateStore();
   const responsiveConfig = useResponsiveLayout();
 
@@ -45,12 +44,9 @@ export default function RootLayout() {
   useEffect(() => {
     async function init() {
       try {
+        // loadSettings will call fetchServerConfig which in turn calls checkLoginStatus
+        // so we don't need to call checkLoginStatus directly here (avoids double-call)
         await loadSettings();
-        // After settings are loaded, check auth status if we have a base URL
-        const currentApiBaseUrl = useSettingsStore.getState().apiBaseUrl;
-        if (currentApiBaseUrl) {
-          await checkLoginStatus(currentApiBaseUrl);
-        }
       } catch (e) {
         logger.warn(`Error during initialization: ${e}`);
       } finally {
@@ -60,7 +56,7 @@ export default function RootLayout() {
 
     init();
     initUpdateStore();
-  }, [loadSettings, checkLoginStatus]);
+  }, [loadSettings]);
 
   // 2. Hide Splash when EVERYTHING is ready (Fonts + Settings)
   useEffect(() => {
