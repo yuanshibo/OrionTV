@@ -7,6 +7,13 @@ import Logger from '@/utils/Logger';
 import errorService from "@/services/ErrorService";
 import { SearchResultWithResolution } from "@/services/api";
 import { useRouter } from "expo-router";
+import {
+  progressPositionSV,
+  bufferedPositionSV,
+  isSeekingSV,
+  seekPositionSV,
+  resetPlayerSharedValues,
+} from "@/utils/playerSharedValues";
 
 const logger = Logger.withTag('PlayerStore');
 
@@ -244,6 +251,11 @@ const usePlayerStore = create<PlayerState>((set, get) => {
           error: undefined,
           isSeekBuffering: false,
         });
+        // Reset SharedValues for the new episode
+        progressPositionSV.value = 0;
+        bufferedPositionSV.value = 0;
+        isSeekingSV.value = false;
+        seekPositionSV.value = 0;
         videoPlayer?.replay();
       }
     },
@@ -262,9 +274,14 @@ const usePlayerStore = create<PlayerState>((set, get) => {
       const durationMillis = status.durationMillis;
       const currentPosition = isSeeking ? seekPosition * durationMillis : status.positionMillis;
       const newPosition = Math.max(0, Math.min(currentPosition + duration, durationMillis));
-      set({ isSeeking: true, isSeekBuffering: true, seekPosition: newPosition / durationMillis });
+      const newSeekPosition = newPosition / durationMillis;
+      set({ isSeeking: true, isSeekBuffering: true, seekPosition: newSeekPosition });
+      // Mirror to SharedValues so PlayerProgressBar can update on the UI thread
+      isSeekingSV.value = true;
+      seekPositionSV.value = newSeekPosition;
       seekTimeoutId = setTimeout(() => {
         set({ isSeeking: false });
+        isSeekingSV.value = false;
         seekTimeoutId = undefined;
       }, SEEK_UI_TIMEOUT);
     },
@@ -325,7 +342,13 @@ const usePlayerStore = create<PlayerState>((set, get) => {
       }
 
       if (newStatus.durationMillis) {
-        nextState.progressPosition = newStatus.positionMillis / newStatus.durationMillis;
+        const newProgress = newStatus.positionMillis / newStatus.durationMillis;
+        nextState.progressPosition = newProgress;
+        // Update SharedValues directly → PlayerProgressBar renders on UI thread, no React cycle
+        progressPositionSV.value = newProgress;
+        bufferedPositionSV.value = newStatus.playableDurationMillis
+          ? newStatus.playableDurationMillis / newStatus.durationMillis
+          : 0;
       }
 
       if (nextState.error === undefined && oldStatus?.error) {
@@ -424,6 +447,8 @@ const usePlayerStore = create<PlayerState>((set, get) => {
         initialPosition: 0, playbackRate: 1.0, introEndTime: undefined, outroStartTime: undefined, error: undefined,
         isSeeking: false, isSeekBuffering: false,
       });
+      // Reset SharedValues so stale progress doesn't bleed into the next video
+      resetPlayerSharedValues();
     },
 
     handleVideoError: async (errorType, failedUrl) => {
@@ -439,6 +464,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
       const fallbackSource = useDetailStore.getState().getNextAvailableSource(currentSource, currentEpisodeIndex);
 
       if (!fallbackSource) {
+        logger.warn(`[SOURCE_SELECTION] All sources exhausted. Last failed: type=${errorType}, url=${failedUrl}`);
         const msg = errorService.handle("所有播放源均不可用", { context: "handleVideoError", showToast: true });
         set({ error: msg, isLoading: false, status: null });
         return;

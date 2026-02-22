@@ -10,7 +10,7 @@ import Logger from "@/utils/Logger";
 const logger = Logger.withTag("PlayerView");
 
 const ErrorContainer = memo(({ style, message, textStyle }: { style: any; message: string; textStyle: any }) => {
-  logger.error(`[UI] Displaying player error: ${message}`);
+  logger.warn(`[UI] Displaying player error: ${message}`);
   return (
     <View style={style}>
       <Text style={textStyle}>{message}</Text>

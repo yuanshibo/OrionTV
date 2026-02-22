@@ -155,6 +155,8 @@ export interface ServerConfig {
 
 export class API {
   public baseURL: string = "";
+  /** 收到 401 时的全局回调，由 authStore 注册，用于自动退出登录 */
+  public onUnauthorized: (() => void) | null = null;
   private inflightRequests = new Map<string, Promise<any>>();
 
   constructor(baseURL?: string) {
@@ -234,6 +236,9 @@ export class API {
     }
 
     if (response.status === 401) {
+      if (this.onUnauthorized) {
+        this.onUnauthorized();
+      }
       throw new Error("UNAUTHORIZED");
     }
 

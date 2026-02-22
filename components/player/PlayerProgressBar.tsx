@@ -1,25 +1,30 @@
 import React, { useMemo } from "react";
 import { View, Pressable, StyleSheet, useColorScheme } from "react-native";
-import { useShallow } from "zustand/react/shallow";
-import usePlayerStore from "@/stores/playerStore";
+import Reanimated, { useAnimatedStyle } from "react-native-reanimated";
+import {
+  progressPositionSV,
+  bufferedPositionSV,
+  isSeekingSV,
+  seekPositionSV,
+} from "@/utils/playerSharedValues";
 import { Colors } from "@/constants/Colors";
 
+/**
+ * PlayerProgressBar
+ *
+ * Progress bar that drives its fill widths entirely via Reanimated SharedValues,
+ * bypassing the React render cycle. The bar now updates on the UI thread every
+ * ~250ms (from expo-video callbacks) WITHOUT triggering a React re-render.
+ *
+ * The component only re-renders on theme changes — instead of 4x/second during
+ * playback as it did when subscribed to the Zustand store.
+ */
 export const PlayerProgressBar = () => {
   const colorScheme = useColorScheme() ?? "dark";
   const colors = Colors[colorScheme];
 
-  const { isSeeking, seekPosition, progressPosition, status } = usePlayerStore(
-    useShallow((state) => ({
-      isSeeking: state.isSeeking,
-      seekPosition: state.seekPosition,
-      progressPosition: state.progressPosition,
-      status: state.status,
-    }))
-  );
-
-  const durationMillis = status?.durationMillis || 0;
-  const playableDurationMillis = status?.playableDurationMillis || 0;
-  const loadedPercentage = durationMillis > 0 ? playableDurationMillis / durationMillis : 0;
+  // No store subscription needed — all values are driven by SharedValues.
+  // This component re-renders only when the color scheme changes.
 
   const styles = useMemo(() => StyleSheet.create({
     progressBarContainer: {
@@ -44,6 +49,7 @@ export const PlayerProgressBar = () => {
       top: 0,
       height: "100%",
       backgroundColor: "rgba(255, 255, 255, 0.5)",
+      width: "0%", // initial; driven by animatedStyle
     },
     progressBarFilled: {
       position: "absolute",
@@ -51,6 +57,7 @@ export const PlayerProgressBar = () => {
       top: 0,
       height: "100%",
       backgroundColor: colors.primary,
+      width: "0%", // initial; driven by animatedStyle
     },
     progressBarTouchable: {
       position: "absolute",
@@ -62,21 +69,22 @@ export const PlayerProgressBar = () => {
     },
   }), [colors]);
 
+  // Buffered bar — runs on UI thread, no JS/React involvement during playback
+  const bufferedAnimStyle = useAnimatedStyle(() => ({
+    width: `${bufferedPositionSV.value * 100}%`,
+  }));
+
+  // Filled/playhead bar — switches between seek target and live playback position
+  const progressAnimStyle = useAnimatedStyle(() => {
+    const position = isSeekingSV.value ? seekPositionSV.value : progressPositionSV.value;
+    return { width: `${position * 100}%` };
+  });
+
   return (
     <View style={styles.progressBarContainer}>
       <View style={styles.progressBarBackground} />
-      <View
-        style={[
-          styles.progressBarLoaded,
-          { width: `${loadedPercentage * 100}%` },
-        ]}
-      />
-      <View
-        style={[
-          styles.progressBarFilled,
-          { width: `${(isSeeking ? seekPosition : progressPosition) * 100}%` },
-        ]}
-      />
+      <Reanimated.View style={[styles.progressBarLoaded, bufferedAnimStyle]} />
+      <Reanimated.View style={[styles.progressBarFilled, progressAnimStyle]} />
       <Pressable style={styles.progressBarTouchable} />
     </View>
   );

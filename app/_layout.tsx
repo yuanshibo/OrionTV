@@ -11,7 +11,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useRemoteControlStore } from "@/stores/remoteControlStore";
 import LoginModal from "@/components/LoginModal";
-// useAuthStore is used indirectly via settingsStore.fetchServerConfig
+import useAuthStore from "@/stores/authStore";
 import { useUpdateStore, initUpdateStore } from "@/stores/updateStore";
 import { UpdateModal } from "@/components/UpdateModal";
 import { DeleteConfirmationModal } from "@/components/DeleteConfirmationModal";
@@ -32,6 +32,7 @@ export default function RootLayout() {
   });
   const { loadSettings, remoteInputEnabled } = useSettingsStore();
   const { startServer, stopServer } = useRemoteControlStore();
+  const { isAuthChecked } = useAuthStore();
   const { checkForUpdate, lastCheckTime } = useUpdateStore();
   const responsiveConfig = useResponsiveLayout();
 
@@ -58,12 +59,12 @@ export default function RootLayout() {
     initUpdateStore();
   }, [loadSettings]);
 
-  // 2. Hide Splash when EVERYTHING is ready (Fonts + Settings)
+  // 2. Hide Splash when EVERYTHING is ready (Fonts + Settings + Auth)
   useEffect(() => {
-    if ((loaded || error) && isSettingsLoaded) {
+    if ((loaded || error) && isSettingsLoaded && isAuthChecked) {
       SplashScreen.hideAsync();
     }
-  }, [loaded, error, isSettingsLoaded]);
+  }, [loaded, error, isSettingsLoaded, isAuthChecked]);
 
   // 检查更新
   useEffect(() => {
