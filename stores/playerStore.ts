@@ -94,8 +94,15 @@ interface PlayerState {
   handleVideoError: (errorType: 'ssl' | 'network' | 'other', failedUrl: string) => Promise<void>;
 }
 
+/** Typed result for _loadPlaybackData, replacing the previous `as any` escape hatch */
+interface PlaybackDataResult {
+  data?: Partial<PlayerState>;
+  error?: string;
+  latestRecord?: PlayRecord;
+}
+
 const usePlayerStore = create<PlayerState>((set, get) => {
-  const _loadPlaybackData = async (detail: SearchResultWithResolution): Promise<{ data?: Partial<PlayerState>; error?: string }> => {
+  const _loadPlaybackData = async (detail: SearchResultWithResolution): Promise<PlaybackDataResult> => {
     try {
       // Load current source record along with the latest record across all sources (by title/year/type)
       const [playRecord, playerSettings, latestRecord] = await Promise.all([
@@ -129,21 +136,16 @@ const usePlayerStore = create<PlayerState>((set, get) => {
 
       return {
         data: {
-          // We return the current source's position as default. 
-          // If it's 0/missing, loadVideo logic (which we will also update) should handle the fallback?
-          // OR we just pass everything needed back.
-          // If playRecord exists, use its time (even if 0). If not, undefined.
+          // Return the current source's position if its record exists (even if 0).
+          // If no record exists, return undefined so loadVideo can check the cross-source latestRecord.
           initialPosition: playRecord ? playRecord.play_time * 1000 : undefined,
           playbackRate,
           introEndTime,
           outroStartTime,
-          // Pass the latestRecord for further logic if needed, but currently strict return type might block this.
-          // Let's rely on the fact that if we want to sync position, we need the target episode index.
-          // I will modify `_loadPlaybackData` to accept `episodeIndex` to do it right.
         },
-        // We'll attach the latestRecord to the result so loadVideo can use it
-        latestRecord,
-      } as any;
+        // Pass latestRecord back so loadVideo can apply cross-source position sync
+        latestRecord: latestRecord ?? undefined,
+      };
     } catch (error) {
       logger.debug("Failed to load play record", error);
       return { error: "加载播放记录失败" };
@@ -186,9 +188,8 @@ const usePlayerStore = create<PlayerState>((set, get) => {
         return;
       }
 
-      // _loadPlaybackData now (implicitly) returns { data: ..., latestRecord: ... }
-      // We cast it to any in the implementation, so we can access latestRecord here.
-      const playbackDataResult = await _loadPlaybackData(detail) as any;
+      // _loadPlaybackData now returns a typed PlaybackDataResult
+      const playbackDataResult = await _loadPlaybackData(detail);
 
       if (playbackDataResult.error) {
         const msg = errorService.handle(playbackDataResult.error, { context: "loadVideo", showToast: false });
@@ -206,7 +207,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
         finalInitialPosition = position;
       }
       // Priority 2: Current source record (if exists, even if 0)
-      else if (data.initialPosition !== undefined) {
+      else if (data?.initialPosition !== undefined) {
         finalInitialPosition = data.initialPosition;
       }
       // Priority 3: Cross-source record (only if current source has NO record)
