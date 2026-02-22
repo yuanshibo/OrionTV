@@ -9,26 +9,38 @@ export const PlayerTimeDisplay = () => {
   const colorScheme = useColorScheme() ?? "dark";
   const colors = Colors[colorScheme];
 
-  const { positionMillis, durationMillis, isLoaded } = usePlayerStore(
+  const { positionMillis, durationMillis, isLoaded, isSeeking, seekPosition } = usePlayerStore(
     useShallow((state) => ({
       positionMillis: state.status?.positionMillis ?? 0,
       durationMillis: state.status?.durationMillis ?? 0,
       isLoaded: state.status?.isLoaded ?? false,
+      isSeeking: state.isSeeking,
+      seekPosition: state.seekPosition,
     }))
   );
 
   const formatTime = (milliseconds: number) => {
-    if (!milliseconds) return "00:00";
+    if (!milliseconds || isNaN(milliseconds)) return "00:00";
     const totalSeconds = Math.floor(milliseconds / 1000);
-    const minutes = Math.floor(totalSeconds / 60);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
     const seconds = totalSeconds % 60;
+
+    if (hours > 0) {
+      return `${hours.toString().padStart(2, "0")}:${minutes
+        .toString()
+        .padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+    }
     return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
   };
 
+  const currentDuration = durationMillis || 0;
+  const displayPosition = isSeeking ? (seekPosition * currentDuration) : positionMillis;
+
   return (
     <ThemedText style={{ color: colors.text, marginTop: 5 }}>
-      {isLoaded
-        ? `${formatTime(positionMillis)} / ${formatTime(durationMillis)}`
+      {isLoaded || (isSeeking && currentDuration > 0)
+        ? `${formatTime(displayPosition)} / ${formatTime(currentDuration)}`
         : "00:00 / 00:00"}
     </ThemedText>
   );
