@@ -57,7 +57,6 @@ interface PlayerState {
   isLoading: boolean;
   error?: string;
   showControls: boolean;
-  showDetails: boolean;
   showEpisodeModal: boolean;
   showSourceModal: boolean;
   showSpeedModal: boolean;
@@ -86,12 +85,11 @@ interface PlayerState {
   setLoading: (loading: boolean) => void;
   setError: (error?: string) => void;
   setShowControls: (show: boolean) => void;
-  setShowDetails: (show: boolean) => void;
   setShowEpisodeModal: (show: boolean) => void;
   setShowSourceModal: (show: boolean) => void;
   setShowSpeedModal: (show: boolean) => void;
-  setShowRelatedVideos: (show: boolean) => void;
   setShowNextEpisodeOverlay: (show: boolean) => void;
+  setShowRelatedVideos: (show: boolean) => void;
   setPlaybackRate: (rate: number) => void;
   setIntroEndTime: () => void;
   setOutroStartTime: () => void;
@@ -167,7 +165,6 @@ const usePlayerStore = create<PlayerState>((set, get) => {
     isLoading: true,
     error: undefined,
     showControls: false,
-    showDetails: false,
     showEpisodeModal: false,
     showSourceModal: false,
     showSpeedModal: false,
@@ -421,7 +418,6 @@ const usePlayerStore = create<PlayerState>((set, get) => {
     setLoading: (loading) => set({ isLoading: loading }),
     setError: (error) => set({ error, isLoading: false, status: null }),
     setShowControls: (show) => set({ showControls: show }),
-    setShowDetails: (show) => set({ showDetails: show }),
     setShowEpisodeModal: (show) => set({ showEpisodeModal: show }),
     setShowSourceModal: (show) => set({ showSourceModal: show }),
     setShowSpeedModal: (show) => set({ showSpeedModal: show }),
@@ -442,7 +438,6 @@ const usePlayerStore = create<PlayerState>((set, get) => {
       if (seekTimeoutId) clearTimeout(seekTimeoutId);
       set({
         videoPlayer: null, episodes: [], currentEpisodeIndex: 0, status: null, isLoading: true, showControls: false,
-        showDetails: false,
         showEpisodeModal: false, showSourceModal: false, showSpeedModal: false, showNextEpisodeOverlay: false,
         initialPosition: 0, playbackRate: 1.0, introEndTime: undefined, outroStartTime: undefined, error: undefined,
         isSeeking: false, isSeekBuffering: false,

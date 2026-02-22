@@ -11,8 +11,6 @@ const FAST_SEEK_INTERVAL = 200;      // 连续快进/快退的间隔时间(毫�
 export const useTVRemoteHandler = () => {
   const showControls = usePlayerStore((state) => state.showControls);
   const setShowControls = usePlayerStore((state) => state.setShowControls);
-  const showDetails = usePlayerStore((state) => state.showDetails);
-  const setShowDetails = usePlayerStore((state) => state.setShowDetails);
   const showEpisodeModal = usePlayerStore((state) => state.showEpisodeModal);
   const showRelatedVideos = usePlayerStore((state) => state.showRelatedVideos);
   const togglePlayPause = usePlayerStore((state) => state.togglePlayPause);
@@ -55,7 +53,7 @@ export const useTVRemoteHandler = () => {
   const handleTVEvent = useCallback(
     (event: HWEvent) => {
       // Modal/overlay guards: if any modal is open, block all other remote events.
-      if (showDetails || showEpisodeModal || showRelatedVideos) {
+      if (showEpisodeModal || showRelatedVideos) {
         // We only allow the `backPress` event to be handled by the component, 
         // all other remote events are ignored.
         if (event.eventType !== 'backPress') {
@@ -96,7 +94,7 @@ export const useTVRemoteHandler = () => {
       } else {
         switch (event.eventType) {
           case 'up':
-            setShowDetails(true);
+            setShowControls(true);
             break;
           case 'left':
           case 'longLeft':
@@ -138,7 +136,7 @@ export const useTVRemoteHandler = () => {
         }
       }
     },
-    [showControls, showDetails, showEpisodeModal, showRelatedVideos, setShowControls, resetTimer, togglePlayPause, seek, setShowDetails]
+    [showControls, showEpisodeModal, showRelatedVideos, setShowControls, resetTimer, togglePlayPause, seek]
   );
 
   useTVEventHandler(handleTVEvent);
