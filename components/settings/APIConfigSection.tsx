@@ -23,7 +23,7 @@ export interface APIConfigSectionRef {
 
 export const APIConfigSection = forwardRef<APIConfigSectionRef, APIConfigSectionProps>(
   ({ onChanged, onFocus, onBlur, onPress, hideDescription = false }, ref) => {
-    const colorScheme = useColorScheme() ?? 'dark';
+    const colorScheme = useColorScheme() === 'light' ? 'light' : 'dark';
     const colors = Colors[colorScheme];
     const { apiBaseUrl, setApiBaseUrl, remoteInputEnabled } = useSettingsStore();
     const { serverUrl } = useRemoteControlStore();

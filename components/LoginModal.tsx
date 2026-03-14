@@ -16,7 +16,7 @@ const LoginModal = () => {
   const { isLoginModalVisible, hideLoginModal, checkLoginStatus } = useAuthStore();
   const { serverConfig, apiBaseUrl } = useSettingsStore();
   const refreshPlayRecords = useHomeUIStore(state => state.refreshPlayRecords);
-  const colorScheme = useColorScheme() ?? 'dark';
+  const colorScheme = useColorScheme() === 'light' ? 'light' : 'dark';
   const colors = Colors[colorScheme];
 
   const [username, setUsername] = useState("");

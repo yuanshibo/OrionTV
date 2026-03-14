@@ -19,7 +19,7 @@ interface HomeHeaderProps {
 
 export const HomeHeader = React.memo(({ styles }: HomeHeaderProps) => {
   const router = useRouter();
-  const colorScheme = useColorScheme() ?? 'dark';
+  const colorScheme = useColorScheme() === 'light' ? 'light' : 'dark';
   const { isLoggedIn, logout } = useAuthStore();
 
   return (

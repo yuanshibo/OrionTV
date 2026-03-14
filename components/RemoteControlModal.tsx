@@ -9,7 +9,7 @@ import { Colors } from "@/constants/Colors";
 
 export const RemoteControlModal: React.FC = () => {
   const { isModalVisible, hideModal, serverUrl, error } = useRemoteControlStore();
-  const colorScheme = useColorScheme() ?? 'dark';
+  const colorScheme = useColorScheme() === 'light' ? 'light' : 'dark';
   const colors = Colors[colorScheme];
 
   const styles = useMemo(() => StyleSheet.create({

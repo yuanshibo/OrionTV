@@ -24,7 +24,7 @@ const ResponsiveHeader: React.FC<ResponsiveHeaderProps> = ({
   showBottomBorder = true,
 }) => {
   const router = useRouter();
-  const colorScheme = useColorScheme() ?? 'dark';
+  const colorScheme = useColorScheme() === 'light' ? 'light' : 'dark';
   const colors = Colors[colorScheme];
   const { deviceType, spacing } = useResponsiveLayout();
   const insets = useSafeAreaInsets();

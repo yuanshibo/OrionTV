@@ -22,7 +22,7 @@ export interface LiveStreamSectionRef {
 
 export const LiveStreamSection = forwardRef<LiveStreamSectionRef, LiveStreamSectionProps>(
   ({ onChanged, onFocus, onBlur, onPress }, ref) => {
-    const colorScheme = useColorScheme() ?? 'dark';
+    const colorScheme = useColorScheme() === 'light' ? 'light' : 'dark';
     const colors = Colors[colorScheme];
     const { m3uUrl, setM3uUrl, remoteInputEnabled } = useSettingsStore();
     const { serverUrl } = useRemoteControlStore();

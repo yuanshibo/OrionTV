@@ -6,7 +6,7 @@ import { useUpdateStore } from "@/stores/updateStore";
 import { Colors } from "@/constants/Colors";
 
 export function UpdateSection() {
-  const colorScheme = useColorScheme() ?? "dark";
+  const colorScheme = useColorScheme() === 'light' ? 'light' : 'dark';
   const colors = Colors[colorScheme];
 
   const { 

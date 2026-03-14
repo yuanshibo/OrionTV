@@ -14,7 +14,7 @@ interface VideoSourceSectionProps {
 }
 
 export const VideoSourceSection: React.FC<VideoSourceSectionProps> = ({ onChanged, onFocus, onBlur }) => {
-  const colorScheme = useColorScheme() ?? 'dark';
+  const colorScheme = useColorScheme() === 'light' ? 'light' : 'dark';
   const colors = Colors[colorScheme];
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
   const [isSectionFocused, setIsSectionFocused] = useState(false);

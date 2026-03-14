@@ -34,7 +34,7 @@ const VideoCardMobile = forwardRef<View, VideoCardMobileProps>(
     }: VideoCardMobileProps,
     ref
   ) => {
-    const colorScheme = useColorScheme() ?? 'dark';
+    const colorScheme = useColorScheme() === 'light' ? 'light' : 'dark';
     const colors = Colors[colorScheme];
     const { cardWidth, cardHeight, spacing } = useResponsiveLayout();
 

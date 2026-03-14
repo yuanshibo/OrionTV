@@ -24,7 +24,7 @@ interface PlayerProgressBarProps {
 }
 
 export const PlayerProgressBar = ({ style }: PlayerProgressBarProps = {}) => {
-  const colorScheme = useColorScheme() ?? "dark";
+  const colorScheme = useColorScheme() === 'light' ? 'light' : 'dark';
   const colors = Colors[colorScheme];
 
   // No store subscription needed — all values are driven by SharedValues.

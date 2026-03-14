@@ -22,7 +22,7 @@ import { FocusPriority } from "@/types/focus";
 export default function DetailScreen() {
   const { q, source, id, poster, year, type } = useLocalSearchParams<{ q: string; source?: string; id?: string; poster?: string; year?: string; type?: string }>();
   const router = useRouter();
-  const colorScheme = useColorScheme() ?? 'dark';
+  const colorScheme = useColorScheme() === 'light' ? 'light' : 'dark';
   const colors = Colors[colorScheme];
 
   const responsiveConfig = useResponsiveLayout();

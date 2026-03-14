@@ -50,7 +50,7 @@ const ResponsiveVideoCard = forwardRef<View, VideoCardProps>(
     ref
   ) => {
     const router = useRouter();
-    const colorScheme = useColorScheme() ?? 'dark';
+    const colorScheme = useColorScheme() === 'light' ? 'light' : 'dark';
     const colors = Colors[colorScheme];
     const [isFocused, setIsFocused] = useState(false);
     const [fadeAnim] = useState(new Animated.Value(0));

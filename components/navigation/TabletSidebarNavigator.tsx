@@ -36,7 +36,7 @@ const TabletSidebarNavigator: React.FC<TabletSidebarNavigatorProps> = ({
 }) => {
   const router = useRouter();
   const pathname = usePathname();
-  const colorScheme = useColorScheme() ?? 'dark';
+  const colorScheme = useColorScheme() === 'light' ? 'light' : 'dark';
   const colors = Colors[colorScheme];
   const { spacing, isPortrait } = useResponsiveLayout();
   

@@ -42,7 +42,7 @@ const ResponsiveTextInput = forwardRef<TextInput, ResponsiveTextInputProps>(
     },
     ref
   ) => {
-    const colorScheme = useColorScheme() ?? 'dark';
+    const colorScheme = useColorScheme() === 'light' ? 'light' : 'dark';
     const colors = Colors[colorScheme];
     const { deviceType, spacing } = useResponsiveLayout();
     const dynamicStyles = useMemo(() => createResponsiveStyles(deviceType, spacing, colors), [deviceType, spacing, colors]);
