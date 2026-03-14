@@ -52,7 +52,7 @@ const VideoCardTablet = forwardRef<View, VideoCardTabletProps>(
     ref
   ) => {
     const router = useRouter();
-    const colorScheme = useColorScheme() ?? 'dark';
+    const colorScheme = useColorScheme() === 'light' ? 'light' : 'dark';
     const colors = Colors[colorScheme];
     const { cardWidth, cardHeight, spacing } = useResponsiveLayout();
     const [fadeAnim] = useState(new Animated.Value(0));

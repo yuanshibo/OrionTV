@@ -50,7 +50,7 @@ const navigationItems: NavigationItem[] = [
 export const MobileBottomNavigation: React.FC = () => {
   const router = useRouter();
   const pathname = usePathname();
-  const colorScheme = useColorScheme() ?? 'dark';
+  const colorScheme = useColorScheme() === 'light' ? 'light' : 'dark';
   const colors = Colors[colorScheme];
   const responsiveConfig = useResponsiveLayout();
   const styles = useMemo(() => createStyles(colors), [colors]);

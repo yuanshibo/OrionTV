@@ -2,20 +2,49 @@ import { render } from '@testing-library/react-native';
 import React from 'react';
 import VideoCard from '../VideoCard';
 
-// Mock the child components to avoid testing implementation details
+jest.mock('../VideoCard.mobile', () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { View, Text } = require('react-native');
+    const MockVideoCardMobile = (props: any) => (
+        <View testID="video-card-mobile">
+            <Text>{props.title}</Text>
+            {props.rate && <Text>{props.rate}</Text>}
+            {props.year && <Text>{props.year}</Text>}
+            {props.progress !== undefined && <Text>第{props.episodeIndex + 1}集</Text>}
+        </View>
+    );
+    MockVideoCardMobile.displayName = 'VideoCardMobile';
+    return MockVideoCardMobile;
+});
+
+jest.mock('../VideoCard.tablet', () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { View, Text } = require('react-native');
+    const MockVideoCardTablet = (props: any) => (
+        <View testID="video-card-tablet">
+            <Text>{props.title}</Text>
+            {props.rate && <Text>{props.rate}</Text>}
+            {props.year && <Text>{props.year}</Text>}
+            {props.progress !== undefined && <Text>第{props.episodeIndex + 1}集</Text>}
+        </View>
+    );
+    MockVideoCardTablet.displayName = 'VideoCardTablet';
+    return MockVideoCardTablet;
+});
+
 jest.mock('../VideoCard.tv', () => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { View } = require('react-native');
-    const MockVideoCardTV = (props: any) => <View testID="video-card-tv" {...props} />;
+    const { View, Text } = require('react-native');
+    const MockVideoCardTV = (props: any) => (
+        <View testID="video-card-tv">
+            <Text>{props.title}</Text>
+            {props.rate && <Text>{props.rate}</Text>}
+            {props.year && <Text>{props.year}</Text>}
+            {props.progress !== undefined && <Text>第{props.episodeIndex + 1}集</Text>}
+        </View>
+    );
     MockVideoCardTV.displayName = 'VideoCardTV';
     return MockVideoCardTV;
-});
-jest.mock('../ResponsiveVideoCard', () => {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { View } = require('react-native');
-    const MockResponsiveVideoCard = (props: any) => <View testID="video-card-mobile" {...props} />;
-    MockResponsiveVideoCard.displayName = 'ResponsiveVideoCard';
-    return MockResponsiveVideoCard;
 });
 
 jest.mock('@/hooks/useResponsiveLayout', () => ({

@@ -24,7 +24,7 @@ const tabs: TabItem[] = [
 const MobileBottomTabNavigator: React.FC = () => {
   const router = useRouter();
   const pathname = usePathname();
-  const colorScheme = useColorScheme() ?? 'dark';
+  const colorScheme = useColorScheme() === 'light' ? 'light' : 'dark';
   const colors = Colors[colorScheme];
   const { spacing, deviceType } = useResponsiveLayout();
   

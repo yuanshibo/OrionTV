@@ -30,7 +30,7 @@ const MobileTabContainer: React.FC<MobileTabContainerProps> = ({ children }) => 
   const router = useRouter();
   const pathname = usePathname();
   const { spacing, deviceType } = useResponsiveLayout();
-  const colorScheme = useColorScheme() ?? 'dark';
+  const colorScheme = useColorScheme() === 'light' ? 'light' : 'dark';
   const colors = Colors[colorScheme];
 
   // 在手机端过滤掉直播 tab

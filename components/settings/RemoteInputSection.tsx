@@ -17,7 +17,7 @@ interface RemoteInputSectionProps {
 }
 
 export const RemoteInputSection: React.FC<RemoteInputSectionProps> = ({ onChanged, onFocus, onBlur, onPress }) => {
-  const colorScheme = useColorScheme() ?? 'dark';
+  const colorScheme = useColorScheme() === 'light' ? 'light' : 'dark';
   const colors = Colors[colorScheme];
 
   const { remoteInputEnabled, setRemoteInputEnabled } = useSettingsStore();

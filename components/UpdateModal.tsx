@@ -6,7 +6,7 @@ import { StyledButton } from "./StyledButton";
 import { ThemedText } from "./ThemedText";
 
 export function UpdateModal() {
-  const colorScheme = useColorScheme() ?? "dark";
+  const colorScheme = useColorScheme() === 'light' ? 'light' : 'dark';
   const colors = Colors[colorScheme];
 
   const {
