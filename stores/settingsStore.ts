@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SettingsManager } from "@/services/storage";
 import { api, ServerConfig } from "@/services/api";
 import { storageConfig } from "@/services/storageConfig";
@@ -55,6 +56,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     });
     if (settings.apiBaseUrl) {
       api.setBaseUrl(settings.apiBaseUrl);
+      // 在 fetchServerConfig 之前先尝试恢复 Cookie，防止第一个请求（getServerConfig）因为没带 Cookie 导致 401 被自动登出
+      const authToken = await AsyncStorage.getItem('authCookies');
+      if (authToken) {
+        api.setCookie(authToken);
+      }
       // 等待 fetchServerConfig 完成（其内部也会等待 checkLoginStatus）
       // 由此保证 Splash Screen 在认证流程完成后才隐藏
       await get().fetchServerConfig();

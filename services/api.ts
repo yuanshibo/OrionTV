@@ -157,6 +157,7 @@ export class API {
   public baseURL: string = "";
   /** 收到 401 时的全局回调，由 authStore 注册，用于自动退出登录 */
   public onUnauthorized: (() => void) | null = null;
+  private authCookie: string | null = null;
   private inflightRequests = new Map<string, Promise<any>>();
 
   constructor(baseURL?: string) {
@@ -167,6 +168,10 @@ export class API {
 
   public setBaseUrl(url: string) {
     this.baseURL = url;
+  }
+
+  public setCookie(cookie: string | null) {
+    this.authCookie = cookie;
   }
 
   private async _fetchData<T>(url: string, options: RequestInit = {}, retries = 2): Promise<T> {
@@ -212,6 +217,15 @@ export class API {
   private async _fetch(url: string, options: RequestInit = {}): Promise<Response> {
     if (!this.baseURL) {
       throw new Error("API_URL_NOT_SET");
+    }
+
+    // 手动注入 Cookie：解决 Android TV 进程重启后原生 Cookie Jar 丢失导致 session 丢失的问题
+    if (this.authCookie) {
+      const headers = new Headers(options.headers);
+      if (!headers.has("Cookie")) {
+        headers.set("Cookie", this.authCookie);
+        options.headers = headers;
+      }
     }
 
     let response: Response;
@@ -262,6 +276,7 @@ export class API {
     if (data?.ok) {
       const setCookie = response.headers.get("set-cookie");
       if (setCookie) {
+        this.setCookie(setCookie);
         await AsyncStorage.setItem("authCookies", setCookie);
       }
     }
@@ -273,7 +288,8 @@ export class API {
     const res = await this._fetchData<{ ok: boolean }>("/api/logout", {
       method: "POST",
     });
-    await AsyncStorage.setItem("authCookies", '');
+    this.setCookie(null);
+    await AsyncStorage.removeItem("authCookies");
     return res;
   }
 

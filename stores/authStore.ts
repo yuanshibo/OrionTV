@@ -23,6 +23,7 @@ const useAuthStore = create<AuthState>((set) => {
   // 注册全局 401 处理回调：任何 API 请求收到 401 时自动退出登录
   api.onUnauthorized = async () => {
     logger.warn("401 Unauthorized: clearing auth state");
+    api.setCookie(null);
     await AsyncStorage.removeItem('authCookies');
     set({ isLoggedIn: false, isLoginModalVisible: true, authCookie: null });
   };
@@ -74,6 +75,7 @@ const useAuthStore = create<AuthState>((set) => {
           }
         } else {
           // 有 Cookie，直接恢复登录状态（401 由 onUnauthorized 回调兜底处理）
+          api.setCookie(authToken);
           set({ isLoggedIn: true, isLoginModalVisible: false, authCookie: authToken });
         }
       } catch (error) {
