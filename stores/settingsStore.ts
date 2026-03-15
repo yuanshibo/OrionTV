@@ -131,12 +131,22 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       }
     }
 
+    // 检查地址是否变化，以决定是否清理登录态
+    const oldApiBaseUrl = get().apiBaseUrl;
+
     await SettingsManager.save({
       apiBaseUrl: processedApiBaseUrl,
       m3uUrl,
       remoteInputEnabled,
       videoSource,
     });
+
+    if (oldApiBaseUrl !== processedApiBaseUrl) {
+      // 服务器地址变了，原本的登录态必须清除（安全且符合逻辑）
+      const useAuthStore = (await import("./authStore")).default;
+      await useAuthStore.getState().logout();
+    }
+
     api.setBaseUrl(processedApiBaseUrl);
     // Also update the URL in the state so the input field shows the processed URL
     set({ isModalVisible: false, apiBaseUrl: processedApiBaseUrl });

@@ -167,6 +167,11 @@ export class API {
   }
 
   public setBaseUrl(url: string) {
+    // 关键安全点：如果 baseURL 发生变化，必须清除内存中的 Cookie，防止将旧服务器的凭据发送给新服务器。
+    if (this.baseURL && this.baseURL !== url) {
+      logger.info(`Base URL changed from ${this.baseURL} to ${url}. Clearing session cookie.`);
+      this.authCookie = null;
+    }
     this.baseURL = url;
   }
 
@@ -187,7 +192,14 @@ export class API {
       for (let i = 0; i <= retries; i++) {
         try {
           const response = await this._fetch(url, options);
-          return await response.json();
+          const contentType = response.headers.get("Content-Type");
+          if (contentType && contentType.includes("application/json")) {
+            return await response.json();
+          }
+          // 如果不是 JSON，尝试返回文本或抛出更具体错误
+          const text = await response.text();
+          logger.error(`[API] Expected JSON but received: ${text.slice(0, 100)}...`);
+          throw new Error("INVALID_JSON_RESPONSE");
         } catch (error) {
           lastError = error;
           // Only retry on network status 0 or potential transient network issues
@@ -285,12 +297,16 @@ export class API {
   }
 
   async logout(): Promise<{ ok: boolean }> {
-    const res = await this._fetchData<{ ok: boolean }>("/api/logout", {
-      method: "POST",
-    });
-    this.setCookie(null);
-    await AsyncStorage.removeItem("authCookies");
-    return res;
+    try {
+      const res = await this._fetchData<{ ok: boolean }>("/api/logout", {
+        method: "POST",
+      });
+      return res;
+    } finally {
+      // 无论网络请求成功与否，都必须清理本地状态
+      this.setCookie(null);
+      await AsyncStorage.removeItem("authCookies");
+    }
   }
 
   async getServerConfig(): Promise<ServerConfig> {

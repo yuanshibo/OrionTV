@@ -54,7 +54,7 @@ const useAuthStore = create<AuthState>((set) => {
         }
 
         const authToken = await AsyncStorage.getItem('authCookies');
-        // authToken 空字符串也视为未登录（api.logout() 会将其设为 ''）
+        // authToken 为 null 视为未登录（logout 会 removeItem）
         if (!authToken) {
           if (serverConfig.StorageType === "localstorage") {
             // LocalStorage 模式：无密码，尝试匿名自动登录
@@ -94,11 +94,11 @@ const useAuthStore = create<AuthState>((set) => {
     logout: async () => {
       try {
         await api.logout();
-        // 彻底清除本地 Cookie（api.logout 只会将其设为空字符串）
-        await AsyncStorage.removeItem('authCookies');
-        set({ isLoggedIn: false, isLoginModalVisible: true, authCookie: null });
       } catch (error) {
-        logger.error("Failed to logout:", error);
+        logger.error("Failed to logout (network):", error);
+      } finally {
+        // 无论 API 调用成功与否，本地 UI 状态必须重置
+        set({ isLoggedIn: false, isLoginModalVisible: true, authCookie: null });
       }
     },
   };
