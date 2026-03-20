@@ -435,4 +435,4 @@ export class API {
 }
 
 // 默认实例
-export let api = new API();
+export let api = new API("http://192.168.10.103:3000");

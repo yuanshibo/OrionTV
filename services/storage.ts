@@ -34,6 +34,7 @@ export interface PlayerSettings {
 export interface AppSettings {
   apiBaseUrl: string;
   remoteInputEnabled: boolean;
+  removeAdsEnabled: boolean;
   videoSource: {
     enabledAll: boolean;
     sources: {
@@ -445,8 +446,9 @@ export class SearchHistoryManager {
 export class SettingsManager {
   static async get(): Promise<AppSettings> {
     const defaultSettings: AppSettings = {
-      apiBaseUrl: "",
+      apiBaseUrl: "http://192.168.10.103:3000",
       remoteInputEnabled: true,
+      removeAdsEnabled: true,
       videoSource: {
         enabledAll: true,
         sources: {},

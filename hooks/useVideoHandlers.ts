@@ -8,6 +8,8 @@ import type {
 } from 'expo-video';
 import usePlayerStore, { PlaybackState, createInitialPlaybackState } from '@/stores/playerStore';
 import errorService, { ErrorType } from '@/services/ErrorService';
+import { useSettingsStore } from '@/stores/settingsStore';
+import useAuthStore from '@/stores/authStore';
 
 export type VideoViewPropsSubset = Pick<VideoViewProps, 'nativeControls' | 'contentFit'>;
 
@@ -37,7 +39,37 @@ export const useVideoHandlers = ({
   handlePlaybackStatusUpdate,
   deviceType,
 }: UseVideoHandlersProps): UseVideoHandlersResult => {
-  const player = useVideoPlayer(currentEpisode?.url ?? null, (instance: VideoPlayer) => {
+  const removeAdsEnabled = useSettingsStore(state => state.removeAdsEnabled);
+  const apiBaseUrl = useSettingsStore(state => state.apiBaseUrl);
+  const authCookie = useAuthStore(state => state.authCookie);
+
+  const finalUrl = useMemo(() => {
+    if (!currentEpisode?.url) return null;
+    const url = currentEpisode.url;
+    // Apply ad block proxy only if enabled and it's likely an m3u8 link (starts with http)
+    if (removeAdsEnabled && apiBaseUrl && url.startsWith('http')) {
+      let proxyBase = apiBaseUrl;
+      if (proxyBase.endsWith('/')) {
+        proxyBase = proxyBase.slice(0, -1);
+      }
+      const proxiedUrl = `${proxyBase}/api/proxy/ad-free?url=${encodeURIComponent(url)}`;
+      console.log(`[VIDEO] Using ad-free proxy: ${proxiedUrl}`);
+
+      // Return VideoSource object with headers and explicit content type for HLS
+      return {
+        uri: proxiedUrl,
+        contentType: 'hls' as any,
+        headers: {
+          'Cookie': authCookie || '',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        },
+      } as any;
+    }
+    console.log(`[VIDEO] Using direct URL: ${url}`);
+    return url;
+  }, [currentEpisode?.url, removeAdsEnabled, apiBaseUrl, authCookie]);
+
+  const player = useVideoPlayer(finalUrl, (instance: VideoPlayer) => {
     instance.loop = false;
     instance.timeUpdateEventInterval = 0.25; // Smoother progress updates (4Hz)
     instance.keepScreenOnWhilePlaying = true;
@@ -59,11 +91,11 @@ export const useVideoHandlers = ({
     statusRef.current = createInitialPlaybackState();
     handlePlaybackStatusUpdate(statusRef.current);
     lastErrorRef.current = null;
-  }, [currentEpisode?.url, handlePlaybackStatusUpdate]);
+  }, [finalUrl, handlePlaybackStatusUpdate]);
 
   useEffect(() => {
     pendingSeekRef.current = initialPosition || introEndTime || 0;
-  }, [initialPosition, introEndTime, currentEpisode?.url]);
+  }, [initialPosition, introEndTime, finalUrl]);
 
   const applyPendingSeek = useCallback(() => {
     if (!player) return;
@@ -116,6 +148,7 @@ export const useVideoHandlers = ({
           case 'error': {
             const message = error?.message ?? 'Unknown playback error';
             if (currentEpisode?.url && lastErrorRef.current !== message) {
+              console.warn(`[VIDEO] Player error for ${currentEpisode.url}: ${message}`);
               lastErrorRef.current = message;
               const { handleVideoError } = usePlayerStore.getState();
 
@@ -161,9 +194,10 @@ export const useVideoHandlers = ({
 
     return () => {
       subscriptions.forEach((subscription) => subscription.remove());
-      player.release();
+      // React Native video players managed by useVideoPlayer handle their own cleanup.
+      // Calling player.release() manually here causes "already released" native crashes during teardown.
     };
-  }, [player, currentEpisode?.url, applyPendingSeek, updateDuration, emitStatusUpdate]);
+  }, [player, finalUrl, applyPendingSeek, updateDuration, emitStatusUpdate]);
 
   useEffect(() => {
     if (!player) return;

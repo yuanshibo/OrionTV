@@ -17,6 +17,7 @@ interface SettingsState {
       [key: string]: boolean;
     };
   };
+  removeAdsEnabled: boolean;
   isModalVisible: boolean;
   serverConfig: ServerConfig | null;
   serverConfigError: string | null;
@@ -28,15 +29,17 @@ interface SettingsState {
   setRemoteInputEnabled: (enabled: boolean) => void;
   saveSettings: () => Promise<void>;
   setVideoSource: (config: { enabledAll: boolean; sources: { [key: string]: boolean } }) => void;
+  setRemoveAdsEnabled: (enabled: boolean) => void;
   showModal: () => void;
   hideModal: () => void;
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
-  apiBaseUrl: "",
+  apiBaseUrl: "http://192.168.10.103:3000",
   m3uUrl: "",
   liveStreamSources: [],
   remoteInputEnabled: false,
+  removeAdsEnabled: true,
   isModalVisible: false,
   serverConfig: null,
   serverConfigError: null,
@@ -55,6 +58,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         enabledAll: true,
         sources: {},
       },
+      removeAdsEnabled: settings.removeAdsEnabled ?? true,
     });
     if (settings.apiBaseUrl) {
       api.setBaseUrl(settings.apiBaseUrl);
@@ -133,8 +137,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setM3uUrl: (url) => set({ m3uUrl: url }),
   setRemoteInputEnabled: (enabled) => set({ remoteInputEnabled: enabled }),
   setVideoSource: (config) => set({ videoSource: config }),
+  setRemoveAdsEnabled: (enabled) => set({ removeAdsEnabled: enabled }),
   saveSettings: async () => {
-    const { apiBaseUrl, m3uUrl, remoteInputEnabled, videoSource } = get();
+    const { apiBaseUrl, m3uUrl, remoteInputEnabled, videoSource, removeAdsEnabled } = get();
 
     let processedApiBaseUrl = apiBaseUrl.trim();
     if (processedApiBaseUrl.endsWith("/")) {
@@ -163,6 +168,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       m3uUrl,
       remoteInputEnabled,
       videoSource,
+      removeAdsEnabled,
     });
 
     if (oldApiBaseUrl !== processedApiBaseUrl) {
