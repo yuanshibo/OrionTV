@@ -136,6 +136,8 @@ export const useSearchStore = create<SearchState>((set, get) => ({
 
   resetSearch: () => {
     set({
+      keyword: "",
+      error: null,
       results: [],
       allSearchResults: [],
       discoverPage: 1,

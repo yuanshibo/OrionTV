@@ -32,7 +32,7 @@ export default function SearchScreen() {
   const params = useLocalSearchParams();
   const {
     keyword, results, loading, error, discoverPage, loadingMore, hasMore,
-    setKeyword, loadDiscoverData, doSearch, loadMoreSearchResults, handleSearch
+    setKeyword, loadDiscoverData, doSearch, loadMoreSearchResults, handleSearch, resetSearch
   } = useSearchStore();
 
   const textInputRef = useRef<TextInput>(null);
@@ -62,8 +62,10 @@ export default function SearchScreen() {
 
   useEffect(() => {
     if (params.q) {
+      setKeyword(params.q as string);
       doSearch(params.q as string);
     } else {
+      resetSearch();
       loadDiscoverData(1);
       const timer = setTimeout(() => {
         textInputRef.current?.focus();
