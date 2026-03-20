@@ -38,7 +38,8 @@ export const useVideoHandlers = ({
   handlePlaybackStatusUpdate,
   deviceType,
 }: UseVideoHandlersProps): UseVideoHandlersResult => {
-  const { removeAdsEnabled, apiBaseUrl } = useSettingsStore();
+  const removeAdsEnabled = useSettingsStore(state => state.removeAdsEnabled);
+  const apiBaseUrl = useSettingsStore(state => state.apiBaseUrl);
 
   const finalUrl = useMemo(() => {
     if (!currentEpisode?.url) return null;
@@ -178,7 +179,8 @@ export const useVideoHandlers = ({
 
     return () => {
       subscriptions.forEach((subscription) => subscription.remove());
-      player.release();
+      // React Native video players managed by useVideoPlayer handle their own cleanup.
+      // Calling player.release() manually here causes "already released" native crashes during teardown.
     };
   }, [player, finalUrl, applyPendingSeek, updateDuration, emitStatusUpdate]);
 
