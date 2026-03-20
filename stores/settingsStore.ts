@@ -19,6 +19,7 @@ interface SettingsState {
   };
   isModalVisible: boolean;
   serverConfig: ServerConfig | null;
+  serverConfigError: string | null;
   isLoadingServerConfig: boolean;
   loadSettings: () => Promise<void>;
   fetchServerConfig: () => Promise<void>;
@@ -38,6 +39,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   remoteInputEnabled: false,
   isModalVisible: false,
   serverConfig: null,
+  serverConfigError: null,
   isLoadingServerConfig: false,
   videoSource: {
     enabledAll: true,
@@ -71,7 +73,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     }
   },
   fetchServerConfig: async () => {
-    set({ isLoadingServerConfig: true });
+    set({ isLoadingServerConfig: true, serverConfigError: null });
     const maxRetries = 2;
     let lastError: unknown;
 
@@ -86,7 +88,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           const config = await api.getServerConfig();
           if (config) {
             storageConfig.setStorageType(config.StorageType);
-            set({ serverConfig: config });
+            set({ serverConfig: config, serverConfigError: null });
             // 等待认证流程完成，确保 isAuthChecked 在 loadSettings 返回前设为 true
             const useAuthStore = (await import("./authStore")).default;
             await useAuthStore.getState().checkLoginStatus(get().apiBaseUrl);
@@ -98,7 +100,29 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         }
       }
       // 所有重试失败
-      set({ serverConfig: null });
+      let errorMessage = '服务器连接失败';
+      if (lastError instanceof Error) {
+        switch (lastError.message) {
+          case 'API_URL_NOT_SET':
+            errorMessage = 'API地址未设置';
+            break;
+          case 'UNAUTHORIZED':
+            errorMessage = '服务器认证失败';
+            break;
+          default:
+            if (lastError.message.includes('Network')) {
+              errorMessage = '网络连接失败，请检查网络或服务器地址';
+            } else if (lastError.message.includes('timeout')) {
+              errorMessage = '连接超时，请检查服务器地址';
+            } else if (lastError.message.includes('404')) {
+              errorMessage = '服务器地址无效，请检查API路径';
+            } else if (lastError.message.includes('500')) {
+              errorMessage = '服务器内部错误';
+            }
+            break;
+        }
+      }
+      set({ serverConfig: null, serverConfigError: errorMessage });
       logger.error("fetchServerConfig failed after all retries:", lastError);
     } finally {
       // 无论成功或失败，都要重置加载状态

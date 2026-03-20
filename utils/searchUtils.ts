@@ -1,3 +1,5 @@
+import { SearchResult, DoubanRecommendationItem } from "@/services/api";
+
 /**
  * 从视频标题中提取用于搜索的关键词。
  * 规则如下：
@@ -37,3 +39,43 @@ export function getSearchTermFromTitle(title: string): string {
   // 默认返回原始标题
   return title;
 }
+
+export interface VideoCardViewModel {
+  id: string;
+  source: string;
+  title: string;
+  poster: string;
+  year?: string;
+  rate?: string;
+  sourceName?: string;
+  type?: string;
+  originalItem: SearchResult | DoubanRecommendationItem;
+}
+
+export const normalizeSearchResult = (item: SearchResult | DoubanRecommendationItem, index: number): VideoCardViewModel => {
+  const isSearchResult = 'source' in item;
+  if (isSearchResult) {
+    const searchItem = item as SearchResult;
+    return {
+      id: searchItem.id?.toString() || `${searchItem.title}-${index}`,
+      source: searchItem.source,
+      title: searchItem.title,
+      poster: searchItem.poster,
+      year: searchItem.year,
+      sourceName: searchItem.source_name,
+      originalItem: item,
+    };
+  } else {
+    const doubanItem = item as DoubanRecommendationItem;
+    return {
+      id: doubanItem.id?.toString() || `${doubanItem.title}-${index}`,
+      source: doubanItem.url || '',
+      title: doubanItem.title,
+      poster: doubanItem.poster,
+      year: doubanItem.year,
+      sourceName: doubanItem.platform || '',
+      rate: doubanItem.rate,
+      originalItem: item,
+    };
+  }
+};

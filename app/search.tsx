@@ -1,11 +1,13 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
-import { View, TextInput, StyleSheet, Alert, Keyboard, TouchableOpacity, useColorScheme, ActivityIndicator, StyleProp, ViewStyle } from "react-native";
+import { View, TextInput, StyleSheet, Alert, TouchableOpacity, useColorScheme, ActivityIndicator, StyleProp, ViewStyle } from "react-native";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
 import VideoCardMobile from "@/components/VideoCard.mobile";
 import VideoCardTV from "@/components/VideoCard.tv";
 import VideoLoadingAnimation from "@/components/VideoLoadingAnimation";
-import { api, SearchResult, DoubanRecommendationItem } from "@/services/api";
+import { api } from "@/services/api";
+import { useSearchStore } from "@/stores/searchStore";
+import { VideoCardViewModel } from "@/utils/searchUtils";
 import { Search, QrCode } from "lucide-react-native";
 import { StyledButton } from "@/components/StyledButton";
 import { useRemoteControlStore } from "@/stores/remoteControlStore";
@@ -24,55 +26,16 @@ import { DynamicBackground } from "@/components/DynamicBackground";
 
 const logger = Logger.withTag("SearchScreen");
 
-// Normalized Data Model for View
-interface VideoCardViewModel {
-  id: string;
-  source: string;
-  title: string;
-  poster: string;
-  year?: string;
-  rate?: string;
-  sourceName?: string;
-  type?: string;
-  originalItem: SearchResult | DoubanRecommendationItem;
-}
 
-const normalizeSearchResult = (item: SearchResult | DoubanRecommendationItem, index: number): VideoCardViewModel => {
-  const isSearchResult = 'source' in item;
-  if (isSearchResult) {
-    const searchItem = item as SearchResult;
-    return {
-      id: searchItem.id?.toString() || `${searchItem.title}-${index}`,
-      source: searchItem.source,
-      title: searchItem.title,
-      poster: searchItem.poster,
-      year: searchItem.year,
-      sourceName: searchItem.source_name,
-      originalItem: item,
-    };
-  } else {
-    const doubanItem = item as DoubanRecommendationItem;
-    return {
-      id: doubanItem.id?.toString() || `${doubanItem.title}-${index}`,
-      source: doubanItem.url || '',
-      title: doubanItem.title,
-      poster: doubanItem.poster,
-      year: doubanItem.year,
-      sourceName: doubanItem.platform || '',
-      rate: doubanItem.rate,
-      originalItem: item,
-    };
-  }
-};
 
 export default function SearchScreen() {
   const params = useLocalSearchParams();
-  const [keyword, setKeyword] = useState((params.q as string) || "");
-  const [results, setResults] = useState<VideoCardViewModel[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    keyword, results, loading, error, discoverPage, loadingMore, hasMore,
+    setKeyword, loadDiscoverData, doSearch, loadMoreSearchResults, handleSearch
+  } = useSearchStore();
+
   const textInputRef = useRef<TextInput>(null);
-  const loadingRef = useRef(false);
   const [isInputFocused, setIsInputFocused] = useState(false);
   const { showModal: showRemoteModal, lastMessage, targetPage, clearMessage } = useRemoteControlStore();
   const { remoteInputEnabled } = useSettingsStore();
@@ -81,89 +44,11 @@ export default function SearchScreen() {
   const colors = Colors[colorScheme];
   const [focusedPoster, setFocusedPoster] = useState<string | null>(null);
 
-  const [discoverPage, setDiscoverPage] = useState(1);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
-
-  // Ref to store all search results for client-side pagination
-  const allSearchResultsRef = useRef<VideoCardViewModel[]>([]);
-
   // 响应式布局配置
   const responsiveConfig = useResponsiveLayout();
   const commonStyles = getCommonResponsiveStyles(responsiveConfig);
   const { deviceType, spacing } = responsiveConfig;
 
-  const loadDiscoverData = useCallback(async (page: number) => {
-    if (loadingRef.current) return;
-    loadingRef.current = true;
-
-    if (page === 1) {
-      setLoading(true);
-    } else {
-      setLoadingMore(true);
-    }
-    setError(null);
-
-    try {
-      const response = await api.discover(page, 25);
-      if (response && response.list && response.list.length > 0) {
-        const normalizedList = response.list.map((item: any, index: number) => normalizeSearchResult(item, index + (page - 1) * 25));
-        setResults(prev => page === 1 ? normalizedList : [...prev, ...normalizedList]);
-        setDiscoverPage(page + 1);
-        setHasMore(response.list.length === 25);
-      } else {
-        setHasMore(false);
-        if (page === 1) {
-          setResults([]);
-        }
-      }
-    } catch (err) {
-      logger.info("Discover data loading failed:", err);
-      setHasMore(false);
-      if (page === 1) {
-        setResults([]);
-      }
-    } finally {
-      loadingRef.current = false;
-      setLoading(false);
-      setLoadingMore(false);
-    }
-  }, []);
-
-  const doSearch = useCallback(async (term: string) => {
-    if (!term.trim()) {
-      Keyboard.dismiss();
-      setResults([]); // Clear previous search results
-      allSearchResultsRef.current = [];
-      setDiscoverPage(1); // Reset discover page
-      setHasMore(true); // Allow discover to load more
-      loadDiscoverData(1);
-      return;
-    }
-    Keyboard.dismiss();
-    setLoading(true);
-    setError(null);
-    setResults([]);
-    allSearchResultsRef.current = [];
-
-    try {
-      const { results: searchResults } = await api.aiAssistantSearch(term);
-      if (searchResults.length > 0) {
-        const normalizedResults = searchResults.map((item, index) => normalizeSearchResult(item, index));
-        allSearchResultsRef.current = normalizedResults;
-        setResults(normalizedResults.slice(0, 25));
-        setHasMore(normalizedResults.length > 25);
-      } else {
-        setError("没有找到相关内容，为你推荐...");
-        loadDiscoverData(1);
-      }
-    } catch (err) {
-      setError("搜索失败，请稍后重试。");
-      logger.info("Search failed:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, [loadDiscoverData]);
 
   useEffect(() => {
     if (lastMessage && targetPage === 'search') {
@@ -188,11 +73,6 @@ export default function SearchScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.q]);
 
-  const handleSearch = (searchText?: string) => {
-    const term = typeof searchText === "string" ? searchText : keyword;
-    doSearch(term);
-  };
-
   const onSearchPress = () => handleSearch();
 
   const handleQrPress = () => {
@@ -206,30 +86,8 @@ export default function SearchScreen() {
     showRemoteModal('search');
   };
 
-  const loadMoreSearchResults = useCallback(() => {
-    if (loadingMore || results.length >= allSearchResultsRef.current.length) return;
-
-    setLoadingMore(true);
-
-    // Small timeout to prevent blocking UI if rendering is heavy, or just to show spinner
-    setTimeout(() => {
-      const currentLen = results.length;
-      const nextBatch = allSearchResultsRef.current.slice(currentLen, currentLen + 25);
-
-      if (nextBatch.length > 0) {
-        setResults(prev => [...prev, ...nextBatch]);
-      }
-
-      setLoadingMore(false);
-
-      if (currentLen + nextBatch.length >= allSearchResultsRef.current.length) {
-        setHasMore(false);
-      }
-    }, 200);
-  }, [loadingMore, results.length]);
-
   const handleLoadMore = () => {
-    if (loadingRef.current || loadingMore || !hasMore) return;
+    if (loadingMore || !hasMore) return;
 
     if (keyword.trim() === "") {
       loadDiscoverData(discoverPage);
