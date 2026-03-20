@@ -34,6 +34,7 @@ export interface PlayerSettings {
 export interface AppSettings {
   apiBaseUrl: string;
   remoteInputEnabled: boolean;
+  removeAdsEnabled: boolean;
   videoSource: {
     enabledAll: boolean;
     sources: {
@@ -447,6 +448,7 @@ export class SettingsManager {
     const defaultSettings: AppSettings = {
       apiBaseUrl: "",
       remoteInputEnabled: true,
+      removeAdsEnabled: false,
       videoSource: {
         enabledAll: true,
         sources: {},

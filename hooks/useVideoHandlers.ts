@@ -8,6 +8,7 @@ import type {
 } from 'expo-video';
 import usePlayerStore, { PlaybackState, createInitialPlaybackState } from '@/stores/playerStore';
 import errorService, { ErrorType } from '@/services/ErrorService';
+import { useSettingsStore } from '@/stores/settingsStore';
 
 export type VideoViewPropsSubset = Pick<VideoViewProps, 'nativeControls' | 'contentFit'>;
 
@@ -37,7 +38,23 @@ export const useVideoHandlers = ({
   handlePlaybackStatusUpdate,
   deviceType,
 }: UseVideoHandlersProps): UseVideoHandlersResult => {
-  const player = useVideoPlayer(currentEpisode?.url ?? null, (instance: VideoPlayer) => {
+  const { removeAdsEnabled, apiBaseUrl } = useSettingsStore();
+
+  const finalUrl = useMemo(() => {
+    if (!currentEpisode?.url) return null;
+    const url = currentEpisode.url;
+    // Apply ad block proxy only if enabled and it's likely an m3u8 link (starts with http)
+    if (removeAdsEnabled && apiBaseUrl && url.startsWith('http')) {
+      let proxyBase = apiBaseUrl;
+      if (proxyBase.endsWith('/')) {
+        proxyBase = proxyBase.slice(0, -1);
+      }
+      return `${proxyBase}/api/proxy/ad-free?url=${encodeURIComponent(url)}`;
+    }
+    return url;
+  }, [currentEpisode?.url, removeAdsEnabled, apiBaseUrl]);
+
+  const player = useVideoPlayer(finalUrl, (instance: VideoPlayer) => {
     instance.loop = false;
     instance.timeUpdateEventInterval = 0.25; // Smoother progress updates (4Hz)
     instance.keepScreenOnWhilePlaying = true;
@@ -59,11 +76,11 @@ export const useVideoHandlers = ({
     statusRef.current = createInitialPlaybackState();
     handlePlaybackStatusUpdate(statusRef.current);
     lastErrorRef.current = null;
-  }, [currentEpisode?.url, handlePlaybackStatusUpdate]);
+  }, [finalUrl, handlePlaybackStatusUpdate]);
 
   useEffect(() => {
     pendingSeekRef.current = initialPosition || introEndTime || 0;
-  }, [initialPosition, introEndTime, currentEpisode?.url]);
+  }, [initialPosition, introEndTime, finalUrl]);
 
   const applyPendingSeek = useCallback(() => {
     if (!player) return;
@@ -163,7 +180,7 @@ export const useVideoHandlers = ({
       subscriptions.forEach((subscription) => subscription.remove());
       player.release();
     };
-  }, [player, currentEpisode?.url, applyPendingSeek, updateDuration, emitStatusUpdate]);
+  }, [player, finalUrl, applyPendingSeek, updateDuration, emitStatusUpdate]);
 
   useEffect(() => {
     if (!player) return;
