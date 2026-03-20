@@ -3,7 +3,7 @@ import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useState } from "react";
-import { Platform, View, StyleSheet } from "react-native";
+import { Platform, View, StyleSheet, ActivityIndicator, Text } from "react-native";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Toast from "react-native-toast-message";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -59,12 +59,12 @@ export default function RootLayout() {
     initUpdateStore();
   }, [loadSettings]);
 
-  // 2. Hide Splash when EVERYTHING is ready (Fonts + Settings + Auth)
+  // 2. Hide Splash when fonts are ready
   useEffect(() => {
-    if ((loaded || error) && isSettingsLoaded && isAuthChecked) {
+    if (loaded || error) {
       SplashScreen.hideAsync();
     }
-  }, [loaded, error, isSettingsLoaded, isAuthChecked]);
+  }, [loaded, error]);
 
   // 检查更新
   useEffect(() => {
@@ -88,6 +88,17 @@ export default function RootLayout() {
 
   if (!loaded && !error) {
     return null;
+  }
+
+  if (!isSettingsLoaded || !isAuthChecked) {
+    return (
+      <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+        <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', backgroundColor: '#121212' }]}>
+          <ActivityIndicator size="large" color="#ffffff" />
+          <Text style={{ color: '#ffffff', marginTop: 20 }}>连接中...</Text>
+        </View>
+      </ThemeProvider>
+    );
   }
 
   return (
