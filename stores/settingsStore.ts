@@ -39,7 +39,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   m3uUrl: "",
   liveStreamSources: [],
   remoteInputEnabled: false,
-  removeAdsEnabled: false,
+  removeAdsEnabled: true,
   isModalVisible: false,
   serverConfig: null,
   serverConfigError: null,
@@ -58,7 +58,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         enabledAll: true,
         sources: {},
       },
-      removeAdsEnabled: settings.removeAdsEnabled || false,
+      removeAdsEnabled: settings.removeAdsEnabled ?? true,
     });
     if (settings.apiBaseUrl) {
       api.setBaseUrl(settings.apiBaseUrl);

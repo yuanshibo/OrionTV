@@ -9,6 +9,7 @@ import type {
 import usePlayerStore, { PlaybackState, createInitialPlaybackState } from '@/stores/playerStore';
 import errorService, { ErrorType } from '@/services/ErrorService';
 import { useSettingsStore } from '@/stores/settingsStore';
+import useAuthStore from '@/stores/authStore';
 
 export type VideoViewPropsSubset = Pick<VideoViewProps, 'nativeControls' | 'contentFit'>;
 
@@ -40,6 +41,7 @@ export const useVideoHandlers = ({
 }: UseVideoHandlersProps): UseVideoHandlersResult => {
   const removeAdsEnabled = useSettingsStore(state => state.removeAdsEnabled);
   const apiBaseUrl = useSettingsStore(state => state.apiBaseUrl);
+  const authCookie = useAuthStore(state => state.authCookie);
 
   const finalUrl = useMemo(() => {
     if (!currentEpisode?.url) return null;
@@ -50,10 +52,22 @@ export const useVideoHandlers = ({
       if (proxyBase.endsWith('/')) {
         proxyBase = proxyBase.slice(0, -1);
       }
-      return `${proxyBase}/api/proxy/ad-free?url=${encodeURIComponent(url)}`;
+      const proxiedUrl = `${proxyBase}/api/proxy/ad-free?url=${encodeURIComponent(url)}`;
+      console.log(`[VIDEO] Using ad-free proxy: ${proxiedUrl}`);
+
+      // Return VideoSource object with headers and explicit content type for HLS
+      return {
+        uri: proxiedUrl,
+        contentType: 'hls' as any,
+        headers: {
+          'Cookie': authCookie || '',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        },
+      } as any;
     }
+    console.log(`[VIDEO] Using direct URL: ${url}`);
     return url;
-  }, [currentEpisode?.url, removeAdsEnabled, apiBaseUrl]);
+  }, [currentEpisode?.url, removeAdsEnabled, apiBaseUrl, authCookie]);
 
   const player = useVideoPlayer(finalUrl, (instance: VideoPlayer) => {
     instance.loop = false;
@@ -134,6 +148,7 @@ export const useVideoHandlers = ({
           case 'error': {
             const message = error?.message ?? 'Unknown playback error';
             if (currentEpisode?.url && lastErrorRef.current !== message) {
+              console.warn(`[VIDEO] Player error for ${currentEpisode.url}: ${message}`);
               lastErrorRef.current = message;
               const { handleVideoError } = usePlayerStore.getState();
 

@@ -448,7 +448,7 @@ export class SettingsManager {
     const defaultSettings: AppSettings = {
       apiBaseUrl: "http://192.168.10.103:3000",
       remoteInputEnabled: true,
-      removeAdsEnabled: false,
+      removeAdsEnabled: true,
       videoSource: {
         enabledAll: true,
         sources: {},
