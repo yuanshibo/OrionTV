@@ -35,7 +35,7 @@ interface SettingsState {
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
-  apiBaseUrl: "",
+  apiBaseUrl: "http://192.168.10.103:3000",
   m3uUrl: "",
   liveStreamSources: [],
   remoteInputEnabled: false,
