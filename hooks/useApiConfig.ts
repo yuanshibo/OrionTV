@@ -1,6 +1,4 @@
-import { useEffect, useState } from 'react';
 import { useSettingsStore } from '@/stores/settingsStore';
-import { api } from '@/services/api';
 
 export interface ApiConfigStatus {
   isConfigured: boolean;
@@ -11,107 +9,41 @@ export interface ApiConfigStatus {
 }
 
 export const useApiConfig = () => {
-  const { apiBaseUrl, serverConfig, isLoadingServerConfig } = useSettingsStore();
-  const [validationState, setValidationState] = useState<{
-    isValidating: boolean;
-    isValid: boolean | null;
-    error: string | null;
-  }>({
-    isValidating: false,
-    isValid: null,
-    error: null,
-  });
+  const { apiBaseUrl, serverConfig, isLoadingServerConfig, serverConfigError } = useSettingsStore();
 
   const isConfigured = Boolean(apiBaseUrl && apiBaseUrl.trim());
   const needsConfiguration = !isConfigured;
 
-  // Validate API configuration when it changes
-  useEffect(() => {
-    if (!isConfigured) {
-      setValidationState({
-        isValidating: false,
-        isValid: false,
-        error: null,
-      });
-      return;
-    }
+  let isValidating = false;
+  let isValid: boolean | null = null;
+  let error: string | null = null;
 
-    const validateConfig = async () => {
-      setValidationState(prev => ({ ...prev, isValidating: true, error: null }));
-      
-      try {
-        await api.getServerConfig();
-        setValidationState({
-          isValidating: false,
-          isValid: true,
-          error: null,
-        });
-      } catch (error) {
-        let errorMessage = '服务器连接失败';
-        
-        if (error instanceof Error) {
-          switch (error.message) {
-            case 'API_URL_NOT_SET':
-              errorMessage = 'API地址未设置';
-              break;
-            case 'UNAUTHORIZED':
-              errorMessage = '服务器认证失败';
-              break;
-            default:
-              if (error.message.includes('Network')) {
-                errorMessage = '网络连接失败，请检查网络或服务器地址';
-              } else if (error.message.includes('timeout')) {
-                errorMessage = '连接超时，请检查服务器地址';
-              } else if (error.message.includes('404')) {
-                errorMessage = '服务器地址无效，请检查API路径';
-              } else if (error.message.includes('500')) {
-                errorMessage = '服务器内部错误';
-              }
-              break;
-          }
-        }
-        
-        setValidationState({
-          isValidating: false,
-          isValid: false,
-          error: errorMessage,
-        });
-      }
-    };
-
-    // Only validate if not already loading server config
-    if (!isLoadingServerConfig) {
-      validateConfig();
-    }
-  }, [apiBaseUrl, isConfigured, isLoadingServerConfig]);
-
-  // Reset validation when server config loading state changes
-  useEffect(() => {
+  if (isConfigured) {
     if (isLoadingServerConfig) {
-      setValidationState(prev => ({ ...prev, isValidating: true, error: null }));
-    }
-  }, [isLoadingServerConfig]);
-
-  // Update validation state based on server config
-  useEffect(() => {
-    if (!isLoadingServerConfig && isConfigured) {
+      isValidating = true;
+      isValid = null;
+      error = null;
+    } else {
+      isValidating = false;
       if (serverConfig) {
-        setValidationState(prev => ({ ...prev, isValid: true, error: null }));
+        isValid = true;
+        error = null;
       } else {
-        setValidationState(prev => ({ 
-          ...prev, 
-          isValid: false, 
-          error: prev.error || '无法获取服务器配置' 
-        }));
+        isValid = false;
+        error = serverConfigError || '无法获取服务器配置';
       }
     }
-  }, [serverConfig, isLoadingServerConfig, isConfigured]);
+  } else {
+    isValidating = false;
+    isValid = false;
+    error = null;
+  }
 
   const status: ApiConfigStatus = {
     isConfigured,
-    isValidating: validationState.isValidating || isLoadingServerConfig,
-    isValid: validationState.isValid,
-    error: validationState.error,
+    isValidating,
+    isValid,
+    error,
     needsConfiguration,
   };
 
