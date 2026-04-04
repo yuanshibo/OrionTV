@@ -127,14 +127,15 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
     bottomControlsContainer: {
       width: "100%",
       alignItems: "center",
+      paddingHorizontal: 20,
     },
     bottomControls: {
       flexDirection: "row",
       justifyContent: "center",
       alignItems: "center",
-      gap: 10,
+      gap: 15,
       flexWrap: "wrap",
-      marginTop: 15,
+      marginTop: 20,
     },
   }), [colors]);
 

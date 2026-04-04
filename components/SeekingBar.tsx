@@ -23,10 +23,13 @@ export const SeekingBar = () => {
 const styles = StyleSheet.create({
   seekingContainer: {
     position: "absolute",
-    bottom: 80,
-    left: "5%",
-    right: "5%",
+    bottom: 100,
+    left: "10%",
+    right: "10%",
     alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    padding: 15,
+    borderRadius: 8,
     zIndex: 20,
   },
 });

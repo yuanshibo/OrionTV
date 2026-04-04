@@ -1,5 +1,5 @@
 import React from "react";
-import { useColorScheme } from "react-native";
+import { useColorScheme, Platform } from "react-native";
 import { useShallow } from "zustand/react/shallow";
 import usePlayerStore from "@/stores/playerStore";
 import { ThemedText } from "@/components/ThemedText";
@@ -38,7 +38,18 @@ export const PlayerTimeDisplay = () => {
   const displayPosition = isSeeking ? (seekPosition * currentDuration) : positionMillis;
 
   return (
-    <ThemedText style={{ color: colors.text, marginTop: 5 }}>
+    <ThemedText
+      style={{
+        color: colors.text,
+        marginTop: 5,
+        fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
+        textShadowColor: 'rgba(0, 0, 0, 0.75)',
+        textShadowOffset: { width: 1, height: 1 },
+        textShadowRadius: 1,
+      }}
+      numberOfLines={1}
+      adjustsFontSizeToFit
+    >
       {isLoaded || (isSeeking && currentDuration > 0)
         ? `${formatTime(displayPosition)} / ${formatTime(currentDuration)}`
         : "00:00 / 00:00"}
