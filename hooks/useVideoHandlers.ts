@@ -161,7 +161,6 @@ export const useVideoHandlers = ({
 
     return () => {
       subscriptions.forEach((subscription) => subscription.remove());
-      player.release();
     };
   }, [player, currentEpisode?.url, applyPendingSeek, updateDuration, emitStatusUpdate]);
 

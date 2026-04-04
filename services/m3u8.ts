@@ -100,7 +100,7 @@ export const getResolutionFromM3U8 = async (
     return resolutionString;
   } catch (error) {
     const perfEnd = performance.now();
-    logger.info(`[PERF] M3U8 resolution detection ERROR - took ${(perfEnd - perfStart).toFixed(2)}ms, error: ${error}`);
+    logger.debug(`[PERF] M3U8 resolution detection ERROR - took ${(perfEnd - perfStart).toFixed(2)}ms, error: ${error}`);
     return null;
   }
 };
