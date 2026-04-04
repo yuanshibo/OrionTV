@@ -178,6 +178,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
       // 3. Determine Target Source (History Priority)
       let historySourceKey: string | null = null;
       let matchedRecord: any = null;
+      let hasLoggedPrewarm = false;
 
       if (playRecords) {
         // Precise matching using metadata if available
@@ -244,25 +245,46 @@ const useDetailStore = create<DetailState>((set, get) => ({
             });
           }
         } else {
-          // If already loaded, check if the new result has MORE episodes (e.g., Weekly update)
           const newDetail = newSearchResults.find(r => r.source === sourceKey);
-          if (newDetail && snapshot.detail && newDetail.episodes.length > snapshot.detail.episodes.length) {
-            // Strict check: Only auto-switch if metadata matches to avoid switching to a different show with same title
-            const isSameYear = !snapshot.detail.year || !newDetail.year || snapshot.detail.year === newDetail.year;
-            const isSameType = !snapshot.detail.type || !newDetail.type || snapshot.detail.type === newDetail.type;
+          if (newDetail && snapshot.detail) {
+            // If already loaded, check if the new result has MORE episodes (e.g., Weekly update)
+            // Plus a guard: Never switch to a source with 0 episodes
+            const currentDetail = snapshot.detail;
+            const isSameYear = !currentDetail.year || !newDetail.year || currentDetail.year === newDetail.year;
+            const isSameType = !currentDetail.type || !newDetail.type || currentDetail.type === newDetail.type;
 
-            if (isSameYear && isSameType) {
-              logger.info(`[AUTO-SWITCH] Switching to source "${newDetail.source}" because it has more episodes (${newDetail.episodes.length} > ${snapshot.detail.episodes.length})`);
-              updates.detail = newDetail;
-              // Also update favorited status for the new source
-              Promise.all([
-                FavoriteManager.isFavorited(newDetail.source, newDetail.id.toString()),
-                PlayRecordManager.getLatestByTitle(newDetail.title, newDetail.year, newDetail.type)
-              ]).then(([isFav, resumeRec]) => {
-                set({ isFavorited: isFav, resumeRecord: resumeRec });
-              });
-            } else {
-              logger.warn(`[AUTO-SWITCH] Skipped switching to "${newDetail.source}" despite more episodes: Metadata mismatch (Year: ${snapshot.detail.year} vs ${newDetail.year}, Type: ${snapshot.detail.type} vs ${newDetail.type})`);
+            if (isSameYear && isSameType && newDetail.episodes.length > 0) {
+              let shouldSwitch = false;
+              const currentLen = currentDetail.episodes.length;
+              const newLen = newDetail.episodes.length;
+
+              // Priority: Preferred/History Source. Switch only if the new source has a significant advantage (+20% or +3 episodes)
+              const threshold = Math.max(Math.ceil(currentLen * 1.2), currentLen + 3);
+              const isTargetSource = currentDetail.source === preferredSource || currentDetail.source === historySourceKey;
+
+              if (isTargetSource) {
+                if (newLen >= threshold) {
+                  shouldSwitch = true;
+                  logger.info(`[AUTO-SWITCH] Priority source "${currentDetail.source}" is incomplete (${currentLen} eps). Switching to "${newDetail.source}" (${newLen} eps).`);
+                }
+              } else if (newLen > currentLen) {
+                // For non-target sources, we switch if any more episodes are found
+                shouldSwitch = true;
+                logger.info(`[AUTO-SWITCH] Switching from "${currentDetail.source}" (${currentLen} eps) to "${newDetail.source}" (${newLen} eps)`);
+              }
+
+              if (shouldSwitch) {
+                updates.detail = newDetail;
+                // Also update favorited status for the new source
+                Promise.all([
+                  FavoriteManager.isFavorited(newDetail.source, newDetail.id.toString()),
+                  PlayRecordManager.getLatestByTitle(newDetail.title, newDetail.year, newDetail.type)
+                ]).then(([isFav, resumeRec]) => {
+                  set({ isFavorited: isFav, resumeRecord: resumeRec });
+                });
+              }
+            } else if (newDetail.episodes.length > currentDetail.episodes.length) {
+              logger.warn(`[AUTO-SWITCH] Skipped switching to "${newDetail.source}" despite more episodes: Metadata mismatch or empty episodes list.`);
             }
           }
         }
@@ -272,20 +294,21 @@ const useDetailStore = create<DetailState>((set, get) => ({
         loadedSourceKeys.add(sourceKey);
       };
 
-      // 4. Load History Source First (if exists)
-      if (historySourceKey) {
-        logger.info(`[INFO] Loading history source first: ${historySourceKey}`);
+      // 4. Load Target Source First (Preferred or History)
+      const targetSourceKey = preferredSource || historySourceKey;
+      if (targetSourceKey) {
+        logger.info(`[INFO] Loading target source first: ${targetSourceKey} ${preferredSource ? '(preferred)' : '(history)'}`);
         try {
-          const { results } = await api.searchVideo(q, historySourceKey, signal);
+          const { results } = await api.searchVideo(q, targetSourceKey, signal);
           if (signal.aborted) return;
 
           if (results.length > 0) {
-            addResults(results, historySourceKey);
+            addResults(results, targetSourceKey);
           } else {
-            logger.warn(`[WARN] History source "${historySourceKey}" returned no results.`);
+            logger.warn(`[WARN] Target source "${targetSourceKey}" returned no results.`);
           }
         } catch (e) {
-          logger.error(`[ERROR] History source "${historySourceKey}" failed:`, e);
+          logger.error(`[ERROR] Target source "${targetSourceKey}" failed:`, e);
         }
       }
 
@@ -294,7 +317,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
       // skipping the history source if it was already attempted.
 
       // 5. Batch Parallel Load of Remaining Sources
-      const remainingResources = resources.filter(r => r.key !== historySourceKey);
+      const remainingResources = resources.filter(r => r.key !== targetSourceKey);
       const BATCH_SIZE = APP_CONFIG.DETAIL.MAX_CONCURRENT_SOURCE_REQUESTS || 3;
 
       for (let i = 0; i < remainingResources.length; i += BATCH_SIZE) {
@@ -319,7 +342,11 @@ const useDetailStore = create<DetailState>((set, get) => ({
                   const match = snapshot.resumeRecord;
                   if (match && match.index > 0 && match.index <= snapshot.detail.episodes.length) {
                     targetIndex = match.index - 1;
-                    logger.debug(`[PREWARM] Target identified from history: Episode ${match.index}`);
+                    // Only log target identification once to reduce noise
+                    if (!hasLoggedPrewarm) {
+                      logger.debug(`[PREWARM] Target identified from history: Episode ${match.index}`);
+                      hasLoggedPrewarm = true;
+                    }
                   }
                 }
 
