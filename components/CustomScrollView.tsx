@@ -5,8 +5,7 @@ import {
   TouchableOpacity,
   View,
   StyleProp,
-  ViewStyle,
-  Platform
+  ViewStyle
 } from "react-native";
 import { FlashList } from "@shopify/flash-list";
 import Animated, {
@@ -174,9 +173,12 @@ const CustomScrollView = React.memo(forwardRef<React.ElementRef<typeof FlashList
   }, []);
 
   const RenderItemWithMemo = useMemo(
-    () => React.memo(({ item, index, style }: { item: any; index: number; style: any }) => 
-      renderItem({ item, index, style })
-    ),
+    () => {
+      const MemoComponent = ({ item, index, style }: { item: any; index: number; style: any }) => 
+        renderItem({ item, index, style });
+      MemoComponent.displayName = "RenderItemWithMemoComponent";
+      return React.memo(MemoComponent);
+    },
     [renderItem]
   ) as any;
 

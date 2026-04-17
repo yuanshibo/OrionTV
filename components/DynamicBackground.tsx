@@ -17,16 +17,16 @@ interface DynamicBackgroundProps {
  * - 使用 cachePolicy 优化图片加载
  */
 export const PureDynamicBackground = React.memo(({ poster, useProxy = true }: DynamicBackgroundProps) => {
-  if (!poster) return null;
-
-  const imageUrl = useProxy ? api.getImageProxyUrl(poster) : poster;
-
   // 缓存 blurRadius 计算
   const blurRadius = useMemo(() => {
     if (Platform.OS === 'ios') return 10;
     if (Platform.OS === 'android') return 0; // Android GPU 友好
     return 1;
   }, []);
+
+  if (!poster) return null;
+
+  const imageUrl = useProxy ? api.getImageProxyUrl(poster) : poster;
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">

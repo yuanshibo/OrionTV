@@ -58,7 +58,7 @@ export default function SearchScreen() {
       doSearch(realMessage);
       clearMessage(); // Clear the message after processing
     }
-  }, [lastMessage, targetPage, clearMessage, doSearch]);
+  }, [lastMessage, targetPage, clearMessage, doSearch, setKeyword]);
 
   useEffect(() => {
     if (params.q) {
@@ -72,8 +72,7 @@ export default function SearchScreen() {
       }, 200);
       return () => clearTimeout(timer);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.q]);
+  }, [params.q, doSearch, loadDiscoverData, resetSearch, setKeyword]);
 
   const onSearchPress = () => handleSearch();
 
