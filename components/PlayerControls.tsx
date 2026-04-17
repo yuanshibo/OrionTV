@@ -8,8 +8,7 @@ import usePlayerStore from "@/stores/playerStore";
 import useDetailStore from "@/stores/detailStore";
 import { useSources } from "@/stores/sourceStore";
 import { Colors } from "@/constants/Colors";
-import { PlayerProgressBar } from "@/components/player/PlayerProgressBar";
-import { PlayerTimeDisplay } from "@/components/player/PlayerTimeDisplay";
+import { PlayerBottomBar } from "@/components/player/PlayerBottomBar";
 
 interface PlayerControlsProps {
   showControls: boolean;
@@ -160,9 +159,6 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
       </View>
 
       <View style={styles.bottomControlsContainer}>
-        <PlayerProgressBar style={{ marginTop: 10 }} />
-        <PlayerTimeDisplay />
-
         <View style={styles.bottomControls}>
           <MediaButton onPress={setIntroEndTime} timeLabel={introEndTime ? formatTime(introEndTime) : undefined}>
             <ArrowDownToDot color={colors.text} size={24} />
@@ -196,6 +192,8 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
             <Tv color={colors.text} size={24} />
           </MediaButton>
         </View>
+
+        <PlayerBottomBar style={{ marginTop: 20 }} />
       </View>
     </View>
   );
