@@ -10,6 +10,14 @@ module.exports = function (api) {
   
   return {
     presets: ['babel-preset-expo'],
-    plugins,
+    plugins: [
+      ...plugins,
+      [
+        'transform-remove-console',
+        {
+          exclude: ['error', 'warn'],
+        },
+      ],
+    ],
   };
 };

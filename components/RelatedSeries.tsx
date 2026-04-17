@@ -1,148 +1,93 @@
-import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
-import { View, StyleSheet, ActivityIndicator } from 'react-native';
+import React, { useMemo } from 'react';
+import { View, StyleSheet, Platform } from 'react-native';
 import { FlashList } from "@shopify/flash-list";
-import { ThemedText } from './ThemedText';
-import { api, DoubanRecommendationItem, SearchResult } from '@/services/api';
-import { fetchSearchResults } from '@/services/searchService';
-import VideoCard from './VideoCard';
+import { ThemedText } from "@/components/ThemedText";
+import VideoCard from "@/components/VideoCard.tv";
+import { api } from "@/services/api";
+import { FlashListOptimizer } from '@/utils/FlashListOptimizer';
 import { useResponsiveLayout } from '@/hooks/useResponsiveLayout';
-import { getCommonResponsiveStyles } from '@/utils/ResponsiveStyles';
-import { getSearchTermFromTitle } from '@/utils/searchUtils';
-import { requestTVFocus } from '@/utils/tvUtils';
-import { FocusPriority } from '@/types/focus';
 
 interface RelatedSeriesProps {
   title: string;
-  autoFocus?: boolean;
   onFocus?: (item: any) => void;
 }
 
-const RelatedSeriesComponent: React.FC<RelatedSeriesProps> = ({ title, autoFocus = false, onFocus }) => {
-  const [related, setRelated] = useState<SearchResult[]>([]);
-  const [loading, setLoading] = useState(true);
-  const firstCardRef = useRef<View>(null);
-  const [listTitle, setListTitle] = useState('相关剧集');
+const RelatedSeries: React.FC<RelatedSeriesProps> = ({ title, onFocus }) => {
+  const [related, setRelated] = React.useState<any[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const { deviceType } = useResponsiveLayout();
 
-  const responsiveConfig = useResponsiveLayout();
-  const commonStyles = useMemo(() => getCommonResponsiveStyles(responsiveConfig), [responsiveConfig]);
-  const { spacing } = responsiveConfig;
+  React.useEffect(() => {
+    const fetchRelated = async () => {
+      try {
+        setLoading(true);
+        const { results } = await api.searchVideos(title);
+        // Filter out the current one if possible, or just limit
+        setRelated(results.slice(0, 10));
+      } catch (error) {
+        console.error('Failed to fetch related series:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const styles = useMemo(() => StyleSheet.create({
-    container: {
-      marginTop: spacing,
-      paddingBottom: spacing * 2,
-    },
-    title: {
-      fontSize: responsiveConfig.deviceType === 'mobile' ? 16 : responsiveConfig.deviceType === 'tablet' ? 18 : 20,
-      fontWeight: 'bold',
-      marginBottom: spacing / 2,
-      paddingHorizontal: spacing,
-    },
-    list: {
-      paddingLeft: spacing,
-    },
-    itemContainer: {
-      marginRight: spacing,
-    },
-  }), [spacing, responsiveConfig.deviceType]);
-
-  useEffect(() => {
-    if (!loading && related.length > 0 && autoFocus) {
-      const timer = setTimeout(() => {
-        requestTVFocus(firstCardRef, {
-          priority: FocusPriority.CONTENT,
-          duration: 300,
-        });
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [loading, related, autoFocus]);
-
-  useEffect(() => {
     if (title) {
-      setLoading(true);
-      const searchTerm = getSearchTermFromTitle(title);
-
-      fetchSearchResults(searchTerm)
-        .then(results => {
-          const filteredResults = results.filter(item => item.title !== title);
-          if (filteredResults.length > 0) {
-            setRelated(filteredResults.slice(0, 10));
-            setListTitle('相关剧集');
-            setLoading(false);
-          } else {
-            setListTitle('猜你喜欢');
-            api.discover(1, 25)
-              .then(discoverResponse => {
-                const discoverResults: SearchResult[] = discoverResponse.list.map((item: DoubanRecommendationItem, index) => ({
-                  id: index, // Use index as a fallback ID
-                  title: item.title,
-                  poster: item.poster,
-                  year: item.year || '',
-                  source: item.url || item.id || '',
-                  source_name: '推荐',
-                  episodes: [],
-                  class: item.type || '',
-                } as SearchResult));
-                setRelated(discoverResults);
-              })
-              .catch(console.error)
-              .finally(() => setLoading(false));
-          }
-        })
-        .catch(error => {
-          console.error(error)
-          setLoading(false);
-        });
+      fetchRelated();
     }
   }, [title]);
 
-  const renderItem = useCallback(({ item, index }: { item: SearchResult; index: number }) => (
-    <View style={styles.itemContainer}>
+  const renderItem = React.useCallback(
+    ({ item }: { item: any }) => (
       <VideoCard
-        ref={index === 0 ? firstCardRef : undefined}
-        id={item.id.toString()}
-        source={item.source}
-        title={item.title}
-        poster={item.poster}
-        year={item.year}
-        sourceName={item.source_name}
-        api={api}
-        onFocus={onFocus}
+        {...item}
+        onFocus={() => onFocus?.(item)}
       />
-    </View>
-  ), [styles.itemContainer, onFocus]);
+    ),
+    [onFocus]
+  );
 
-  if (loading) {
-    return (
-      <View style={[commonStyles.container, styles.container, commonStyles.center]}>
-        <ActivityIndicator />
-      </View>
-    );
-  }
+  const flashListConfig = useMemo(() => 
+    FlashListOptimizer.getHorizontalListConfig(deviceType, 170),
+    [deviceType]
+  );
 
-  if (related.length === 0) {
+  if (loading || related.length === 0) {
     return null;
   }
 
+  const FlashListAny = FlashList as any;
+
   return (
     <View style={styles.container}>
-      <ThemedText style={styles.title}>{listTitle}</ThemedText>
-      <FlashList
+      <ThemedText style={styles.title}>相关推荐</ThemedText>
+      <FlashListAny
         horizontal
         data={related}
         renderItem={renderItem}
-        keyExtractor={(item, index) => `${item.id}-${index}`}
+        keyExtractor={(item: any, index: number) => index.toString()}
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.list}
-        // @ts-ignore
-        estimatedItemSize={150} // Approximate width of VideoCard
+        {...flashListConfig}
+        removeClippedSubviews={Platform.OS === 'android'}
       />
     </View>
   );
 };
 
-const RelatedSeries = React.memo(RelatedSeriesComponent);
-RelatedSeries.displayName = 'RelatedSeries';
+const styles = StyleSheet.create({
+  container: {
+    marginTop: 20,
+    marginBottom: 10,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 15,
+    marginLeft: 10,
+  },
+  list: {
+    paddingLeft: 10,
+  },
+});
 
-export default RelatedSeries;
+export default React.memo(RelatedSeries);

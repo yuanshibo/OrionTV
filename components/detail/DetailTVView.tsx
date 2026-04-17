@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useState } from 'react';
-import { View, ScrollView, useWindowDimensions, findNodeHandle } from 'react-native';
+import { View, ScrollView, useWindowDimensions, findNodeHandle, TVFocusGuideView } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { SourceList } from '@/components/detail/SourceList';
 import RelatedSeries from '@/components/RelatedSeries';
@@ -71,49 +71,53 @@ const DetailTVContent = memo(({
         onFocus={handleTVTopInfoFocus}
       />
       <View style={dynamicStyles.bottomContainer}>
-        <SourceList
-          searchResults={searchResults}
-          currentSource={detail.source}
-          onSelect={setDetail}
-          loading={!allSourcesLoaded}
-          deviceType={deviceType}
-          styles={dynamicStyles}
-          colors={colors}
-          setFirstSourceRef={setFirstSourceRef}
-          nextFocusDown={targetEpisodeTag}
-        />
+        <TVFocusGuideView trapFocusUp={false} trapFocusDown={false} destinations={[targetEpisodeTag].filter(Boolean) as any}>
+          <SourceList
+            searchResults={searchResults}
+            currentSource={detail.source}
+            onSelect={setDetail}
+            loading={!allSourcesLoaded}
+            deviceType={deviceType}
+            styles={dynamicStyles}
+            colors={colors}
+            setFirstSourceRef={setFirstSourceRef}
+            nextFocusDown={targetEpisodeTag}
+          />
+        </TVFocusGuideView>
 
         {episodes.length > 0 && (
-          <View>
-            <ThemedText style={dynamicStyles.episodesTitle}>播放列表</ThemedText>
+          <TVFocusGuideView trapFocusUp={false} trapFocusDown={false}>
+            <View>
+              <ThemedText style={dynamicStyles.episodesTitle}>播放列表</ThemedText>
 
-            {/* Episode List (Horizontal) */}
-            <EpisodeHorizontalList
-              ref={episodeListRef}
-              episodes={episodes}
-              itemWidth={itemWidth}
-              handlePlay={handlePlay}
-              handleEpisodeFocus={handleEpisodeFocus}
-              firstRangeTag={firstRangeTag}
-              dynamicStyles={dynamicStyles}
-              setTargetEpisodeTag={setTargetEpisodeTag}
-            />
-
-            {/* Range Selector (Bottom) */}
-            {episodes.length > chunkSize && (
-              <EpisodeRangeSelector
-                totalEpisodes={episodes.length}
-                currentRange={currentRange}
-                onRangeSelect={handleRangeSelect}
-                chunkSize={chunkSize}
-                styles={dynamicStyles}
-                colors={colors}
-                focusOffset={focusOffset}
-                setFirstRangeRef={handleSetFirstRangeRef}
-                nextFocusUp={targetEpisodeTag}
+              {/* Episode List (Horizontal) */}
+              <EpisodeHorizontalList
+                ref={episodeListRef}
+                episodes={episodes}
+                itemWidth={itemWidth}
+                handlePlay={handlePlay}
+                handleEpisodeFocus={handleEpisodeFocus}
+                firstRangeTag={firstRangeTag}
+                dynamicStyles={dynamicStyles}
+                setTargetEpisodeTag={setTargetEpisodeTag}
               />
-            )}
-          </View>
+
+              {/* Range Selector (Bottom) */}
+              {episodes.length > chunkSize && (
+                <EpisodeRangeSelector
+                  totalEpisodes={episodes.length}
+                  currentRange={currentRange}
+                  onRangeSelect={handleRangeSelect}
+                  chunkSize={chunkSize}
+                  styles={dynamicStyles}
+                  colors={colors}
+                  focusOffset={focusOffset}
+                  setFirstRangeRef={handleSetFirstRangeRef}
+                  nextFocusUp={targetEpisodeTag}
+                />
+              )}
+            </View>
+          </TVFocusGuideView>
         )}
 
         <RelatedSeries

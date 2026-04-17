@@ -5,7 +5,8 @@ import {
   TouchableOpacity,
   View,
   StyleProp,
-  ViewStyle
+  ViewStyle,
+  Platform
 } from "react-native";
 import { FlashList } from "@shopify/flash-list";
 import Animated, {
@@ -18,6 +19,8 @@ import Animated, {
 import { ThemedText } from "@/components/ThemedText";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { getCommonResponsiveStyles } from "@/utils/ResponsiveStyles";
+import { FlashListOptimizer } from "@/utils/FlashListOptimizer";
+import { useImagePreloader } from "@/hooks/useImagePreloader";
 
 const AnimatedFlashList = Animated.createAnimatedComponent(FlashList) as any;
 
@@ -72,6 +75,8 @@ const CustomScrollView = React.memo(forwardRef<React.ElementRef<typeof FlashList
 
   const effectiveColumns = numColumns || responsiveConfig.columns;
 
+  const { handleScroll: preloadImages } = useImagePreloader(data);
+
   const handleEndReached = useCallback(() => {
     if (!loadingMore && onEndReached) {
       onEndReached();
@@ -86,7 +91,9 @@ const CustomScrollView = React.memo(forwardRef<React.ElementRef<typeof FlashList
     onScroll: (event) => {
       const { contentOffset, layoutMeasurement, contentSize } = event;
 
-      // Scroll To Top Logic
+      // Predictive preloading
+      runOnJS(preloadImages)(contentOffset.y, contentSize.height, layoutMeasurement.height);
+
       // Scroll To Top Logic
       if (deviceType !== 'tv') {
         if (contentOffset.y > 200 && opacity.value === 0) {
@@ -166,17 +173,34 @@ const CustomScrollView = React.memo(forwardRef<React.ElementRef<typeof FlashList
     return `${index}`;
   }, []);
 
+  const RenderItemWithMemo = useMemo(
+    () => React.memo(({ item, index, style }: { item: any; index: number; style: any }) => 
+      renderItem({ item, index, style })
+    ),
+    [renderItem]
+  ) as any;
+
   const renderGridItem = useCallback(
     ({ item, index }: { item: any; index: number }) => {
       const isLastColumn = (index + 1) % effectiveColumns === 0;
       const style = isLastColumn ? dynamicStyles.cardContainer : dynamicStyles.cardContainerWithSpacing;
 
-      // Directly call renderItem with the calculated style, avoiding an extra View wrapper
-      const result = renderItem({ item, index, style });
-      return (result === undefined ? null : result) as React.ReactElement | null;
+      return <RenderItemWithMemo item={item} index={index} style={style} />;
     },
-    [dynamicStyles, effectiveColumns, renderItem]
+    [dynamicStyles, effectiveColumns, RenderItemWithMemo]
   );
+
+  const flashListProps = useMemo(() => {
+    const defaultSize = responsiveConfig.cardHeight + responsiveConfig.spacing + (deviceType === 'tv' ? 40 : 30);
+    const size = estimatedItemSize ?? defaultSize;
+    const isLargeList = data.length > 500;
+    
+    if (isLargeList) {
+      return FlashListOptimizer.getLargeListConfig(deviceType, size);
+    } else {
+      return FlashListOptimizer.getVerticalListConfig(deviceType, size);
+    }
+  }, [data.length, deviceType, estimatedItemSize, responsiveConfig.cardHeight, responsiveConfig.spacing]);
 
   if (loading) {
     return (
@@ -212,7 +236,7 @@ const CustomScrollView = React.memo(forwardRef<React.ElementRef<typeof FlashList
         keyExtractor={getItemKey}
         renderItem={renderGridItem}
         numColumns={effectiveColumns}
-        estimatedItemSize={estimatedItemSize ?? (responsiveConfig.cardHeight + responsiveConfig.spacing + (deviceType === 'tv' ? 40 : 30))}
+        {...flashListProps}
         overrideItemLayout={
           overrideItemLayout ?? (deviceType === "tv"
             ? (layout: { span?: number; size?: number }) => {
@@ -231,7 +255,6 @@ const CustomScrollView = React.memo(forwardRef<React.ElementRef<typeof FlashList
           </View>
         )}
         ListFooterComponent={renderFooter}
-        drawDistance={drawDistance ?? (deviceType === 'tv' ? 800 : 400)}
       />
       {deviceType !== 'tv' && (
         <Animated.View style={[dynamicStyles.scrollToTopButton, animatedButtonStyle]} pointerEvents={showScrollToTop ? 'auto' : 'none'}>

@@ -330,4 +330,21 @@ const stylesCache = {
   light: createStyles(Colors.light),
 };
 
-export default React.memo(VideoCard);
+import { createShallowEqualComparator } from "@/utils/MemoHelper";
+
+/**
+ * 优化的 Memo 比较逻辑：只比较 UI 相关的关键数据
+ */
+const areEqual = createShallowEqualComparator<VideoCardProps>([
+  'id',
+  'title',
+  'poster',
+  'sourceName',
+  'progress',
+  'rate',
+  'year',
+  'episodeIndex',
+  'playTime'
+]);
+
+export default React.memo(VideoCard, areEqual);
