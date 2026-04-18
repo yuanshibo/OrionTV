@@ -6,7 +6,8 @@ import { PerformanceMonitor } from '@/utils/PerformanceMonitor';
  */
 export function usePerformanceMonitor(enabled = true) {
   useEffect(() => {
-    if (!enabled) return;
+    // Only allow performance monitoring in development mode
+    if (!enabled || !__DEV__) return;
 
     PerformanceMonitor.start();
 
