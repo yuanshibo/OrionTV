@@ -10,9 +10,10 @@ import { useResponsiveLayout } from '@/hooks/useResponsiveLayout';
 interface RelatedSeriesProps {
   title: string;
   onFocus?: (item: any) => void;
+  autoFocus?: boolean;
 }
 
-const RelatedSeries: React.FC<RelatedSeriesProps> = ({ title, onFocus }) => {
+const RelatedSeries: React.FC<RelatedSeriesProps> = ({ title, onFocus, autoFocus }) => {
   const [related, setRelated] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
   const { deviceType } = useResponsiveLayout();
@@ -37,13 +38,14 @@ const RelatedSeries: React.FC<RelatedSeriesProps> = ({ title, onFocus }) => {
   }, [title]);
 
   const renderItem = React.useCallback(
-    ({ item }: { item: any }) => (
+    ({ item, index }: { item: any; index: number }) => (
       <VideoCard
         {...item}
         onFocus={() => onFocus?.(item)}
+        hasTVPreferredFocus={autoFocus && index === 0}
       />
     ),
-    [onFocus]
+    [onFocus, autoFocus]
   );
 
   const flashListConfig = useMemo(() => 
