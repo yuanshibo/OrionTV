@@ -14,27 +14,38 @@ export class ImagePreloader {
    */
   static async preload(urls: string[]): Promise<void> {
     for (const url of urls) {
+      // 如果队列中已经有该 URL，说明正在加载或已排队，跳过
       if (!url || this.loadingQueue.has(url)) continue;
 
       this.loadingQueue.add(url);
 
-      // 限制并发数
-      while (this.activeLoads >= this.maxConcurrent) {
-        await new Promise(resolve => setTimeout(resolve, 50));
-      }
-
-      this.activeLoads++;
-
+      let incremented = false;
       try {
-        await Image.prefetch(url);
-        if (__DEV__) {
-          // console.debug(`[ImagePreloader] Preloaded: ${url}`);
+        // 限制并发数
+        while (this.activeLoads >= this.maxConcurrent) {
+          await new Promise(resolve => setTimeout(resolve, 50));
+          // 如果等待期间队列被清空了（调用了 clear），则停止当前任务
+          if (!this.loadingQueue.has(url)) return;
         }
+
+        // 再次检查，防止在等待并发锁期间调用了 clear()
+        if (!this.loadingQueue.has(url)) return;
+
+        this.activeLoads++;
+        incremented = true;
+
+        await Image.prefetch(url);
       } catch (error) {
         // 静默失败，不影响主流程
       } finally {
-        this.activeLoads--;
+        const wasInQueue = this.loadingQueue.has(url);
+        if (incremented) {
+          this.activeLoads = Math.max(0, this.activeLoads - 1);
+        }
         this.loadingQueue.delete(url);
+
+        // 如果在处理过程中 url 从队列中消失了（说明调用了 clear），则停止此批次的后续预加载
+        if (!wasInQueue) return;
       }
     }
   }
@@ -65,6 +76,6 @@ export class ImagePreloader {
    */
   static clear(): void {
     this.loadingQueue.clear();
-    this.activeLoads = 0;
+    // 注意：不在这里将 activeLoads 置为 0，以防止正在进行的请求完成时导致计数器变为负数
   }
 }
