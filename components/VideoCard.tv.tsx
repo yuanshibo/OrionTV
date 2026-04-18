@@ -15,6 +15,7 @@ import { Colors } from "@/constants/Colors";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import useAuthStore from "@/stores/authStore";
 import { useVideoCardInteractions } from "@/hooks/useVideoCardInteractions";
+import { createShallowEqualComparator } from "@/utils/MemoHelper";
 
 import { VideoCardTVProps } from './VideoCard.types';
 
@@ -323,11 +324,26 @@ const createStyles = (colors: typeof Colors.dark) => StyleSheet.create({
   },
 });
 
-// Module-level style cache: create styles once per color scheme, not per component instance
-// Must be declared AFTER createStyles to avoid "used before assignment" TS error
 const stylesCache = {
   dark: createStyles(Colors.dark),
   light: createStyles(Colors.light),
 };
 
-export default React.memo(VideoCard);
+// Module-level style cache: create styles once per color scheme, not per component instance
+
+/**
+ * 优化的 Memo 比较逻辑：只比较 UI 相关的关键数据
+ */
+const areEqual = createShallowEqualComparator<VideoCardProps>([
+  'id',
+  'title',
+  'poster',
+  'sourceName',
+  'progress',
+  'rate',
+  'year',
+  'episodeIndex',
+  'playTime'
+]);
+
+export default React.memo(VideoCard, areEqual);

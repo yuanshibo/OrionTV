@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useCallback, memo } from "react";
+import React, { useEffect, useRef, useCallback, memo, useMemo } from "react";
 import { View, ViewStyle, TextStyle } from "react-native";
 import { FlashList } from "@shopify/flash-list";
 import { StyledButton } from "@/components/StyledButton";
@@ -6,6 +6,7 @@ import { Category } from "@/services/dataTypes";
 import { requestTVFocus } from "@/utils/tvUtils";
 import { useFocusStore } from "@/stores/focusStore";
 import { FocusPriority } from "@/types/focus";
+import { FlashListOptimizer } from "@/utils/FlashListOptimizer";
 
 interface CategoryNavigationProps {
   categories: Category[];
@@ -146,6 +147,16 @@ const CategoryNavigationComponent: React.FC<CategoryNavigationProps> = ({
 
   const hasTags = selectedCategory?.type === "record";
 
+  const categoryListConfig = useMemo(() => 
+    FlashListOptimizer.getHorizontalListConfig(deviceType, 90),
+    [deviceType]
+  );
+
+  const tagListConfig = useMemo(() => 
+    FlashListOptimizer.getHorizontalListConfig(deviceType, 70),
+    [deviceType]
+  );
+
   const FlashListAny = FlashList as any;
 
   return (
@@ -157,7 +168,7 @@ const CategoryNavigationComponent: React.FC<CategoryNavigationProps> = ({
         keyExtractor={(item: Category) => item.title}
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={categoryStyles.categoryListContent}
-        estimatedItemSize={90}
+        {...categoryListConfig}
       />
       {selectedCategory?.tags && (
         <FlashListAny
@@ -167,7 +178,7 @@ const CategoryNavigationComponent: React.FC<CategoryNavigationProps> = ({
           keyExtractor={(item: string) => item}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={categoryStyles.categoryListContent}
-          estimatedItemSize={70}
+          {...tagListConfig}
         />
       )}
     </View>

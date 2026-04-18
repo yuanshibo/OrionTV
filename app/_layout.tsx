@@ -18,6 +18,8 @@ import { DeleteConfirmationModal } from "@/components/DeleteConfirmationModal";
 import { UPDATE_CONFIG } from "@/constants/UpdateConfig";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { useMemoryManagement } from "@/hooks/useMemoryManagement";
+import { ConsoleOptimizer } from '@/utils/ConsoleOptimizer';
+import { usePerformanceMonitor } from '@/hooks/usePerformanceMonitor';
 import Logger from '@/utils/Logger';
 
 const logger = Logger.withTag('RootLayout');
@@ -27,6 +29,14 @@ SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const colorScheme = "dark";
+
+  // Performance tracking (only in development)
+  usePerformanceMonitor(__DEV__);
+
+  useEffect(() => {
+    ConsoleOptimizer.initialize();
+  }, []);
+
   const [loaded, error] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });

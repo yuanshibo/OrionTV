@@ -1,7 +1,9 @@
 import React, { memo, useCallback, useRef, forwardRef, useImperativeHandle, useMemo } from 'react';
-import { View, findNodeHandle } from 'react-native';
+import { View, findNodeHandle, Platform } from 'react-native';
 import { FlashList } from "@shopify/flash-list";
 import { EpisodeButton } from '@/components/detail/EpisodeList';
+import { FlashListOptimizer } from '@/utils/FlashListOptimizer';
+import { useResponsiveLayout } from '@/hooks/useResponsiveLayout';
 
 interface EpisodeHorizontalListProps {
     episodes: any[];
@@ -27,6 +29,7 @@ export const EpisodeHorizontalList = memo(forwardRef<EpisodeHorizontalListRef, E
     dynamicStyles,
     setTargetEpisodeTag,
 }, ref) => {
+    const { deviceType } = useResponsiveLayout();
     const episodeListRef = useRef<React.ElementRef<typeof FlashList>>(null);
     const episodeRefs = useRef<Map<number, any>>(new Map());
     const initialTargetSet = useRef(false);
@@ -82,6 +85,11 @@ export const EpisodeHorizontalList = memo(forwardRef<EpisodeHorizontalListRef, E
         );
     }, [handlePlay, dynamicStyles, handleEpisodeFocus, itemContainerStyle, buttonStyleOverride, textStyleOverride, firstRangeTag, setTargetEpisodeTag]);
 
+    const flashListConfig = useMemo(() => 
+        FlashListOptimizer.getHorizontalListConfig(deviceType, itemWidth),
+        [deviceType, itemWidth]
+    );
+
     const FlashListAny = FlashList as any;
 
     return (
@@ -94,13 +102,12 @@ export const EpisodeHorizontalList = memo(forwardRef<EpisodeHorizontalListRef, E
                 renderItem={renderEpisodeItem}
                 keyExtractor={(item: any, index: number) => index.toString()}
                 contentContainerStyle={{ paddingHorizontal: 0 }}
-                estimatedItemSize={itemWidth}
                 overrideItemLayout={(layout: { size?: number; span?: number }, item: any, index: number, maxColumns: number, extraData: any) => {
                     layout.size = itemWidth;
                     layout.span = 1;
                 }}
-                drawDistance={itemWidth * 10}
-                removeClippedSubviews={true}
+                {...flashListConfig}
+                removeClippedSubviews={Platform.OS === 'android'}
                 ListFooterComponent={<View style={{ width: itemWidth * 9 }} />}
             />
         </View>
