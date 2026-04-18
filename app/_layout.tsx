@@ -30,8 +30,8 @@ SplashScreen.preventAutoHideAsync();
 export default function RootLayout() {
   const colorScheme = "dark";
 
-  // Performance tracking (enabled by default)
-  usePerformanceMonitor(true);
+  // Performance tracking (only in development)
+  usePerformanceMonitor(__DEV__);
 
   useEffect(() => {
     ConsoleOptimizer.initialize();
