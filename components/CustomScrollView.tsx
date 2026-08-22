@@ -166,30 +166,21 @@ const CustomScrollView = React.memo(forwardRef<React.ElementRef<typeof FlashList
   );
 
   const getItemKey = useCallback((item: any, index: number) => {
+    if (item?.source != null && item?.id != null) return `${item.source}-${item.id}`;
     if (item?.id != null) return String(item.id);
     if (item?.key != null) return String(item.key);
-    if (item?.title != null) return `${item.title}-`;
+    if (item?.title != null) return `${item.title}-${index}`;
     return `${index}`;
   }, []);
-
-  const RenderItemWithMemo = useMemo(
-    () => {
-      const MemoComponent = ({ item, index, style }: { item: any; index: number; style: any }) => 
-        renderItem({ item, index, style });
-      MemoComponent.displayName = "RenderItemWithMemoComponent";
-      return React.memo(MemoComponent);
-    },
-    [renderItem]
-  ) as any;
 
   const renderGridItem = useCallback(
     ({ item, index }: { item: any; index: number }) => {
       const isLastColumn = (index + 1) % effectiveColumns === 0;
       const style = isLastColumn ? dynamicStyles.cardContainer : dynamicStyles.cardContainerWithSpacing;
 
-      return <RenderItemWithMemo item={item} index={index} style={style} />;
+      return renderItem({ item, index, style });
     },
-    [dynamicStyles, effectiveColumns, RenderItemWithMemo]
+    [dynamicStyles, effectiveColumns, renderItem]
   );
 
   const flashListProps = useMemo(() => {

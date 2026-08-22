@@ -5,7 +5,6 @@ import { Star, Play } from "lucide-react-native";
 import Reanimated, {
   useSharedValue,
   useAnimatedStyle,
-  withSpring,
   withTiming,
   withDelay
 } from "react-native-reanimated";
@@ -77,24 +76,26 @@ const VideoCard = forwardRef<View, VideoCardProps>(
     useEffect(() => {
       if (hasAnimated.current) return;
       hasAnimated.current = true;
-      // Use index-based delay (capped at 10 items) instead of Math.random() for stable, deterministic animation
-      fadeSV.value = withDelay((index % 10) * 50, withTiming(1, { duration: 400 }));
+      if (index < 8) {
+        fadeSV.value = withDelay(index * 30, withTiming(1, { duration: 250 }));
+      } else {
+        fadeSV.value = 1;
+      }
     }, [fadeSV, index]);
 
     const animatedStyle = useAnimatedStyle(() => {
       const scale = isFocusedSV.value ? 1.05 : 1;
       return {
-        // Tighter spring for better performance and snappier feel on TV
-        transform: [{ scale: withSpring(scale, { damping: 20, stiffness: 250, mass: 1 }) }],
+        // Fast, smooth timing curve for TV performance
+        transform: [{ scale: withTiming(scale, { duration: 120 }) }],
         opacity: fadeSV.value,
         zIndex: isFocusedSV.value ? 999 : 1,
       };
     });
 
     const overlayStyle = useAnimatedStyle(() => {
-      // Use simpler timing or remove specific easing for performance
       return {
-        opacity: withTiming(isFocusedSV.value ? 1 : 0, { duration: 150 }),
+        opacity: withTiming(isFocusedSV.value ? 1 : 0, { duration: 120 }),
       };
     });
 
@@ -116,15 +117,14 @@ const VideoCard = forwardRef<View, VideoCardProps>(
     const isContinueWatching = progress !== undefined && progress > 0 && progress < 1;
     // Use the module-level cached styles instead of recreating on every render
     const styles = stylesCache[colorScheme];
-    const authCookie = useAuthStore((state) => state.authCookie);
-    const imageSource = useMemo(
-      () => ({
+    const imageSource = useMemo(() => {
+      const authCookie = useAuthStore.getState().authCookie;
+      return {
         uri: api.getImageProxyUrl(poster),
         headers: authCookie ? { Cookie: authCookie } : undefined,
         width: 200,
-      }),
-      [poster, authCookie]
-    );
+      };
+    }, [poster]);
 
     return (
       <Reanimated.View style={[styles.wrapper, animatedStyle, style]}>
@@ -145,7 +145,8 @@ const VideoCard = forwardRef<View, VideoCardProps>(
               style={styles.poster}
               contentFit="cover"
               recyclingKey={poster}
-              cachePolicy="disk"
+              cachePolicy="memory-disk"
+              priority={index < 8 ? "high" : "normal"}
             />
 
             {/* Overlay is always mounted, opacity controlled by SharedValue */}
