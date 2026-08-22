@@ -45,7 +45,6 @@ export default function SettingsScreen() {
   const commonStyles = getCommonResponsiveStyles(responsiveConfig);
   const { deviceType, spacing } = responsiveConfig;
 
-  const [hasChanges, setHasChanges] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [currentFocusIndex, setCurrentFocusIndex] = useState(0);
   const [currentSection, setCurrentSection] = useState<string | null>(null);
@@ -63,7 +62,6 @@ export default function SettingsScreen() {
       const realMessage = lastMessage.split("_")[0];
       handleRemoteInput(realMessage);
       clearMessage(); // Clear the message after processing
-      markAsChanged();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastMessage, targetPage]);
@@ -73,7 +71,6 @@ export default function SettingsScreen() {
       const url = message.slice(4).trim();
       setApiBaseUrl(url);
       Toast.show({ type: "success", text1: "已填入远程 API 地址", text2: url });
-      markAsChanged();
       return;
     }
 
@@ -81,7 +78,6 @@ export default function SettingsScreen() {
       const url = message.slice(4).trim();
       setM3uUrl(url);
       Toast.show({ type: "success", text1: "已填入远程直播源地址", text2: url });
-      markAsChanged();
       return;
     }
 
@@ -94,14 +90,12 @@ export default function SettingsScreen() {
       setApiBaseUrl(trimmed);
       Toast.show({ type: "success", text1: "已填入 API 地址", text2: trimmed });
     }
-    markAsChanged();
   };
 
   const handleSave = async () => {
     setIsLoading(true);
     try {
       await saveSettings();
-      setHasChanges(false);
       Toast.show({
         type: "success",
         text1: "保存成功",
@@ -113,16 +107,12 @@ export default function SettingsScreen() {
     }
   };
 
-  const markAsChanged = () => {
-    setHasChanges(true);
-  };
-
   const rawSections = [
     // 远程输入配置 - 仅在非手机端显示
     deviceType !== "mobile" && {
       component: (
         <RemoteInputSection
-          onChanged={markAsChanged}
+          onChanged={() => {}}
           onFocus={() => {
             setCurrentFocusIndex(0);
             setCurrentSection("remote");
@@ -135,7 +125,7 @@ export default function SettingsScreen() {
       component: (
         <APIConfigSection
           ref={apiSectionRef}
-          onChanged={markAsChanged}
+          onChanged={() => {}}
           hideDescription={deviceType === "mobile"}
           onFocus={() => {
             setCurrentFocusIndex(1);
@@ -150,7 +140,7 @@ export default function SettingsScreen() {
       component: (
         <LiveStreamSection
           ref={liveStreamSectionRef}
-          onChanged={markAsChanged}
+          onChanged={() => {}}
           onFocus={() => {
             setCurrentFocusIndex(2);
             setCurrentSection("livestream");
@@ -220,11 +210,12 @@ export default function SettingsScreen() {
 
         <View style={dynamicStyles.footer}>
           <StyledButton
+            ref={saveButtonRef}
             text={isLoading ? "保存中..." : "保存设置"}
             onPress={handleSave}
             variant="primary"
-            disabled={!hasChanges || isLoading}
-            style={[dynamicStyles.saveButton, (!hasChanges || isLoading) && dynamicStyles.disabledButton]}
+            disabled={isLoading}
+            style={[dynamicStyles.saveButton, isLoading && dynamicStyles.disabledButton]}
           />
         </View>
       </ThemedView>
