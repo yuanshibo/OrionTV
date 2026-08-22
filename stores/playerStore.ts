@@ -260,7 +260,11 @@ const usePlayerStore = create<PlayerState>((set, get) => {
     togglePlayPause: () => {
       const { status, videoPlayer } = get();
       if (status?.isLoaded && videoPlayer) {
-        status.isPlaying ? videoPlayer.pause() : videoPlayer.play();
+        try {
+          status.isPlaying ? videoPlayer.pause() : videoPlayer.play();
+        } catch (e) {
+          console.warn('[PLAYER] togglePlayPause error:', e);
+        }
       }
     },
 

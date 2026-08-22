@@ -90,11 +90,25 @@ const useDetailStore = create<DetailState>((set, get) => ({
 
     const cacheKey = buildDetailCacheKey(q, preferredSource, id, year, type);
     lastCacheKey = cacheKey;
-    const cachedEntry = getDetailCacheEntry(cacheKey);
+    let cachedEntry = getDetailCacheEntry(cacheKey);
+    if (!cachedEntry) {
+      const generalKey = buildDetailCacheKey(q);
+      cachedEntry = getDetailCacheEntry(generalKey);
+    }
     const cachedSearchResults = cachedEntry ? cachedEntry.searchResults.map((item) => ({ ...item })) : [];
-    const cachedDetail = cachedEntry?.detail ? { ...cachedEntry.detail } : null;
+    let cachedDetail = cachedEntry?.detail ? { ...cachedEntry.detail } : null;
     const cachedSources = cachedEntry ? cachedEntry.sources.map((item) => ({ ...item })) : [];
     const cachedAllSourcesLoaded = cachedEntry?.allSourcesLoaded ?? false;
+
+    // If preferredSource or id is specified, select the matching source from cachedSearchResults
+    if (cachedEntry && (preferredSource || id)) {
+      const matchedSource = cachedSearchResults.find(
+        (r) => (preferredSource && r.source === preferredSource) || (id && r.id.toString() === id.toString())
+      );
+      if (matchedSource) {
+        cachedDetail = matchedSource;
+      }
+    }
 
     // 如果有有效缓存,直接使用缓存数据
     const hasValidCache = cachedEntry && cachedDetail && cachedSearchResults.length > 0;

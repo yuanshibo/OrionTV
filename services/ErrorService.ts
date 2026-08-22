@@ -6,6 +6,7 @@ export enum ErrorType {
     API = 'api',
     PLAYBACK = 'playback',
     SSL = 'ssl',
+    AUDIO = 'audio',
     UNKNOWN = 'unknown',
 }
 
@@ -19,6 +20,17 @@ const ERROR_SIGNATURES = {
     ssl: ['SSLHandshakeException', 'CertPathValidatorException', 'Trust anchor for certification path not found'],
     network: ['HttpDataSourceException', 'IOException', 'SocketTimeoutException', 'Network', 'timeout'],
     api: ['404', '500', '403', 'API_URL_NOT_SET', 'UNAUTHORIZED'],
+    audio: [
+        'AudioSink',
+        'AudioTrack',
+        'DeadObjectException',
+        'AudioTrack.write',
+        'audio sink error',
+        'AudioTrack.ERROR_DEAD_OBJECT',
+        'AudioSink$WriteException',
+        'AudioSink$InitializationException',
+        'AudioSink$ConfigurationException',
+    ],
 } as const;
 
 class ErrorService {
@@ -49,6 +61,7 @@ class ErrorService {
     detectErrorType(error: unknown): ErrorType {
         const message = this.getErrorMessage(error).toLowerCase();
 
+        if (ERROR_SIGNATURES.audio.some(token => message.includes(token.toLowerCase()))) return ErrorType.AUDIO;
         if (ERROR_SIGNATURES.ssl.some(token => message.includes(token.toLowerCase()))) return ErrorType.SSL;
         if (ERROR_SIGNATURES.network.some(token => message.includes(token.toLowerCase()))) return ErrorType.NETWORK;
         if (ERROR_SIGNATURES.api.some(token => message.includes(token.toLowerCase()))) return ErrorType.API;
@@ -61,6 +74,11 @@ class ErrorService {
      */
     formatMessage(error: unknown): string {
         const message = this.getErrorMessage(error);
+
+        // Audio specific messages
+        if (ERROR_SIGNATURES.audio.some(token => message.toLowerCase().includes(token.toLowerCase()))) {
+            return "音频设备连接变动，正在恢复播放...";
+        }
 
         // API specific messages
         if (message === "API_URL_NOT_SET") return "请点击右上角设置按钮，配置您的服务器地址";

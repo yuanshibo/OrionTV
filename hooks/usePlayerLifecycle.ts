@@ -1,32 +1,61 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { AppState, AppStateStatus, BackHandler } from 'react-native';
 import { useRouter } from 'expo-router';
 import { VideoPlayer } from 'expo-video';
+import { PlaybackState } from '@/stores/playerStore';
 
 interface PlayerLifecycleProps {
   player: VideoPlayer | null;
+  status: PlaybackState | null;
   showControls: boolean;
+  showRelatedVideos: boolean;
   flushPlaybackRecord: () => void;
   setShowControls: (show: boolean) => void;
+  setShowRelatedVideos: (show: boolean) => void;
 }
 
 export function usePlayerLifecycle({
   player,
+  status,
   showControls,
+  showRelatedVideos,
   flushPlaybackRecord,
   setShowControls,
+  setShowRelatedVideos,
 }: PlayerLifecycleProps) {
   const router = useRouter();
+  const wasPlayingBeforeBackgroundRef = useRef<boolean>(false);
+  const isPlayingCurrentRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    isPlayingCurrentRef.current = Boolean(status?.isPlaying);
+  }, [status?.isPlaying]);
 
   useEffect(() => {
     const handleAppStateChange = (nextAppState: AppStateStatus) => {
       if (!player) return;
+
       if (nextAppState === 'background' || nextAppState === 'inactive') {
-        player.pause();
-        flushPlaybackRecord();
+        wasPlayingBeforeBackgroundRef.current = isPlayingCurrentRef.current;
+        try {
+          player.pause();
+        } catch (err) {
+          console.warn('[LIFECYCLE] Safe pause failed:', err);
+        }
+        try {
+          flushPlaybackRecord();
+        } catch (err) {
+          console.warn('[LIFECYCLE] Safe flush record failed:', err);
+        }
       } else if (nextAppState === 'active') {
-        // Depending on the desired UX, you might want to resume playback automatically.
-         player.play();
+        // Only resume if the video was actually playing before going to the background
+        if (wasPlayingBeforeBackgroundRef.current) {
+          try {
+            player.play();
+          } catch (err) {
+            console.warn('[LIFECYCLE] Safe resume play failed:', err);
+          }
+        }
       }
     };
 
@@ -36,18 +65,32 @@ export function usePlayerLifecycle({
 
   useEffect(() => {
     const backAction = () => {
+      if (showRelatedVideos) {
+        setShowRelatedVideos(false);
+        if (router.canGoBack()) {
+          router.back();
+        }
+        return true;
+      }
+
       if (showControls) {
         setShowControls(false);
-        return true; // Prevent default behavior (exiting the app)
+        return true;
       }
-      flushPlaybackRecord();
+
+      try {
+        flushPlaybackRecord();
+      } catch (err) {
+        console.warn('[LIFECYCLE] Failed to flush playback record on back:', err);
+      }
+
       if (router.canGoBack()) {
         router.back();
       }
-      return true; // Prevent default behavior
+      return true;
     };
 
     const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
     return () => backHandler.remove();
-  }, [showControls, setShowControls, router, flushPlaybackRecord]); // `player` has been removed as it's not a dependency
+  }, [showControls, showRelatedVideos, setShowControls, setShowRelatedVideos, router, flushPlaybackRecord]);
 }
