@@ -492,6 +492,11 @@ const useDetailStore = create<DetailState>((set, get) => ({
 
     if (availableSources.length === 0) {
       logger.error(`[SOURCE_SELECTION] No available sources for episode ${episodeIndex + 1}`);
+      // If all sources were marked failed, reset failedSources so subsequent user interactions can re-attempt
+      if (failedSources.size > 0) {
+        logger.info(`[SOURCE_SELECTION] Resetting failedSources set for recovery`);
+        set({ failedSources: new Set() });
+      }
       return null;
     }
 

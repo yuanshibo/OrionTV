@@ -284,7 +284,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
     },
 
     handlePlaybackStatusUpdate: (newStatus) => {
-      const { isSeekBuffering, seekPosition, status: oldStatus, router, currentEpisodeIndex, episodes, outroStartTime, playEpisode, _savePlayRecord, setShowRelatedVideos } = get();
+      const { isSeekBuffering, seekPosition, status: oldStatus, router, currentEpisodeIndex, episodes, outroStartTime, playEpisode, _savePlayRecord } = get();
 
       const nextState: Partial<PlayerState> = { status: newStatus };
 
@@ -392,11 +392,15 @@ const usePlayerStore = create<PlayerState>((set, get) => {
       if (!immediate) {
         if (get()._isRecordSaveThrottled) return;
         set({ _isRecordSaveThrottled: true });
-        setTimeout(() => set({ _isRecordSaveThrottled: false }), 10000);
+        setTimeout(() => {
+          if (usePlayerStore.getState()._isRecordSaveThrottled) {
+            set({ _isRecordSaveThrottled: false });
+          }
+        }, 10000);
       }
       const { detail } = useDetailStore.getState();
       const { currentEpisodeIndex, episodes, status, introEndTime, outroStartTime } = get();
-      if (detail && status?.isLoaded) {
+      if (detail && status?.isLoaded && status.positionMillis > 0) {
         PlayRecordManager.save(detail.source, detail.id.toString(), {
           title: detail.title,
           description: detail.desc,
@@ -411,6 +415,8 @@ const usePlayerStore = create<PlayerState>((set, get) => {
           introEndTime,
           outroStartTime,
           ...updates,
+        }).catch((err) => {
+          logger.debug("Failed to persist play record:", err);
         });
       }
     },

@@ -41,10 +41,9 @@ export default function PlayScreen() {
   const detail = useDetailStore((state) => state.detail);
   const initDetail = useDetailStore((state) => state.init);
 
-  const { isLoaded, isBuffering, isPlaying } = usePlayerStore(useShallow(state => ({
+  const { isLoaded, isBuffering } = usePlayerStore(useShallow(state => ({
     isLoaded: state.status?.isLoaded ?? false,
     isBuffering: state.status?.isBuffering ?? false,
-    isPlaying: state.status?.isPlaying ?? false,
   })));
 
   const isLoading = usePlayerStore((state) => state.isLoading);
@@ -82,7 +81,7 @@ export default function PlayScreen() {
     deviceType,
   });
 
-  useKeepAwake(isPlaying ? "video" : undefined);
+  useKeepAwake();
 
   const { onScreenPress } = usePlayerInteractions(deviceType);
 

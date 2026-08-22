@@ -47,7 +47,27 @@ export default function LivePlayer({ streamUrl, channelTitle, onPlaybackStatusUp
     [onPlaybackStatusUpdate],
   );
 
+  const retryCountRef = useRef(0);
+  const MAX_LIVE_RETRIES = 3;
+
+  const retryStream = useCallback(() => {
+    if (!player || !streamUrl) return;
+    setIsLoading(true);
+    setIsTimeout(false);
+    emitStatusUpdate({ isLoaded: false, isBuffering: true, error: undefined });
+    try {
+      if (typeof (player as any).replace === "function") {
+        (player as any).replace(streamUrl);
+      } else {
+        player.replay();
+      }
+    } catch (err) {
+      console.warn("[LIVE] Retry failed:", err);
+    }
+  }, [player, streamUrl, emitStatusUpdate]);
+
   useEffect(() => {
+    retryCountRef.current = 0;
     statusRef.current = createInitialPlaybackState();
     onPlaybackStatusUpdate({ ...statusRef.current });
   }, [streamUrl, onPlaybackStatusUpdate, player]);
@@ -61,8 +81,14 @@ export default function LivePlayer({ streamUrl, channelTitle, onPlaybackStatusUp
       setIsLoading(true);
       setIsTimeout(false);
       timeoutRef.current = setTimeout(() => {
-        setIsTimeout(true);
-        setIsLoading(false);
+        if (retryCountRef.current < MAX_LIVE_RETRIES) {
+          retryCountRef.current += 1;
+          console.warn(`[LIVE] Initial load timed out, retrying (${retryCountRef.current}/${MAX_LIVE_RETRIES})...`);
+          retryStream();
+        } else {
+          setIsTimeout(true);
+          setIsLoading(false);
+        }
       }, PLAYBACK_TIMEOUT);
     } else {
       setIsLoading(false);
@@ -74,7 +100,7 @@ export default function LivePlayer({ streamUrl, channelTitle, onPlaybackStatusUp
         clearTimeout(timeoutRef.current);
       }
     };
-  }, [streamUrl]);
+  }, [streamUrl, retryStream]);
 
   useEffect(() => {
     if (!player) {
@@ -94,6 +120,7 @@ export default function LivePlayer({ streamUrl, channelTitle, onPlaybackStatusUp
           case "readyToPlay":
             setIsLoading(false);
             setIsTimeout(false);
+            retryCountRef.current = 0;
             emitStatusUpdate({ isLoaded: true, isBuffering: false, error: undefined });
             try {
               player.play();
@@ -106,14 +133,23 @@ export default function LivePlayer({ streamUrl, channelTitle, onPlaybackStatusUp
             break;
           case "error": {
             const message = error?.message ?? "Live playback error";
-            setIsLoading(false);
-            setIsTimeout(true);
-            emitStatusUpdate({
-              isLoaded: false,
-              isPlaying: false,
-              isBuffering: false,
-              error: message,
-            });
+            console.warn(`[LIVE] Error: ${message}, retry count: ${retryCountRef.current}`);
+            if (retryCountRef.current < MAX_LIVE_RETRIES) {
+              retryCountRef.current += 1;
+              const delay = retryCountRef.current * 2000;
+              setTimeout(() => {
+                retryStream();
+              }, delay);
+            } else {
+              setIsLoading(false);
+              setIsTimeout(true);
+              emitStatusUpdate({
+                isLoaded: false,
+                isPlaying: false,
+                isBuffering: false,
+                error: message,
+              });
+            }
             if (timeoutRef.current) {
               clearTimeout(timeoutRef.current);
             }
@@ -127,6 +163,7 @@ export default function LivePlayer({ streamUrl, channelTitle, onPlaybackStatusUp
         if (isPlaying) {
           setIsLoading(false);
           setIsTimeout(false);
+          retryCountRef.current = 0;
           if (timeoutRef.current) {
             clearTimeout(timeoutRef.current);
           }
@@ -154,7 +191,7 @@ export default function LivePlayer({ streamUrl, channelTitle, onPlaybackStatusUp
     return () => {
       subscriptions.forEach((subscription) => subscription.remove());
     };
-  }, [player, emitStatusUpdate]);
+  }, [player, emitStatusUpdate, retryStream]);
 
   const styles = useMemo(() => StyleSheet.create({
     container: {

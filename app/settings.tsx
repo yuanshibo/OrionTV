@@ -69,14 +69,32 @@ export default function SettingsScreen() {
   }, [lastMessage, targetPage]);
 
   const handleRemoteInput = (message: string) => {
-    // Handle remote input based on currently focused section
-    if (currentSection === "api" && apiSectionRef.current) {
-      // API Config Section
-      setApiBaseUrl(message);
-    } else if (currentSection === "livestream" && liveStreamSectionRef.current) {
-      // Live Stream Section
-      setM3uUrl(message);
+    if (message.startsWith("api:")) {
+      const url = message.slice(4).trim();
+      setApiBaseUrl(url);
+      Toast.show({ type: "success", text1: "已填入远程 API 地址", text2: url });
+      markAsChanged();
+      return;
     }
+
+    if (message.startsWith("m3u:")) {
+      const url = message.slice(4).trim();
+      setM3uUrl(url);
+      Toast.show({ type: "success", text1: "已填入远程直播源地址", text2: url });
+      markAsChanged();
+      return;
+    }
+
+    // Fallback for plain messages
+    const trimmed = message.trim();
+    if (trimmed.toLowerCase().endsWith(".m3u") || trimmed.toLowerCase().includes(".m3u?") || currentSection === "livestream") {
+      setM3uUrl(trimmed);
+      Toast.show({ type: "success", text1: "已填入直播源地址", text2: trimmed });
+    } else {
+      setApiBaseUrl(trimmed);
+      Toast.show({ type: "success", text1: "已填入 API 地址", text2: trimmed });
+    }
+    markAsChanged();
   };
 
   const handleSave = async () => {
