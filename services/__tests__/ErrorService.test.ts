@@ -36,12 +36,20 @@ describe('ErrorService', () => {
             expect(errorService.detectErrorType('API_URL_NOT_SET')).toBe(ErrorType.API);
         });
 
+        it('should detect Audio errors', () => {
+            expect(errorService.detectErrorType('AudioSink error: DeadObjectException')).toBe(ErrorType.AUDIO);
+            expect(errorService.detectErrorType(new Error('AudioTrack.write failed'))).toBe(ErrorType.AUDIO);
+        });
+
         it('should return UNKNOWN for other errors', () => {
             expect(errorService.detectErrorType('Random Error')).toBe(ErrorType.UNKNOWN);
         });
     });
 
     describe('formatMessage', () => {
+        it('should format Audio device errors', () => {
+            expect(errorService.formatMessage('AudioSink error')).toBe('音频设备连接变动，正在恢复播放...');
+        });
         it('should format API configuration errors', () => {
             expect(errorService.formatMessage('API_URL_NOT_SET')).toBe('请点击右上角设置按钮，配置您的服务器地址');
         });

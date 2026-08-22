@@ -1,5 +1,5 @@
 import React, { useEffect, useCallback } from "react";
-import { StyleSheet, BackHandler } from "react-native";
+import { StyleSheet } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useKeepAwake } from "expo-keep-awake";
 import { ThemedView } from "@/components/ThemedView";
@@ -41,12 +41,12 @@ export default function PlayScreen() {
   const detail = useDetailStore((state) => state.detail);
   const initDetail = useDetailStore((state) => state.init);
 
-  const { isLoaded, isBuffering, isPlaying } = usePlayerStore(useShallow(state => ({
+  const { isLoaded, isBuffering } = usePlayerStore(useShallow(state => ({
     isLoaded: state.status?.isLoaded ?? false,
     isBuffering: state.status?.isBuffering ?? false,
-    isPlaying: state.status?.isPlaying ?? false,
   })));
 
+  const status = usePlayerStore((state) => state.status);
   const isLoading = usePlayerStore((state) => state.isLoading);
   const isSeeking = usePlayerStore((state) => state.isSeeking);
   const isSeekBuffering = usePlayerStore((state) => state.isSeekBuffering);
@@ -82,7 +82,7 @@ export default function PlayScreen() {
     deviceType,
   });
 
-  useKeepAwake(isPlaying ? "video" : undefined);
+  useKeepAwake();
 
   const { onScreenPress } = usePlayerInteractions(deviceType);
 
@@ -95,29 +95,13 @@ export default function PlayScreen() {
 
   usePlayerLifecycle({
     player,
+    status,
     showControls,
+    showRelatedVideos,
     flushPlaybackRecord,
     setShowControls,
+    setShowRelatedVideos,
   });
-
-  // Effect to handle hardware back press for the details view
-  useEffect(() => {
-    const backAction = () => {
-      if (showRelatedVideos) {
-        setShowRelatedVideos(false);
-        router.back();
-        return true;
-      }
-      return false; // Allow default behavior
-    };
-
-    const backHandler = BackHandler.addEventListener(
-      "hardwareBackPress",
-      backAction
-    );
-
-    return () => backHandler.remove();
-  }, [showRelatedVideos, setShowRelatedVideos, router]);
 
   useEffect(() => {
     const source = sourceStr;
@@ -132,10 +116,16 @@ export default function PlayScreen() {
   }, [sourceStr, videoId, videoTitle, initDetail, setError]);
 
   useEffect(() => {
-    if (detail && detail.id.toString() === videoId) {
-      loadVideo({ detail, episodeIndex, position, router });
+    if (detail && detail.episodes && detail.episodes.length > 0) {
+      const matchesTitle = videoTitle ? detail.title === videoTitle : true;
+      const matchesId = videoId ? detail.id.toString() === videoId : true;
+      const matchesSource = sourceStr ? detail.source === sourceStr : true;
+
+      if (matchesTitle || matchesId || matchesSource) {
+        loadVideo({ detail, episodeIndex, position, router });
+      }
     }
-  }, [detail, videoId, episodeIndex, position, router, loadVideo]);
+  }, [detail, videoId, videoTitle, sourceStr, episodeIndex, position, router, loadVideo]);
 
   useEffect(() => {
     return () => {

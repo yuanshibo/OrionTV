@@ -2,105 +2,161 @@ import Logger from '@/utils/Logger';
 
 const logger = Logger.withTag('M3U8');
 
+export interface M3U8ProbeResult {
+  available: boolean;
+  resolution: string | null;
+  error?: string;
+}
+
 interface CacheEntry {
+  available: boolean;
   resolution: string | null;
   timestamp: number;
 }
 
-const resolutionCache: { [url: string]: CacheEntry } = {};
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+const probeCache: { [url: string]: CacheEntry } = {};
+const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes
 
-export const getResolutionFromM3U8 = async (
+export const probeM3U8 = async (
   url: string,
-  signal?: AbortSignal
-): Promise<string | null> => {
-  const perfStart = performance.now();
-  // logger.info(`[PERF] M3U8 resolution detection START - url: ${url.substring(0, 100)}...`);
+  externalSignal?: AbortSignal,
+  timeoutMs = 3500
+): Promise<M3U8ProbeResult> => {
+  if (!url || typeof url !== 'string') {
+    return { available: false, resolution: null, error: 'Empty URL' };
+  }
 
   // 1. Check cache first
-  const cachedEntry = resolutionCache[url];
-  if (cachedEntry && Date.now() - cachedEntry.timestamp < CACHE_DURATION) {
-    // const perfEnd = performance.now();
-    // logger.info(`[PERF] M3U8 resolution detection CACHED - took ${(perfEnd - perfStart).toFixed(2)}ms, resolution: ${cachedEntry.resolution}`);
-    return cachedEntry.resolution;
+  const cached = probeCache[url];
+  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+    return {
+      available: cached.available,
+      resolution: cached.resolution,
+    };
   }
 
-  // Relaxed check: allow query params or just check for .m3u8 in the string
-  if (!url.includes(".m3u8")) {
-    // logger.info(`[PERF] M3U8 resolution detection SKIPPED - not M3U8 file`);
-    // return null; 
-    // Actually, some m3u8 urls might not have the extension visible? 
-    // But for now, let's just relax to 'includes' to handle query params.
+  // Set up 3.5s timeout controller with external signal support
+  const timeoutController = new AbortController();
+  const timeoutId = setTimeout(() => timeoutController.abort(), timeoutMs);
+
+  let combinedSignal = timeoutController.signal;
+  let abortHandler: (() => void) | undefined;
+
+  if (externalSignal) {
+    if (externalSignal.aborted) {
+      clearTimeout(timeoutId);
+      return { available: false, resolution: null, error: 'Aborted' };
+    }
+    abortHandler = () => timeoutController.abort();
+    externalSignal.addEventListener('abort', abortHandler);
   }
+
+  const perfStart = performance.now();
 
   try {
-    const fetchStart = performance.now();
     const response = await fetch(url, {
-      signal,
+      signal: combinedSignal,
       headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-      }
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        Accept: '*/*',
+      },
     });
-    const fetchEnd = performance.now();
-    // logger.info(`[PERF] M3U8 fetch took ${(fetchEnd - fetchStart).toFixed(2)}ms, status: ${response.status}`);
 
-    if (!response.ok) {
-      return null;
+    clearTimeout(timeoutId);
+    if (abortHandler && externalSignal) {
+      externalSignal.removeEventListener('abort', abortHandler);
     }
 
-    // Optional: Check Content-Type if strictness is needed, but some servers send wrong types.
-    // const contentType = response.headers.get("Content-Type");
-    // if (contentType && !contentType.includes("mpegurl") && !contentType.includes("text/")) { ... }
+    if (!response.ok) {
+      const result: M3U8ProbeResult = {
+        available: false,
+        resolution: null,
+        error: `HTTP ${response.status}`,
+      };
+      probeCache[url] = { available: false, resolution: null, timestamp: Date.now() };
+      return result;
+    }
 
-    const parseStart = performance.now();
     const playlist = await response.text();
-    const lines = playlist.split("\n");
+    const lines = playlist.split('\n');
     let highestResolution = 0;
     let resolutionString: string | null = null;
 
     for (const line of lines) {
-      if (line.startsWith("#EXT-X-STREAM-INF")) {
-        const resolutionMatch = line.match(/RESOLUTION=(\d+)x(\d+)/);
+      if (line.startsWith('#EXT-X-STREAM-INF')) {
+        const resolutionMatch = line.match(/RESOLUTION=(\d+)x(\d+)/i);
         if (resolutionMatch) {
           const height = parseInt(resolutionMatch[2], 10);
           if (height > highestResolution) {
             highestResolution = height;
-            resolutionString = `${height}p`;
+            if (height >= 2160) resolutionString = '4K';
+            else if (height >= 1440) resolutionString = '2K';
+            else if (height >= 1080) resolutionString = '1080p';
+            else if (height >= 720) resolutionString = '720p';
+            else if (height >= 540) resolutionString = '540p';
+            else if (height >= 480) resolutionString = '480p';
+            else resolutionString = `${height}p`;
           }
         }
       }
     }
 
     if (!resolutionString) {
-      // Fallback: Try to guess from URL
-      const urlLower = url.toLowerCase();
-      if (urlLower.match(/\/4k\/|4k\.|-4k/)) {
-        resolutionString = "4K";
-      } else if (urlLower.match(/\/1080[pP]\/|1080[pP]\.|-1080[pP]/)) {
-        resolutionString = "1080p";
-      } else if (urlLower.match(/\/720[pP]\/|720[pP]\.|-720[pP]/)) {
-        resolutionString = "720p";
-      } else if (urlLower.match(/\/480[pP]\/|480[pP]\.|-480[pP]/)) {
-        resolutionString = "480p";
+      // Fallback: Try to guess from playlist content and URL patterns
+      const combinedText = (url + ' ' + playlist.slice(0, 500)).toLowerCase();
+      if (combinedText.match(/\/4k\/|4k\.|-4k|2160p|2160/i)) {
+        resolutionString = '4K';
+      } else if (combinedText.match(/\/1080[pP]\/|1080[pP]\.|-1080[pP]|1080p|1080/i)) {
+        resolutionString = '1080p';
+      } else if (combinedText.match(/\/720[pP]\/|720[pP]\.|-720[pP]|720p|720/i)) {
+        resolutionString = '720p';
+      } else if (combinedText.match(/\/480[pP]\/|480[pP]\.|-480[pP]|480p|480/i)) {
+        resolutionString = '480p';
       }
     }
 
-    const parseEnd = performance.now();
-    // logger.info(`[PERF] M3U8 parsing took ${(parseEnd - parseStart).toFixed(2)}ms, lines: ${lines.length}`);
+    const perfEnd = performance.now();
+    logger.debug(
+      `[PROBE] M3U8 probe success: took ${(perfEnd - perfStart).toFixed(1)}ms, resolution: ${resolutionString || 'unknown'}`
+    );
 
-    // 2. Store result in cache
-    resolutionCache[url] = {
+    probeCache[url] = {
+      available: true,
       resolution: resolutionString,
       timestamp: Date.now(),
     };
 
-    const perfEnd = performance.now();
-    logger.info(`[PERF] M3U8 resolution detection COMPLETE - took ${(perfEnd - perfStart).toFixed(2)}ms, resolution: ${resolutionString}`);
-
-    return resolutionString;
+    return {
+      available: true,
+      resolution: resolutionString,
+    };
   } catch (error) {
+    clearTimeout(timeoutId);
+    if (abortHandler && externalSignal) {
+      externalSignal.removeEventListener('abort', abortHandler);
+    }
     const perfEnd = performance.now();
-    logger.debug(`[PERF] M3U8 resolution detection ERROR - took ${(perfEnd - perfStart).toFixed(2)}ms, error: ${error}`);
-    return null;
+    const isTimeout = combinedSignal.aborted && !externalSignal?.aborted;
+    const errorMsg = isTimeout ? 'Timeout (3.5s)' : error instanceof Error ? error.message : 'Network error';
+
+    logger.debug(`[PROBE] M3U8 probe failed in ${(perfEnd - perfStart).toFixed(1)}ms: ${errorMsg}`);
+
+    const result: M3U8ProbeResult = {
+      available: false,
+      resolution: null,
+      error: errorMsg,
+    };
+
+    probeCache[url] = { available: false, resolution: null, timestamp: Date.now() };
+    return result;
   }
+};
+
+export const getResolutionFromM3U8 = async (
+  url: string,
+  signal?: AbortSignal
+): Promise<string | null> => {
+  const result = await probeM3U8(url, signal);
+  return result.resolution;
 };

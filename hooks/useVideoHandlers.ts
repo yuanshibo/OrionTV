@@ -39,13 +39,13 @@ export const useVideoHandlers = ({
 }: UseVideoHandlersProps): UseVideoHandlersResult => {
   const player = useVideoPlayer(currentEpisode?.url ?? null, (instance: VideoPlayer) => {
     instance.loop = false;
-    instance.timeUpdateEventInterval = 0.25; // Smoother progress updates (4Hz)
+    instance.timeUpdateEventInterval = 0.5; // Optimal progress updates (2Hz) for TV performance
     instance.keepScreenOnWhilePlaying = true;
   });
 
   const statusRef = useRef<PlaybackState>(createInitialPlaybackState());
   const pendingSeekRef = useRef<number>(0);
-  const lastErrorRef = useRef<string | null>(null);
+  const lastErrorUrlRef = useRef<string | null>(null);
 
   const emitStatusUpdate = useCallback(
     (updates: Partial<PlaybackState>) => {
@@ -55,10 +55,13 @@ export const useVideoHandlers = ({
     [handlePlaybackStatusUpdate],
   );
 
+  const lastValidPositionRef = useRef<number>(0);
+
   useEffect(() => {
     statusRef.current = createInitialPlaybackState();
     handlePlaybackStatusUpdate(statusRef.current);
-    lastErrorRef.current = null;
+    lastErrorUrlRef.current = null;
+    lastValidPositionRef.current = 0;
   }, [currentEpisode?.url, handlePlaybackStatusUpdate]);
 
   useEffect(() => {
@@ -83,9 +86,13 @@ export const useVideoHandlers = ({
       emitStatusUpdate({ durationMillis: undefined });
       return;
     }
-    const durationSeconds = player.duration;
-    const durationMillis = Number.isFinite(durationSeconds) && durationSeconds > 0 ? durationSeconds * 1000 : undefined;
-    emitStatusUpdate({ durationMillis });
+    try {
+      const durationSeconds = player.duration;
+      const durationMillis = Number.isFinite(durationSeconds) && durationSeconds > 0 ? durationSeconds * 1000 : undefined;
+      emitStatusUpdate({ durationMillis });
+    } catch (e) {
+      console.warn('[VIDEO] Failed to read duration', e);
+    }
   }, [player, emitStatusUpdate]);
 
   useEffect(() => {
@@ -108,26 +115,43 @@ export const useVideoHandlers = ({
             } catch (err) {
               console.warn('[VIDEO] Failed to start playback automatically', err);
             }
-            lastErrorRef.current = null;
+            lastErrorUrlRef.current = null;
             break;
           case 'idle':
             emitStatusUpdate({ isLoaded: false, isPlaying: false, isBuffering: false });
             break;
           case 'error': {
             const message = error?.message ?? 'Unknown playback error';
-            if (currentEpisode?.url && lastErrorRef.current !== message) {
-              lastErrorRef.current = message;
-              const { handleVideoError } = usePlayerStore.getState();
-
-              // Use ErrorService to detect and handle error
+            if (currentEpisode?.url && lastErrorUrlRef.current !== currentEpisode.url) {
               const errorType = errorService.detectErrorType(message);
 
-              // Map ErrorService types to handleVideoError expected types
+              // Audio device routing change (e.g. Bluetooth speaker disconnected)
+              if (errorType === ErrorType.AUDIO) {
+                console.warn(`[VIDEO] Audio output changed/disconnected (${message}). Recovering playback...`);
+                errorService.showToast('音频设备变动，正在自动恢复...', 'info');
+                const resumePosition = lastValidPositionRef.current;
+                pendingSeekRef.current = resumePosition;
+
+                try {
+                  if (typeof (player as any).replace === 'function') {
+                    (player as any).replace(currentEpisode.url);
+                  } else {
+                    player.replay();
+                  }
+                  return;
+                } catch (recoveryErr) {
+                  console.warn('[VIDEO] Audio recovery failed, falling back to source switch', recoveryErr);
+                }
+              }
+
+              lastErrorUrlRef.current = currentEpisode.url;
+              const { handleVideoError } = usePlayerStore.getState();
+
               let handlerErrorType: 'ssl' | 'network' | 'other' = 'other';
               if (errorType === ErrorType.SSL) handlerErrorType = 'ssl';
               if (errorType === ErrorType.NETWORK) handlerErrorType = 'network';
 
-              errorService.showToast(errorService.formatMessage(message), 'error', '请稍候');
+              errorService.showToast(errorService.formatMessage(message), 'error', '正在切换播放源...');
               handleVideoError(handlerErrorType, currentEpisode.url);
             }
             break;
@@ -139,8 +163,12 @@ export const useVideoHandlers = ({
         emitStatusUpdate({ isPlaying });
       }),
       eventedPlayer.addListener('timeUpdate', ({ currentTime, bufferedPosition }: TimeUpdateEventPayload) => {
+        const posMillis = currentTime * 1000;
+        if (posMillis > 0) {
+          lastValidPositionRef.current = posMillis;
+        }
         emitStatusUpdate({
-          positionMillis: currentTime * 1000,
+          positionMillis: posMillis,
           playableDurationMillis: bufferedPosition >= 0 ? bufferedPosition * 1000 : undefined,
           didJustFinish: false,
         });

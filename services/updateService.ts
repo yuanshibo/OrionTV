@@ -23,46 +23,54 @@ class UpdateService {
   }
 
   async checkVersion(): Promise<VersionInfo> {
-    let retries = 0;
-    const maxRetries = 3;
-    
-    while (retries < maxRetries) {
+    const urls = UPDATE_CONFIG.VERSION_CHECK_URLS;
+    let lastError: unknown;
+
+    for (let i = 0; i < urls.length; i++) {
+      const url = urls[i];
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8秒超时
+
       try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒超时
-        
-        const response = await fetch(UPDATE_CONFIG.GITHUB_RAW_URL, {
+        logger.debug(`Checking version against mirror (${i + 1}/${urls.length}): ${url.split('?')[0]}`);
+        const response = await fetch(url, {
           signal: controller.signal,
+          headers: {
+            Accept: "application/json",
+            "User-Agent": "Mozilla/5.0 (Linux; Android TV; OrionTV)",
+            "Cache-Control": "no-cache",
+          },
         });
-        
+
         clearTimeout(timeoutId);
 
         if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: Failed to fetch version info`);
+          throw new Error(`HTTP ${response.status}`);
         }
 
         const remotePackage = await response.json();
-        const remoteVersion = remotePackage.version;
+        const remoteVersion = remotePackage?.version;
+
+        if (!remoteVersion) {
+          throw new Error("Invalid package.json format");
+        }
+
+        logger.info(`Successfully fetched version info: v${remoteVersion} from mirror ${i + 1}`);
 
         return {
           version: remoteVersion,
           downloadUrl: UPDATE_CONFIG.getDownloadUrl(remoteVersion),
         };
       } catch (error) {
-        retries++;
-        logger.info(`Error checking version (attempt ${retries}/${maxRetries}):`, error);
-        
-        if (retries === maxRetries) {
-          Toast.show({ type: "error", text1: "检查更新失败", text2: "无法获取版本信息，请检查网络连接" });
-          throw error;
-        }
-        
-        // 等待一段时间后重试
-        await new Promise(resolve => setTimeout(resolve, 2000 * retries));
+        clearTimeout(timeoutId);
+        lastError = error;
+        logger.info(`Version check mirror ${i + 1} failed: ${error}`);
       }
     }
-    
-    throw new Error("Maximum retry attempts exceeded");
+
+    logger.warn("All update check mirrors failed:", lastError);
+    Toast.show({ type: "error", text1: "检查更新失败", text2: "无法获取版本信息，请检查网络连接" });
+    throw new Error("无法连接到更新服务器，请检查网络连接");
   }
 
   // 清理旧的APK文件
@@ -101,42 +109,36 @@ class UpdateService {
   }
 
   async downloadApk(url: string, onProgress?: (progress: number) => void): Promise<string> {
-    let retries = 0;
-    const maxRetries = 3;
-    
     // 清理旧文件
     await this.cleanOldApkFiles();
-    
-    while (retries < maxRetries) {
+
+    const versionMatch = url.match(/v(\d+\.\d+\.\d+)/);
+    const candidates = versionMatch ? UPDATE_CONFIG.getDownloadUrls(versionMatch[1]) : [url];
+    let lastError: unknown;
+
+    for (let i = 0; i < candidates.length; i++) {
+      const downloadTarget = candidates[i];
       try {
+        logger.info(`Attempting APK download from (${i + 1}/${candidates.length}): ${downloadTarget}`);
         const { dirs } = ReactNativeBlobUtil.fs;
         const timestamp = new Date().getTime();
         const fileName = `OrionTV_v${timestamp}.apk`;
-        // 使用应用的外部文件目录，而不是系统下载目录
         const filePath = `${dirs.DocumentDir}/${fileName}`;
 
         const task = ReactNativeBlobUtil.config({
           fileCache: true,
           path: filePath,
           timeout: UPDATE_CONFIG.DOWNLOAD_TIMEOUT,
-          // 移除 addAndroidDownloads 配置，避免使用系统下载管理器
-          // addAndroidDownloads: {
-          //   useDownloadManager: true,
-          //   notification: true,
-          //   title: UPDATE_CONFIG.NOTIFICATION.TITLE,
-          //   description: UPDATE_CONFIG.NOTIFICATION.DOWNLOADING_TEXT,
-          //   mime: "application/vnd.android.package-archive",
-          //   mediaScannable: true,
-          // },
-        }).fetch("GET", url);
+        }).fetch("GET", downloadTarget);
 
-        // 监听下载进度
         if (onProgress) {
           task.progress((received: string, total: string) => {
             const receivedNum = parseInt(received, 10);
             const totalNum = parseInt(total, 10);
-            const progress = Math.floor((receivedNum / totalNum) * 100);
-            onProgress(progress);
+            if (totalNum > 0) {
+              const progress = Math.floor((receivedNum / totalNum) * 100);
+              onProgress(progress);
+            }
           });
         }
 
@@ -144,20 +146,13 @@ class UpdateService {
         logger.debug(`APK downloaded successfully: ${filePath}`);
         return res.path();
       } catch (error) {
-        retries++;
-        logger.info(`Error downloading APK (attempt ${retries}/${maxRetries}):`, error);
-        
-        if (retries === maxRetries) {
-          Toast.show({ type: "error", text1: "下载失败", text2: "APK下载失败，请检查网络连接" });
-          throw new Error(`Download failed after ${maxRetries} attempts: ${error}`);
-        }
-        
-        // 等待一段时间后重试
-        await new Promise(resolve => setTimeout(resolve, 3000 * retries));
+        lastError = error;
+        logger.warn(`Download candidate ${i + 1} failed:`, error);
       }
     }
-    
-    throw new Error("Maximum retry attempts exceeded for download");
+
+    Toast.show({ type: "error", text1: "下载失败", text2: "APK下载失败，请检查网络连接" });
+    throw new Error(`Download failed after all mirror attempts: ${lastError}`);
   }
 
   async installApk(filePath: string): Promise<void> {

@@ -74,6 +74,11 @@ const SourceButton = memo(React.forwardRef<View, SourceButtonProps>(({ item, isS
         <ThemedText style={styles.sourceMetaText}>
           ・{item.episodes.length > 99 ? "99+" : item.episodes.length}集
         </ThemedText>
+        {item.resolution && (
+          <View style={[styles.badge, { backgroundColor: isSelected ? 'rgba(255,255,255,0.25)' : colors.border, marginLeft: 6 }]}>
+            <Text style={styles.badgeText}>{item.resolution}</Text>
+          </View>
+        )}
       </View>
     </StyledButton>
   );

@@ -5,13 +5,30 @@ export const UPDATE_CONFIG = {
   // 检查更新间隔（毫秒）
   CHECK_INTERVAL: 12 * 60 * 60 * 1000, // 12小时
 
-  // GitHub相关URL
-  GITHUB_RAW_URL:
-    `https://raw.githubusercontent.com/yuanshibo/OrionTV/refs/heads/master/package.json?t=${Date.now()}`,
+  // GitHub相关检查版本镜像URL列表 (官方直连与全球加速镜像自动容灾)
+  get VERSION_CHECK_URLS(): string[] {
+    const timestamp = Date.now();
+    return [
+      `https://raw.githubusercontent.com/yuanshibo/OrionTV/refs/heads/master/package.json?t=${timestamp}`,
+      `https://raw.githubusercontent.com/yuanshibo/OrionTV/master/package.json?t=${timestamp}`,
+      `https://cdn.jsdelivr.net/gh/yuanshibo/OrionTV@master/package.json?t=${timestamp}`,
+      `https://fastly.jsdelivr.net/gh/yuanshibo/OrionTV@master/package.json?t=${timestamp}`,
+      `https://ghproxy.net/https://raw.githubusercontent.com/yuanshibo/OrionTV/master/package.json?t=${timestamp}`,
+    ];
+  },
 
-  // 获取平台特定的下载URL
+  // 获取平台特定的下载URL (支持多镜像加速)
+  getDownloadUrls(version: string): string[] {
+    const rawUrl = `https://github.com/yuanshibo/OrionTV/releases/download/v${version}/orionTV.${version}.apk`;
+    return [
+      `https://ghproxy.net/${rawUrl}`,
+      `https://mirror.ghproxy.com/${rawUrl}`,
+      rawUrl,
+    ];
+  },
+
   getDownloadUrl(version: string): string {
-    return `https://github.com/yuanshibo/OrionTV/releases/download/v${version}/orionTV.${version}.apk`;
+    return this.getDownloadUrls(version)[0];
   },
 
   // 是否显示更新日志

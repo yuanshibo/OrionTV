@@ -1,5 +1,5 @@
 import { SearchResultWithResolution } from "@/services/api";
-import { getResolutionFromM3U8 } from "@/services/m3u8";
+import { probeM3U8, M3U8ProbeResult } from "@/services/m3u8";
 import { APP_CONFIG } from "@/constants/AppConfig";
 
 export type DetailCacheEntry = {
@@ -11,8 +11,8 @@ export type DetailCacheEntry = {
 };
 
 const detailCache = new Map<string, DetailCacheEntry>();
-const resolutionCache = new Map<string, { value: string | null | undefined; timestamp: number }>();
-const resolutionCachePending = new Map<string, Promise<string | null | undefined>>();
+const probeCache = new Map<string, { value: M3U8ProbeResult; timestamp: number }>();
+const probeCachePending = new Map<string, Promise<M3U8ProbeResult>>();
 
 export const getDetailCacheEntry = (cacheKey: string): DetailCacheEntry | null => {
   const entry = detailCache.get(cacheKey);
@@ -59,37 +59,48 @@ export const setDetailCacheEntry = (
   }
 };
 
-export const getResolutionWithCache = async (episodeUrl: string, signal?: AbortSignal) => {
+export const probeM3U8WithCache = async (
+  episodeUrl: string,
+  signal?: AbortSignal
+): Promise<M3U8ProbeResult> => {
   if (!episodeUrl) {
-    return undefined;
+    return { available: false, resolution: null, error: "Empty URL" };
   }
 
-  const cached = resolutionCache.get(episodeUrl);
+  const cached = probeCache.get(episodeUrl);
   if (cached && Date.now() - cached.timestamp < APP_CONFIG.DETAIL.RESOLUTION_CACHE_TTL) {
     return cached.value;
   }
 
-  const pending = resolutionCachePending.get(episodeUrl);
+  const pending = probeCachePending.get(episodeUrl);
   if (pending) {
     return pending;
   }
 
   const fetchPromise = (async () => {
     try {
-      const value = await getResolutionFromM3U8(episodeUrl, signal);
-      resolutionCache.set(episodeUrl, { value, timestamp: Date.now() });
-      return value;
+      const result = await probeM3U8(episodeUrl, signal);
+      probeCache.set(episodeUrl, { value: result, timestamp: Date.now() });
+      return result;
     } finally {
-      resolutionCachePending.delete(episodeUrl);
+      probeCachePending.delete(episodeUrl);
     }
   })();
 
-  resolutionCachePending.set(episodeUrl, fetchPromise);
+  probeCachePending.set(episodeUrl, fetchPromise);
 
   try {
     return await fetchPromise;
   } catch (error) {
-    resolutionCache.delete(episodeUrl);
+    probeCache.delete(episodeUrl);
     throw error;
   }
+};
+
+export const getResolutionWithCache = async (
+  episodeUrl: string,
+  signal?: AbortSignal
+): Promise<string | undefined> => {
+  const result = await probeM3U8WithCache(episodeUrl, signal);
+  return result.resolution || undefined;
 };

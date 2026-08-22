@@ -10,9 +10,10 @@ interface EpisodeButtonProps {
   textStyle?: any;
   onFocus?: (index: number) => void;
   nextFocusDown?: number | null;
+  nextFocusUp?: number | null;
 }
 
-export const EpisodeButton = memo(React.forwardRef<View, EpisodeButtonProps>(({ index, onPlay, style, textStyle, onFocus, nextFocusDown }, ref) => {
+export const EpisodeButton = memo(React.forwardRef<View, EpisodeButtonProps>(({ index, onPlay, style, textStyle, onFocus, nextFocusDown, nextFocusUp }, ref) => {
   const handlePress = useCallback(() => {
     onPlay(index);
   }, [onPlay, index]);
@@ -31,6 +32,7 @@ export const EpisodeButton = memo(React.forwardRef<View, EpisodeButtonProps>(({ 
       textStyle={textStyle}
       textProps={{ numberOfLines: 1, adjustsFontSizeToFit: true }}
       nextFocusDown={nextFocusDown}
+      nextFocusUp={nextFocusUp}
     />
   );
 }));
