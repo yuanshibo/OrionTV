@@ -56,6 +56,7 @@ interface PlayerState {
   episodes: Episode[];
   status: PlaybackState | null;
   isLoading: boolean;
+  isUserPaused: boolean;
   error?: string;
   showControls: boolean;
   showEpisodeModal: boolean;
@@ -164,6 +165,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
     currentEpisodeIndex: -1,
     status: null,
     isLoading: true,
+    isUserPaused: false,
     error: undefined,
     showControls: false,
     showEpisodeModal: false,
@@ -184,7 +186,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
     setVideoPlayer: (player) => set({ videoPlayer: player }),
 
     loadVideo: async ({ detail, episodeIndex, position, router }) => {
-      set({ status: null, isLoading: true, error: undefined, router, showRelatedVideos: false });
+      set({ status: null, isLoading: true, isUserPaused: false, error: undefined, router, showRelatedVideos: false });
 
       const episodes = detail.episodes && detail.episodes.length > 0
         ? detail.episodes
@@ -236,6 +238,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
       const mappedEpisodes = episodes.map((ep, index) => ({ url: ep, title: `第 ${index + 1} 集` }));
       set({
         isLoading: false,
+        isUserPaused: false,
         currentEpisodeIndex: episodeIndex,
         episodes: mappedEpisodes,
         ...data,
@@ -249,6 +252,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
         set({
           status: null,
           isLoading: true,
+          isUserPaused: false,
           currentEpisodeIndex: index,
           showNextEpisodeOverlay: false,
           initialPosition: introEndTime || 0,
@@ -269,7 +273,13 @@ const usePlayerStore = create<PlayerState>((set, get) => {
       const { status, videoPlayer } = get();
       if (status?.isLoaded && videoPlayer) {
         try {
-          status.isPlaying ? videoPlayer.pause() : videoPlayer.play();
+          if (status.isPlaying) {
+            videoPlayer.pause();
+            set({ isUserPaused: true });
+          } else {
+            videoPlayer.play();
+            set({ isUserPaused: false });
+          }
         } catch (e) {
           console.warn('[PLAYER] togglePlayPause error:', e);
         }
@@ -332,6 +342,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
       }
 
       if (newStatus.didJustFinish) {
+        set({ isUserPaused: true });
         if (!isEpisodeSwitching) {
           isEpisodeSwitching = true;
           setTimeout(() => { isEpisodeSwitching = false; }, 2500);
@@ -464,7 +475,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
     reset: () => {
       if (seekTimeoutId) clearTimeout(seekTimeoutId);
       set({
-        videoPlayer: null, episodes: [], currentEpisodeIndex: 0, status: null, isLoading: true, showControls: false,
+        videoPlayer: null, episodes: [], currentEpisodeIndex: 0, status: null, isLoading: true, isUserPaused: false, showControls: false,
         showEpisodeModal: false, showSourceModal: false, showSpeedModal: false, showNextEpisodeOverlay: false,
         initialPosition: 0, playbackRate: 1.0, introEndTime: undefined, outroStartTime: undefined, error: undefined,
         isSeeking: false, isSeekBuffering: false,
@@ -476,7 +487,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
     handleVideoError: async (errorType, failedUrl) => {
       const { detail } = useDetailStore.getState();
       if (!detail) {
-        set({ error: "无法回退播放源", isLoading: false, status: null });
+        set({ error: "无法回退播放源", isLoading: false, isUserPaused: false, status: null });
         return;
       }
 
@@ -492,7 +503,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
         } else {
           errorService.handle("所有播放源均不可用", { context: "handleVideoError", showToast: true });
         }
-        set({ error: "所有播放源均不可用", isLoading: false, status: null });
+        set({ error: "所有播放源均不可用", isLoading: false, isUserPaused: false, status: null });
         return;
       }
 
@@ -505,6 +516,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
           error: undefined,
           status: null,
           isLoading: true,
+          isUserPaused: false,
           initialPosition: introEndTime || 0,
         });
         Toast.show({

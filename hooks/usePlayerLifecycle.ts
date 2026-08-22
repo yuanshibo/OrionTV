@@ -2,7 +2,10 @@ import { useEffect, useRef } from 'react';
 import { AppState, AppStateStatus, BackHandler } from 'react-native';
 import { useRouter } from 'expo-router';
 import { VideoPlayer } from 'expo-video';
-import { PlaybackState } from '@/stores/playerStore';
+import usePlayerStore, { PlaybackState } from '@/stores/playerStore';
+import Logger from '@/utils/Logger';
+
+const logger = Logger.withTag('PlayerLifecycle');
 
 interface PlayerLifecycleProps {
   player: VideoPlayer | null;
@@ -25,35 +28,79 @@ export function usePlayerLifecycle({
 }: PlayerLifecycleProps) {
   const router = useRouter();
   const wasPlayingBeforeBackgroundRef = useRef<boolean>(false);
-  const isPlayingCurrentRef = useRef<boolean>(false);
+  const playerRef = useRef(player);
+  const statusRef = useRef(status);
+  const flushPlaybackRecordRef = useRef(flushPlaybackRecord);
 
   useEffect(() => {
-    isPlayingCurrentRef.current = Boolean(status?.isPlaying);
-  }, [status?.isPlaying]);
+    playerRef.current = player;
+  }, [player]);
+
+  useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
+
+  useEffect(() => {
+    flushPlaybackRecordRef.current = flushPlaybackRecord;
+  }, [flushPlaybackRecord]);
 
   useEffect(() => {
     const handleAppStateChange = (nextAppState: AppStateStatus) => {
-      if (!player) return;
+      const currentPlayer = playerRef.current;
+      const { isUserPaused, videoPlayer } = usePlayerStore.getState();
 
       if (nextAppState === 'background' || nextAppState === 'inactive') {
-        wasPlayingBeforeBackgroundRef.current = isPlayingCurrentRef.current;
-        try {
-          player.pause();
-        } catch (err) {
-          console.warn('[LIFECYCLE] Safe pause failed:', err);
+        const currentStatus = statusRef.current;
+        const didFinish = currentStatus?.didJustFinish ?? false;
+
+        // If the user did not manually pause the playback, mark to resume on returning
+        if (!isUserPaused && !didFinish) {
+          wasPlayingBeforeBackgroundRef.current = true;
+        }
+
+        logger.info(`App entered ${nextAppState}. isUserPaused: ${isUserPaused}, willResume: ${wasPlayingBeforeBackgroundRef.current}`);
+
+        if (currentPlayer) {
+          try {
+            currentPlayer.pause();
+          } catch (err) {
+            logger.warn('[LIFECYCLE] Safe pause failed:', err);
+          }
         }
         try {
-          flushPlaybackRecord();
+          flushPlaybackRecordRef.current();
         } catch (err) {
-          console.warn('[LIFECYCLE] Safe flush record failed:', err);
+          logger.warn('[LIFECYCLE] Safe flush record failed:', err);
         }
       } else if (nextAppState === 'active') {
-        // Only resume if the video was actually playing before going to the background
-        if (wasPlayingBeforeBackgroundRef.current) {
-          try {
-            player.play();
-          } catch (err) {
-            console.warn('[LIFECYCLE] Safe resume play failed:', err);
+        logger.info(`App entered active. wasPlayingBefore: ${wasPlayingBeforeBackgroundRef.current}, isUserPaused: ${isUserPaused}`);
+
+        if (wasPlayingBeforeBackgroundRef.current && !isUserPaused) {
+          wasPlayingBeforeBackgroundRef.current = false;
+          const targetPlayer = currentPlayer || videoPlayer || playerRef.current;
+
+          if (targetPlayer) {
+            try {
+              logger.info('[LIFECYCLE] Resuming playback via targetPlayer.play()');
+              targetPlayer.play();
+            } catch (err) {
+              logger.warn('[LIFECYCLE] Immediate resume play failed:', err);
+            }
+
+            // Retry after 150ms to ensure Android TV Surface re-attachment is complete
+            setTimeout(() => {
+              try {
+                const activePlayer = playerRef.current || usePlayerStore.getState().videoPlayer;
+                if (activePlayer && !usePlayerStore.getState().isUserPaused) {
+                  logger.info('[LIFECYCLE] Fallback retry activePlayer.play()');
+                  activePlayer.play();
+                }
+              } catch (err) {
+                logger.warn('[LIFECYCLE] Delayed resume play failed:', err);
+              }
+            }, 150);
+          } else {
+            logger.warn('[LIFECYCLE] No video player instance available on active resume');
           }
         }
       }
@@ -61,7 +108,7 @@ export function usePlayerLifecycle({
 
     const subscription = AppState.addEventListener('change', handleAppStateChange);
     return () => subscription.remove();
-  }, [player, flushPlaybackRecord]);
+  }, []);
 
   useEffect(() => {
     const backAction = () => {
