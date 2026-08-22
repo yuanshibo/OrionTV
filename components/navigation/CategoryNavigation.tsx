@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useCallback, memo, useMemo } from "react";
 import { View, ViewStyle, TextStyle } from "react-native";
-import { FlashList } from "@shopify/flash-list";
+import { FlashList, FlashListRef } from "@shopify/flash-list";
 import { StyledButton } from "@/components/StyledButton";
 import { Category } from "@/services/dataTypes";
 import { requestTVFocus } from "@/utils/tvUtils";
 import { useFocusStore } from "@/stores/focusStore";
+import { useHomeUIStore } from "@/stores/homeUIStore";
 import { FocusPriority } from "@/types/focus";
 import { FlashListOptimizer } from "@/utils/FlashListOptimizer";
 
@@ -23,6 +24,7 @@ interface CategoryNavigationProps {
   deviceType: "mobile" | "tablet" | "tv";
   spacing: number;
   focusTrigger?: number;
+  selectedCategoryRef?: React.MutableRefObject<any>;
 }
 
 interface CategoryItemProps {
@@ -31,17 +33,18 @@ interface CategoryItemProps {
   isSelected: boolean;
   onSelect: (category: Category) => void;
   onLongPress?: (category: Category) => void;
+  onFocus: (index: number) => void;
   styles: any;
   setRef: (index: number, ref: any) => void;
 }
 
-const CategoryItem = memo(({ item, index, isSelected, onSelect, onLongPress, styles, setRef }: CategoryItemProps) => (
+const CategoryItem = memo(({ item, index, isSelected, onSelect, onLongPress, onFocus, styles, setRef }: CategoryItemProps) => (
   <StyledButton
     ref={(ref) => setRef(index, ref)}
-    hasTVPreferredFocus={index === 0}
     text={item.title}
     onPress={() => onSelect(item)}
     onLongPress={() => onLongPress && onLongPress(item)}
+    onFocus={() => onFocus(index)}
     isSelected={isSelected}
     style={styles.categoryButton}
     textStyle={styles.categoryText}
@@ -55,13 +58,15 @@ interface TagItemProps {
   index: number;
   isSelected: boolean;
   onSelect: (tag: string) => void;
+  onFocus: (index: number) => void;
   styles: any;
 }
 
-const TagItem = memo(({ item, index, isSelected, onSelect, styles }: TagItemProps) => (
+const TagItem = memo(({ item, index, isSelected, onSelect, onFocus, styles }: TagItemProps) => (
   <StyledButton
     text={item}
     onPress={() => onSelect(item)}
+    onFocus={() => onFocus(index)}
     isSelected={isSelected}
     style={styles.categoryButton}
     textStyle={styles.categoryText}
@@ -81,12 +86,15 @@ const CategoryNavigationComponent: React.FC<CategoryNavigationProps> = ({
   deviceType,
   spacing,
   focusTrigger,
+  selectedCategoryRef,
 }) => {
   const buttonRefs = useRef<(any)[]>([]);
+  const categoryListRef = useRef<FlashListRef<Category>>(null);
+  const tagListRef = useRef<FlashListRef<string>>(null);
   const lastSelectedTitleRef = useRef<string | undefined>(undefined);
   const lastFocusTriggerRef = useRef<number | undefined>(undefined);
 
-  // Set focus area when component mounts or category changes
+  const setCurrentFocusArea = useHomeUIStore((state) => state.setCurrentFocusArea);
   const setFocusArea = useFocusStore((state) => state.setFocusArea);
 
   useEffect(() => {
@@ -104,18 +112,40 @@ const CategoryNavigationComponent: React.FC<CategoryNavigationProps> = ({
 
       if (shouldFocus) {
         const index = categories.findIndex((c) => c.title === selectedCategory.title);
-        const buttonRef = buttonRefs.current[index];
-        requestTVFocus(buttonRef, {
-          priority: FocusPriority.NAVIGATION,
-          duration: 300,
-        });
+        if (index >= 0) {
+          const buttonRef = buttonRefs.current[index];
+          requestTVFocus(buttonRef, {
+            priority: FocusPriority.NAVIGATION,
+            duration: 300,
+          });
+          try {
+            categoryListRef.current?.scrollToIndex({ index, viewPosition: 0.5, animated: true });
+          } catch {}
+        }
       }
     }
   }, [focusTrigger, selectedCategory, categories]);
 
   const setRef = useCallback((index: number, ref: any) => {
     buttonRefs.current[index] = ref;
-  }, []);
+    if (selectedCategory && categories[index]?.title === selectedCategory.title && selectedCategoryRef) {
+      selectedCategoryRef.current = ref;
+    }
+  }, [categories, selectedCategory, selectedCategoryRef]);
+
+  const handleCategoryFocus = useCallback((index: number) => {
+    setCurrentFocusArea('category');
+    try {
+      categoryListRef.current?.scrollToIndex({ index, viewPosition: 0.5, animated: true });
+    } catch {}
+  }, [setCurrentFocusArea]);
+
+  const handleTagFocus = useCallback((index: number) => {
+    setCurrentFocusArea('tags');
+    try {
+      tagListRef.current?.scrollToIndex({ index, viewPosition: 0.5, animated: true });
+    } catch {}
+  }, [setCurrentFocusArea]);
 
   const renderCategory = useCallback(
     ({ item, index }: { item: Category; index: number }) => (
@@ -125,11 +155,12 @@ const CategoryNavigationComponent: React.FC<CategoryNavigationProps> = ({
         isSelected={selectedCategory?.title === item.title}
         onSelect={onCategorySelect}
         onLongPress={onCategoryLongPress}
+        onFocus={handleCategoryFocus}
         styles={categoryStyles}
         setRef={setRef}
       />
     ),
-    [selectedCategory?.title, onCategorySelect, onCategoryLongPress, categoryStyles, setRef]
+    [selectedCategory?.title, onCategorySelect, onCategoryLongPress, handleCategoryFocus, categoryStyles, setRef]
   );
 
   const renderTag = useCallback(
@@ -139,10 +170,11 @@ const CategoryNavigationComponent: React.FC<CategoryNavigationProps> = ({
         index={index}
         isSelected={selectedCategory?.tag === item}
         onSelect={onTagSelect}
+        onFocus={handleTagFocus}
         styles={categoryStyles}
       />
     ),
-    [selectedCategory?.tag, onTagSelect, categoryStyles]
+    [selectedCategory?.tag, onTagSelect, handleTagFocus, categoryStyles]
   );
 
   const hasTags = selectedCategory?.type === "record";
@@ -162,6 +194,7 @@ const CategoryNavigationComponent: React.FC<CategoryNavigationProps> = ({
   return (
     <View style={[categoryStyles.categoryContainer, hasTags && { paddingBottom: spacing * 0.8 }]}>
       <FlashListAny
+        ref={categoryListRef}
         horizontal
         data={categories}
         renderItem={renderCategory}
@@ -172,6 +205,7 @@ const CategoryNavigationComponent: React.FC<CategoryNavigationProps> = ({
       />
       {selectedCategory?.tags && (
         <FlashListAny
+          ref={tagListRef}
           horizontal
           data={selectedCategory.tags}
           renderItem={renderTag}
@@ -186,3 +220,4 @@ const CategoryNavigationComponent: React.FC<CategoryNavigationProps> = ({
 };
 
 export const CategoryNavigation = memo(CategoryNavigationComponent);
+

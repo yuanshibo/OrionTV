@@ -41,7 +41,7 @@ const TagList = React.memo(({ tags, selectedTag, onSelect, styles }: TagListProp
                 style={styles.filterOptionButton}
                 textStyle={styles.filterOptionText}
                 variant="ghost"
-                hasTVPreferredFocus={index === 0}
+                hasTVPreferredFocus={isSelected || (!selectedTag && index === 0)}
               />
             );
           }}
@@ -83,7 +83,7 @@ const FilterGroupList = React.memo(({ group, activeValue, onSelect, styles, isFi
                 isSelected={isSelected}
                 style={styles.filterOptionButton}
                 textStyle={styles.filterOptionText}
-                hasTVPreferredFocus={!hasTags && isFirstGroup && optionIndex === 0}
+                hasTVPreferredFocus={!hasTags && isFirstGroup && (isSelected || (!activeValue && optionIndex === 0))}
               />
             );
           }}
@@ -167,7 +167,7 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ isVisible, onClose, category,
   }, [onFilterChange]);
 
   return (
-    <Modal transparent={true} visible={isVisible} onRequestClose={onClose} animationType="fade">
+    <Modal transparent={true} visible={isVisible} onRequestClose={handleClose} animationType="fade">
       <View style={{ flex: 1 }}>
         <View style={[styles.panel, { paddingTop: insets.top + 10, paddingBottom: insets.bottom + 20 }]}>
           <ScrollView>

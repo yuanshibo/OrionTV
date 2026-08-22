@@ -10,6 +10,8 @@ interface HomeUIState {
     categories: Category[];
     selectedCategory: Category;
     focusedPoster: string | null;
+    lastFocusedCardIndex: number;
+    currentFocusArea: 'header' | 'category' | 'tags' | 'content';
 
     // Actions
     selectCategory: (category: Category) => void;
@@ -17,6 +19,8 @@ interface HomeUIState {
     refreshPlayRecords: () => Promise<void>;
     initialize: () => Promise<void>;
     setFocusedPoster: (poster: string | null) => void;
+    setLastFocusedCardIndex: (index: number) => void;
+    setCurrentFocusArea: (area: 'header' | 'category' | 'tags' | 'content') => void;
 }
 
 const isSameCategory = (a?: Category | null, b?: Category | null) => {
@@ -38,6 +42,8 @@ export const useHomeUIStore = create<HomeUIState>((set, get) => ({
     categories: initialCategories,
     selectedCategory: initialCategories[0],
     focusedPoster: null,
+    lastFocusedCardIndex: 0,
+    currentFocusArea: 'category',
 
     initialize: async () => {
         const { apiBaseUrl } = useSettingsStore.getState();
@@ -66,7 +72,7 @@ export const useHomeUIStore = create<HomeUIState>((set, get) => ({
             return;
         }
 
-        set({ selectedCategory: category });
+        set({ selectedCategory: category, lastFocusedCardIndex: 0 });
 
         // Trigger data fetch in data store
         useHomeDataStore.getState().fetchDataForCategory(category);
@@ -193,4 +199,6 @@ export const useHomeUIStore = create<HomeUIState>((set, get) => ({
     },
 
     setFocusedPoster: (poster: string | null) => set({ focusedPoster: poster }),
+    setLastFocusedCardIndex: (index: number) => set({ lastFocusedCardIndex: index }),
+    setCurrentFocusArea: (area: 'header' | 'category' | 'tags' | 'content') => set({ currentFocusArea: area }),
 }));

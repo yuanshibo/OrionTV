@@ -102,9 +102,9 @@ const VideoCard = forwardRef<View, VideoCardProps>(
       isFocusedSV.value = 1;
       if (onFocus) {
         // onFocus might trigger parent state update, so keep it in JS
-        onFocus({ id, poster, title });
+        onFocus({ id, poster, title, index });
       }
-    }, [onFocus, isFocusedSV, id, poster, title]);
+    }, [onFocus, isFocusedSV, id, poster, title, index]);
 
     const handleBlur = useCallback(() => {
       isFocusedSV.value = 0;

@@ -85,6 +85,7 @@ export const ContentDisplay: React.FC<ContentDisplayProps> = React.memo(({
         episodeIndex={item.episodeIndex}
         sourceName={item.sourceName}
         totalEpisodes={item.totalEpisodes}
+        index={index}
         api={api}
         onRecordDeleted={onRecordDeleted}
         onLongPress={longPressAction}

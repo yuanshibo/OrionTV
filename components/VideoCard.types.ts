@@ -13,6 +13,7 @@ export interface VideoCardBaseProps extends Omit<React.ComponentProps<typeof Tou
     playTime?: number;
     episodeIndex?: number;
     totalEpisodes?: number;
+    index?: number;
     onFocus?: (item?: any) => void;
     onRecordDeleted?: () => void;
     onFavoriteDeleted?: () => void;

@@ -3,6 +3,7 @@ import { StyleSheet, StatusBar, Platform, BackHandler, View } from "react-native
 import { FlashListRef } from "@shopify/flash-list";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSharedValue, withTiming } from "react-native-reanimated";
+import Toast from "react-native-toast-message";
 import { ThemedView } from "@/components/ThemedView";
 import { useFocusEffect } from "expo-router";
 import { useHomeUIStore } from "@/stores/homeUIStore";
@@ -27,6 +28,8 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const listRef = useRef<FlashListRef<RowItem>>(null);
   const firstItemRef = useRef<View>(null);
+  const searchButtonRef = useRef<View>(null);
+  const selectedCategoryRef = useRef<View>(null);
   const lastCheckedPlayRecords = useRef<number>(0);
   const posterUpdateTimer = useRef<any>(null);
 
@@ -44,6 +47,8 @@ export default function HomeScreen() {
     refreshPlayRecords,
     initialize,
     setFocusedPoster,
+    setLastFocusedCardIndex,
+    setCurrentFocusArea,
   } = useHomeUIStore(useShallow(state => ({
     categories: state.categories,
     selectedCategory: state.selectedCategory,
@@ -52,6 +57,8 @@ export default function HomeScreen() {
     refreshPlayRecords: state.refreshPlayRecords,
     initialize: state.initialize,
     setFocusedPoster: state.setFocusedPoster,
+    setLastFocusedCardIndex: state.setLastFocusedCardIndex,
+    setCurrentFocusArea: state.setCurrentFocusArea,
   })));
 
   // Data Store
@@ -116,22 +123,53 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       const handleBackPress = () => {
+        // Level 1: If filter panel is visible, close it and refocus category
         if (isFilterPanelVisible) {
           setFilterPanelVisible(false);
+          setCategoryFocusTrigger(p => p + 1);
           return true;
         }
-        const now = Date.now();
-        if (!backPressTimeRef.current || now - backPressTimeRef.current > 2000) {
+
+        const currentArea = useHomeUIStore.getState().currentFocusArea;
+        const lastIndex = useHomeUIStore.getState().lastFocusedCardIndex;
+        const columns = responsiveConfig.columns || 4;
+
+        // Level 2: If focus is deep in content (beyond row 1), scroll to top & focus first card
+        if (currentArea === 'content' && lastIndex >= columns) {
           listRef.current?.scrollToOffset({ offset: 0, animated: true });
           setTimeout(() => {
             requestTVFocus(firstItemRef, { priority: FocusPriority.CONTENT, duration: 300 });
-          }, 300);
+          }, 250);
+          return true;
+        }
+
+        // Level 3: If focus is in row 1 of content, retreat focus back to category navigation
+        if (currentArea === 'content') {
+          setCategoryFocusTrigger(p => p + 1);
+          return true;
+        }
+
+        // Level 3b: If focus is on tags, retreat back to categories
+        if (currentArea === 'tags') {
+          setCategoryFocusTrigger(p => p + 1);
+          return true;
+        }
+
+        // Level 4: If focus is already in category navigation or header, double-tap back to exit with Toast
+        const now = Date.now();
+        if (!backPressTimeRef.current || now - backPressTimeRef.current > 2000) {
           backPressTimeRef.current = now;
+          Toast.show({
+            type: 'info',
+            text1: '再按一次退出 OrionTV',
+            visibilityTime: 2000,
+          });
           return true;
         }
         BackHandler.exitApp();
         return true;
       };
+
       if (Platform.OS === "android") {
         const backHandler = BackHandler.addEventListener("hardwareBackPress", handleBackPress);
         return () => {
@@ -139,7 +177,7 @@ export default function HomeScreen() {
           backPressTimeRef.current = null;
         };
       }
-    }, [isFilterPanelVisible])
+    }, [isFilterPanelVisible, responsiveConfig.columns])
   );
 
   // 数据获取逻辑
@@ -213,6 +251,10 @@ export default function HomeScreen() {
   }, [selectedCategory, selectCategory, updateFilterOption]);
 
   const handleItemFocus = useCallback((item: any) => {
+    setCurrentFocusArea('content');
+    if (item?.index !== undefined) {
+      setLastFocusedCardIndex(item.index);
+    }
     if (posterUpdateTimer.current) {
       clearTimeout(posterUpdateTimer.current);
     }
@@ -221,7 +263,7 @@ export default function HomeScreen() {
         setFocusedPoster(item.poster);
       }, 300);
     }
-  }, [setFocusedPoster]);
+  }, [setCurrentFocusArea, setLastFocusedCardIndex, setFocusedPoster]);
 
   useEffect(() => {
     return () => {
@@ -255,7 +297,13 @@ export default function HomeScreen() {
       <DynamicBackground />
 
       {deviceType === "mobile" && <StatusBar barStyle="light-content" />}
-      {deviceType !== "mobile" && <HomeHeader styles={headerStyles} />}
+      {deviceType !== "mobile" && (
+        <HomeHeader
+          styles={headerStyles}
+          searchButtonRef={searchButtonRef}
+          selectedCategoryRef={selectedCategoryRef}
+        />
+      )}
       <CategoryNavigation
         categories={categories}
         selectedCategory={selectedCategory}
@@ -266,6 +314,7 @@ export default function HomeScreen() {
         deviceType={deviceType}
         spacing={spacing}
         focusTrigger={categoryFocusTrigger}
+        selectedCategoryRef={selectedCategoryRef}
       />
       <ContentDisplay
         apiConfigStatus={apiConfigStatus}
