@@ -17,3 +17,20 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 jest.mock('expo-image', () => ({
     Image: 'Image',
 }));
+
+// Mock react-native-worklets
+jest.mock('react-native-worklets', () => ({
+    makeMutable: (val) => ({ value: val }),
+    Worklets: {},
+}));
+
+// Mock react-native-reanimated
+jest.mock('react-native-reanimated', () => ({
+    makeMutable: (val) => ({ value: val }),
+    useSharedValue: (val) => ({ value: val }),
+    useAnimatedStyle: () => ({}),
+    withTiming: (val) => val,
+    withSpring: (val) => val,
+}));
+
+

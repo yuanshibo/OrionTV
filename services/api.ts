@@ -139,6 +139,8 @@ export interface PlayRecord {
   year: string;
   type?: string;
   duration?: number;
+  introEndTime?: number;
+  outroStartTime?: number;
 }
 
 export interface ApiSite {
