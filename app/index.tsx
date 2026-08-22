@@ -45,6 +45,7 @@ export default function HomeScreen() {
     selectCategory,
     updateFilterOption,
     refreshPlayRecords,
+    deletePlayRecord,
     initialize,
     setFocusedPoster,
     setLastFocusedCardIndex,
@@ -55,6 +56,7 @@ export default function HomeScreen() {
     selectCategory: state.selectCategory,
     updateFilterOption: state.updateFilterOption,
     refreshPlayRecords: state.refreshPlayRecords,
+    deletePlayRecord: state.deletePlayRecord,
     initialize: state.initialize,
     setFocusedPoster: state.setFocusedPoster,
     setLastFocusedCardIndex: state.setLastFocusedCardIndex,
@@ -250,6 +252,8 @@ export default function HomeScreen() {
     }
   }, [selectedCategory, selectCategory, updateFilterOption]);
 
+  const lastFocusTimeRef = useRef(0);
+
   const handleItemFocus = useCallback((item: any) => {
     setCurrentFocusArea('content');
     if (item?.index !== undefined) {
@@ -259,9 +263,14 @@ export default function HomeScreen() {
       clearTimeout(posterUpdateTimer.current);
     }
     if (item?.poster) {
+      const now = Date.now();
+      const isFastScrolling = now - lastFocusTimeRef.current < 150;
+      lastFocusTimeRef.current = now;
+      // D-Pad fast scroll debounce protection
+      const delay = isFastScrolling ? 250 : 180;
       posterUpdateTimer.current = setTimeout(() => {
         setFocusedPoster(item.poster);
-      }, 300);
+      }, delay);
     }
   }, [setCurrentFocusArea, setLastFocusedCardIndex, setFocusedPoster]);
 
@@ -330,7 +339,7 @@ export default function HomeScreen() {
         loadingMore={loadingMore}
         deviceType={deviceType}
         onShowFilterPanel={showFilterPanel}
-        onRecordDeleted={initialize}
+        onRecordDeleted={deletePlayRecord}
         firstItemRef={firstItemRef}
         onFocus={handleItemFocus}
       />

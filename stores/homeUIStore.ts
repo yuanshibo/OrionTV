@@ -17,6 +17,7 @@ interface HomeUIState {
     selectCategory: (category: Category) => void;
     updateFilterOption: (categoryTitle: string, key: DoubanFilterKey, value: string) => void;
     refreshPlayRecords: () => Promise<void>;
+    deletePlayRecord: (source: string, id: string) => Promise<void>;
     initialize: () => Promise<void>;
     setFocusedPoster: (poster: string | null) => void;
     setLastFocusedCardIndex: (index: number) => void;
@@ -46,22 +47,21 @@ export const useHomeUIStore = create<HomeUIState>((set, get) => ({
     currentFocusArea: 'category',
 
     initialize: async () => {
-        const { apiBaseUrl } = useSettingsStore.getState();
-        await useAuthStore.getState().checkLoginStatus(apiBaseUrl);
-
-        // Hydrate data store
-        await useHomeDataStore.getState().hydrateFromStorage();
-
-        // Ensure selected category is valid and fetch data
+        const active = ensureCategoryHasDefaultTag(get().selectedCategory);
         const current = get().selectedCategory;
-        const active = ensureCategoryHasDefaultTag(current);
 
         if (!isSameCategory(current, active)) {
             set({ selectedCategory: active });
         }
 
-        // Fetch data for initial category
+        // 1. Fast-path: Hydrate local cache and display cached content instantly (0ms)
+        await useHomeDataStore.getState().hydrateFromStorage();
         await useHomeDataStore.getState().fetchDataForCategory(active);
+
+        // 2. Background: Verify auth and refresh records
+        const { apiBaseUrl } = useSettingsStore.getState();
+        await useAuthStore.getState().checkLoginStatus(apiBaseUrl);
+        await get().refreshPlayRecords();
     },
 
     selectCategory: (incomingCategory: Category) => {
@@ -196,6 +196,22 @@ export const useHomeUIStore = create<HomeUIState>((set, get) => ({
 
             return updates;
         });
+    },
+
+    deletePlayRecord: async (source: string, id: string) => {
+        // Optimistically remove from contentData in homeDataStore
+        const currentData = useHomeDataStore.getState().contentData;
+        const updatedData = currentData.filter((item) => !(item.id === id && item.source === source));
+        useHomeDataStore.getState().setDirectData(updatedData);
+
+        // If no records left and we are in record category, switch to the first non-record category
+        if (updatedData.length === 0 && get().selectedCategory.type === "record") {
+            const nonRecordCategories = get().categories.filter((c) => c.type !== "record");
+            set({ categories: nonRecordCategories });
+            if (nonRecordCategories[0]) {
+                get().selectCategory(nonRecordCategories[0]);
+            }
+        }
     },
 
     setFocusedPoster: (poster: string | null) => set({ focusedPoster: poster }),

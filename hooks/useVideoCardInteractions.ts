@@ -18,6 +18,9 @@ interface InteractionProps {
   progress?: number;
   playTime?: number;
   episodeIndex?: number;
+  totalEpisodes?: number;
+  isCompleted?: boolean;
+  isEpisodeFinished?: boolean;
   onRecordDeleted?: () => void;
   onFavoriteDeleted?: () => void;
   year?: string;
@@ -33,6 +36,9 @@ export const useVideoCardInteractions = ({
   progress,
   playTime = 0,
   episodeIndex,
+  totalEpisodes,
+  isCompleted,
+  isEpisodeFinished,
   onRecordDeleted,
   onFavoriteDeleted,
   ...rest
@@ -54,10 +60,25 @@ export const useVideoCardInteractions = ({
     }
 
     if (progress !== undefined && episodeIndex !== undefined) {
-      router.push({
-        pathname: "/play",
-        params: { source, id, episodeIndex: episodeIndex - 1, title, position: playTime * 1000 },
-      });
+      if (isCompleted) {
+        // 全剧或电影播放完毕：从第一集开头（第1集 00:00）重新开始播放
+        router.push({
+          pathname: "/play",
+          params: { source, id, episodeIndex: 0, title, position: 0 },
+        });
+      } else if (isEpisodeFinished && totalEpisodes && episodeIndex < totalEpisodes) {
+        // 中间集数播完：自动续播下一集从开头播放
+        router.push({
+          pathname: "/play",
+          params: { source, id, episodeIndex: episodeIndex, title, position: 0 },
+        });
+      } else {
+        // 继续播放当前集数断点进度
+        router.push({
+          pathname: "/play",
+          params: { source, id, episodeIndex: Math.max(episodeIndex - 1, 0), title, position: playTime * 1000 },
+        });
+      }
     } else {
       const isDouban = source === 'douban';
       const params = {
@@ -94,7 +115,7 @@ export const useVideoCardInteractions = ({
         });
       }
     }
-  }, [id, source, title, poster, progress, episodeIndex, playTime, router, navigation]);
+  }, [id, source, title, poster, progress, episodeIndex, totalEpisodes, isCompleted, isEpisodeFinished, playTime, router, navigation]);
 
   const handleDelete = useCallback(async () => {
     try {

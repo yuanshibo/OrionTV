@@ -53,7 +53,28 @@ export class HomeService {
       .map(([key, record]) => {
         const { source, id } = this.parseRecordKey(key);
         const totalTime = record.total_time ?? 0;
+        const playTime = record.play_time ?? 0;
+        const totalEpisodes = record.total_episodes ?? 1;
+        const currentEpisode = record.index ?? 1;
         const hasValidDuration = totalTime > 0;
+
+        // Consider outroStartTime (stored in ms)
+        const outroSeconds = record.outroStartTime ? record.outroStartTime / 1000 : 0;
+        const effectiveEnd = outroSeconds > 0 ? Math.max(totalTime - outroSeconds, 0) : totalTime;
+
+        // An episode is finished if playTime reached the outro boundary (with 5s buffer) or >= 95% of totalTime
+        const isEpisodeFinished = hasValidDuration && (
+          (outroSeconds > 0 && playTime >= effectiveEnd - 5) ||
+          (playTime >= totalTime - 15) ||
+          (playTime / totalTime >= 0.95)
+        );
+
+        // A whole drama/video is completely finished if it is on the last episode AND that episode is finished
+        const isAllCompleted = isEpisodeFinished && (totalEpisodes <= 1 || currentEpisode >= totalEpisodes);
+
+        const rawProgress = hasValidDuration ? playTime / totalTime : undefined;
+        // If whole series is completed, progress is 1 (100%)
+        const progress = isAllCompleted ? 1 : rawProgress;
 
         return {
           ...record,
@@ -65,7 +86,9 @@ export class HomeService {
           totalEpisodes: record.total_episodes,
           lastPlayed: record.save_time,
           play_time: record.play_time,
-          progress: hasValidDuration ? record.play_time / totalTime : undefined,
+          progress,
+          isCompleted: isAllCompleted,
+          isEpisodeFinished,
         };
       })
       .sort((a, b) => (b.lastPlayed || 0) - (a.lastPlayed || 0));

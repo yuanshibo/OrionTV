@@ -332,11 +332,24 @@ const usePlayerStore = create<PlayerState>((set, get) => {
       }
 
       if (outroStartTime && newStatus.durationMillis && newStatus.positionMillis >= newStatus.durationMillis - outroStartTime) {
-        if (!isEpisodeSwitching && currentEpisodeIndex < episodes.length - 1) {
+        if (!isEpisodeSwitching) {
           isEpisodeSwitching = true;
           setTimeout(() => { isEpisodeSwitching = false; }, 2500);
-          Toast.show({ type: "info", text1: "已跳过片尾", text2: `正在播放第 ${currentEpisodeIndex + 2} 集` });
-          playEpisode(currentEpisodeIndex + 1);
+          if (currentEpisodeIndex < episodes.length - 1) {
+            Toast.show({ type: "info", text1: "已跳过片尾", text2: `正在播放第 ${currentEpisodeIndex + 2} 集` });
+            playEpisode(currentEpisodeIndex + 1);
+          } else {
+            set({ isUserPaused: true });
+            get()._savePlayRecord({ play_time: Math.floor(newStatus.durationMillis / 1000) }, { immediate: true });
+            const detail = useDetailStore.getState().detail;
+            Toast.show({ type: "success", text1: "全剧已播放完毕" });
+            if (router && detail?.title) {
+              router.replace({
+                pathname: '/related',
+                params: { title: detail.title },
+              });
+            }
+          }
           return;
         }
       }
@@ -350,6 +363,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
             Toast.show({ type: "info", text1: "本集播放完毕", text2: `正在播放第 ${currentEpisodeIndex + 2} 集` });
             playEpisode(currentEpisodeIndex + 1);
           } else {
+            get()._savePlayRecord({ play_time: newStatus.durationMillis ? Math.floor(newStatus.durationMillis / 1000) : 0 }, { immediate: true });
             const detail = useDetailStore.getState().detail;
             Toast.show({ type: "success", text1: "全剧已播放完毕" });
             if (router && detail?.title) {

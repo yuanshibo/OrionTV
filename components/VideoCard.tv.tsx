@@ -1,7 +1,7 @@
 import React, { useCallback, forwardRef, useMemo, useEffect, useRef } from "react";
 import { View, Text, StyleSheet, Pressable, Platform, useColorScheme } from "react-native";
 import { Image } from "expo-image";
-import { Star, Play } from "lucide-react-native";
+import { Star, Play, RotateCcw } from "lucide-react-native";
 import Reanimated, {
   useSharedValue,
   useAnimatedStyle,
@@ -18,9 +18,23 @@ import { createShallowEqualComparator } from "@/utils/MemoHelper";
 
 import { VideoCardTVProps } from './VideoCard.types';
 
-// Use the shared type but alias it to VideoCardProps for local usage if needed,
-// or just use VideoCardTVProps directly.
 type VideoCardProps = VideoCardTVProps & { index?: number };
+
+function formatRelativeTime(timestamp?: number): string | null {
+  if (!timestamp) return null;
+  const now = Date.now();
+  const diff = now - timestamp;
+  if (diff < 60 * 1000) return '刚刚';
+  const minutes = Math.floor(diff / (60 * 1000));
+  if (minutes < 60) return `${minutes}分钟前`;
+  const hours = Math.floor(diff / (60 * 60 * 1000));
+  if (hours < 24) return `${hours}小时前`;
+  const days = Math.floor(diff / (24 * 60 * 60 * 1000));
+  if (days === 1) return '昨天';
+  if (days < 7) return `${days}天前`;
+  const date = new Date(timestamp);
+  return `${date.getMonth() + 1}月${date.getDate()}日`;
+}
 
 const VideoCard = forwardRef<View, VideoCardProps>(
   (
@@ -34,6 +48,8 @@ const VideoCard = forwardRef<View, VideoCardProps>(
       sourceName,
       progress,
       episodeIndex,
+      totalEpisodes,
+      lastPlayed,
       onFocus,
       onLongPress,
       onRecordDeleted,
@@ -58,6 +74,11 @@ const VideoCard = forwardRef<View, VideoCardProps>(
     const { deviceType: hookDeviceType } = useResponsiveLayout();
     const deviceType = rest.deviceType ?? hookDeviceType;
 
+    const isCompleted = rest.isCompleted ?? (progress !== undefined && progress >= 0.95);
+    const isEpisodeFinished = rest.isEpisodeFinished;
+    const isContinueWatching = progress !== undefined && progress > 0;
+    const relativeTime = formatRelativeTime(lastPlayed);
+
     const { handlePress, handleLongPress } = useVideoCardInteractions({
       id,
       source,
@@ -66,6 +87,9 @@ const VideoCard = forwardRef<View, VideoCardProps>(
       progress,
       playTime,
       episodeIndex,
+      totalEpisodes,
+      isCompleted,
+      isEpisodeFinished,
       onRecordDeleted,
       onFavoriteDeleted,
       mediaType: rest.mediaType,
@@ -114,7 +138,20 @@ const VideoCard = forwardRef<View, VideoCardProps>(
     // Use handleLongPress from hook directly if no custom prop
     const onLongPressHandler = onLongPress || handleLongPress;
 
-    const isContinueWatching = progress !== undefined && progress > 0 && progress < 1;
+    let progressText = '';
+    if (isCompleted) {
+      progressText = '已看完';
+    } else if (isEpisodeFinished && totalEpisodes && episodeIndex && episodeIndex < totalEpisodes) {
+      progressText = `续播第 ${episodeIndex + 1} 集`;
+    } else if (progress !== undefined) {
+      const percent = `${Math.round(progress * 100)}%`;
+      if (episodeIndex && (totalEpisodes === undefined || totalEpisodes > 1)) {
+        progressText = `第${episodeIndex}集 · 已看${percent}`;
+      } else {
+        progressText = `已看${percent}`;
+      }
+    }
+
     // Use the module-level cached styles instead of recreating on every render
     const styles = stylesCache[colorScheme];
     const imageSource = useMemo(() => {
@@ -153,15 +190,29 @@ const VideoCard = forwardRef<View, VideoCardProps>(
             <Reanimated.View style={[styles.overlay, overlayStyle]} pointerEvents="none">
               {isContinueWatching && (
                 <View style={styles.continueWatchingBadge}>
-                  <Play size={16} color={colors.text} fill={colors.text} />
-                  <ThemedText style={styles.continueWatchingText}>继续观看</ThemedText>
+                  {isCompleted ? (
+                    <RotateCcw size={16} color={colors.text} />
+                  ) : (
+                    <Play size={16} color={colors.text} fill={colors.text} />
+                  )}
+                  <ThemedText style={styles.continueWatchingText}>
+                    {isCompleted ? '重新播放' : '继续观看'}
+                  </ThemedText>
                 </View>
               )}
             </Reanimated.View>
 
             {isContinueWatching && (
               <View style={styles.progressContainer}>
-                <View style={[styles.progressBar, { width: `${(progress || 0) * 100}%` }]} />
+                <View
+                  style={[
+                    styles.progressBar,
+                    {
+                      width: `${Math.min(Math.round((progress || 0) * 100), 100)}%`,
+                      backgroundColor: isCompleted ? colors.tint : colors.primary,
+                    },
+                  ]}
+                />
               </View>
             )}
 
@@ -186,9 +237,12 @@ const VideoCard = forwardRef<View, VideoCardProps>(
             <ThemedText numberOfLines={2}>{title}</ThemedText>
             {isContinueWatching && (
               <View style={styles.infoRow}>
-                <ThemedText style={styles.continueLabel}>
-                  第{episodeIndex}集 已观看 {Math.round((progress || 0) * 100)}%
+                <ThemedText style={isCompleted ? styles.completedLabel : styles.continueLabel}>
+                  {progressText}
                 </ThemedText>
+                {relativeTime && (
+                  <ThemedText style={styles.timeLabel}>{relativeTime}</ThemedText>
+                )}
               </View>
             )}
           </View>
@@ -262,7 +316,9 @@ const createStyles = (colors: typeof Colors.dark) => StyleSheet.create({
   infoRow: {
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "center",
     width: "100%",
+    marginTop: 2,
   },
   title: {
     color: colors.text,
@@ -323,6 +379,15 @@ const createStyles = (colors: typeof Colors.dark) => StyleSheet.create({
     color: colors.primary,
     fontSize: 12,
   },
+  completedLabel: {
+    color: colors.tint,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  timeLabel: {
+    color: 'rgba(255, 255, 255, 0.5)',
+    fontSize: 11,
+  },
 });
 
 const stylesCache = {
@@ -344,6 +409,8 @@ const areEqual = createShallowEqualComparator<VideoCardProps>([
   'rate',
   'year',
   'episodeIndex',
+  'totalEpisodes',
+  'lastPlayed',
   'playTime'
 ]);
 

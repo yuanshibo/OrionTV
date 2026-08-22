@@ -25,7 +25,7 @@ interface ContentDisplayProps {
   loadingMore: boolean;
   deviceType: 'mobile' | 'tablet' | 'tv';
   onShowFilterPanel: () => void;
-  onRecordDeleted: () => void;
+  onRecordDeleted?: (source: string, id: string) => void;
   firstItemRef?: React.RefObject<any>;
   onFocus?: (item?: any) => void;
 }
@@ -85,9 +85,12 @@ export const ContentDisplay: React.FC<ContentDisplayProps> = React.memo(({
         episodeIndex={item.episodeIndex}
         sourceName={item.sourceName}
         totalEpisodes={item.totalEpisodes}
+        lastPlayed={item.lastPlayed}
+        isCompleted={item.isCompleted}
+        isEpisodeFinished={item.isEpisodeFinished}
         index={index}
         api={api}
-        onRecordDeleted={onRecordDeleted}
+        onRecordDeleted={onRecordDeleted ? () => onRecordDeleted(item.source, item.id) : undefined}
         onLongPress={longPressAction}
         style={style}
         onFocus={onFocus}
@@ -151,6 +154,11 @@ export const ContentDisplay: React.FC<ContentDisplayProps> = React.memo(({
     );
   }
 
+  const isRecordCategory = selectedCategory?.type === 'record';
+  const emptyMessage = isRecordCategory
+    ? '暂无观看记录，快去探索热门好剧吧 🎬'
+    : (selectedCategory?.tags ? '请选择一个子分类' : '该分类下暂无内容');
+
   return (
     <Reanimated.View style={[styles.contentContainer, animatedStyle]}>
       <CustomScrollView
@@ -162,7 +170,7 @@ export const ContentDisplay: React.FC<ContentDisplayProps> = React.memo(({
         error={error}
         onEndReached={loadMoreData}
         loadMoreThreshold={LOAD_MORE_THRESHOLD}
-        emptyMessage={selectedCategory?.tags ? '请选择一个子分类' : '该分类下暂无内容'}
+        emptyMessage={emptyMessage}
         ListFooterComponent={footerComponent}
       />
     </Reanimated.View>

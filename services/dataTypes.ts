@@ -15,6 +15,8 @@ export type RowItem = (SearchResult | PlayRecord) & {
   totalEpisodes?: number;
   year?: string;
   rate?: string;
+  isCompleted?: boolean;
+  isEpisodeFinished?: boolean;
 };
 
 export type DoubanFilterKey = Exclude<keyof DoubanRecommendationFilters, "start" | "limit">;
