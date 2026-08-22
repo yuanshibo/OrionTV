@@ -116,7 +116,7 @@ export default function PlayScreen() {
   }, [sourceStr, videoId, videoTitle, initDetail, setError]);
 
   useEffect(() => {
-    if (detail) {
+    if (detail && detail.episodes && detail.episodes.length > 0) {
       const matchesTitle = videoTitle ? detail.title === videoTitle : true;
       const matchesId = videoId ? detail.id.toString() === videoId : true;
       const matchesSource = sourceStr ? detail.source === sourceStr : true;

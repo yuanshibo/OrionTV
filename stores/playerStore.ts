@@ -186,10 +186,18 @@ const usePlayerStore = create<PlayerState>((set, get) => {
     loadVideo: async ({ detail, episodeIndex, position, router }) => {
       set({ status: null, isLoading: true, error: undefined, router, showRelatedVideos: false });
 
-      const episodes = episodesSelectorBySource(detail.source)(useDetailStore.getState());
+      const episodes = detail.episodes && detail.episodes.length > 0
+        ? detail.episodes
+        : episodesSelectorBySource(detail.source)(useDetailStore.getState());
+
       if (!episodes || episodes.length === 0) {
-        const msg = errorService.handle("未找到可播放的剧集", { context: "loadVideo", showToast: false });
-        set({ status: null, isLoading: false, error: msg });
+        if (useDetailStore.getState().loading) {
+          // Still fetching sources in progress, remain in loading state
+          set({ status: null, isLoading: true, error: undefined });
+          return;
+        }
+        logger.warn(`[PlayerStore] No playable episodes found for "${detail.title}" (${detail.source})`);
+        set({ status: null, isLoading: false, error: "未找到可播放的剧集" });
         return;
       }
 

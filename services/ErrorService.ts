@@ -14,6 +14,7 @@ export interface ErrorHandlerOptions {
     context?: string;
     showToast?: boolean;
     toastType?: 'success' | 'error' | 'info';
+    logLevel?: 'error' | 'warn' | 'info';
 }
 
 const ERROR_SIGNATURES = {
@@ -40,12 +41,20 @@ class ErrorService {
      * Main entry point for handling errors
      */
     handle(error: unknown, options: ErrorHandlerOptions = {}): string {
-        const { context, showToast = true, toastType = 'error' } = options;
+        const { context, showToast = true, toastType = 'error', logLevel } = options;
         const message = this.formatMessage(error);
         const errorType = this.detectErrorType(error);
 
-        // Log the error
-        this.logger.error({ tag: context }, message, error);
+        // Determine log level (string messages or business fallbacks default to warn)
+        const resolvedLogLevel = logLevel || (typeof error === 'string' ? 'warn' : 'error');
+
+        if (resolvedLogLevel === 'warn') {
+            this.logger.warn({ tag: context }, message);
+        } else if (resolvedLogLevel === 'info') {
+            this.logger.info({ tag: context }, message);
+        } else {
+            this.logger.error({ tag: context }, message, error);
+        }
 
         // Show toast if requested
         if (showToast) {
