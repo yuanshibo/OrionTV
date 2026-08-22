@@ -19,6 +19,7 @@ const logger = Logger.withTag('PlayerStore');
 
 let seekTimeoutId: ReturnType<typeof setTimeout> | undefined = undefined;
 const SEEK_UI_TIMEOUT = 5000;
+let isEpisodeSwitching = false;
 
 interface Episode {
   url: string;
@@ -235,14 +236,14 @@ const usePlayerStore = create<PlayerState>((set, get) => {
     },
 
     playEpisode: (index) => {
-      const { episodes, videoPlayer } = get();
+      const { episodes, introEndTime } = get();
       if (index >= 0 && index < episodes.length) {
         set({
           status: null,
           isLoading: true,
           currentEpisodeIndex: index,
           showNextEpisodeOverlay: false,
-          initialPosition: 0,
+          initialPosition: introEndTime || 0,
           progressPosition: 0,
           seekPosition: 0,
           error: undefined,
@@ -253,7 +254,6 @@ const usePlayerStore = create<PlayerState>((set, get) => {
         bufferedPositionSV.value = 0;
         isSeekingSV.value = false;
         seekPositionSV.value = 0;
-        videoPlayer?.replay();
       }
     },
 
@@ -310,22 +310,31 @@ const usePlayerStore = create<PlayerState>((set, get) => {
       }
 
       if (outroStartTime && newStatus.durationMillis && newStatus.positionMillis >= newStatus.durationMillis - outroStartTime) {
-        if (currentEpisodeIndex < episodes.length - 1) {
+        if (!isEpisodeSwitching && currentEpisodeIndex < episodes.length - 1) {
+          isEpisodeSwitching = true;
+          setTimeout(() => { isEpisodeSwitching = false; }, 2500);
+          Toast.show({ type: "info", text1: "已跳过片尾", text2: `正在播放第 ${currentEpisodeIndex + 2} 集` });
           playEpisode(currentEpisodeIndex + 1);
           return;
         }
       }
 
       if (newStatus.didJustFinish) {
-        if (currentEpisodeIndex < episodes.length - 1) {
-          playEpisode(currentEpisodeIndex + 1);
-        } else {
-          const detail = useDetailStore.getState().detail;
-          if (router && detail?.title) {
-            router.replace({
-              pathname: '/related',
-              params: { title: detail.title },
-            });
+        if (!isEpisodeSwitching) {
+          isEpisodeSwitching = true;
+          setTimeout(() => { isEpisodeSwitching = false; }, 2500);
+          if (currentEpisodeIndex < episodes.length - 1) {
+            Toast.show({ type: "info", text1: "本集播放完毕", text2: `正在播放第 ${currentEpisodeIndex + 2} 集` });
+            playEpisode(currentEpisodeIndex + 1);
+          } else {
+            const detail = useDetailStore.getState().detail;
+            Toast.show({ type: "success", text1: "全剧已播放完毕" });
+            if (router && detail?.title) {
+              router.replace({
+                pathname: '/related',
+                params: { title: detail.title },
+              });
+            }
           }
         }
         return;
@@ -459,15 +468,19 @@ const usePlayerStore = create<PlayerState>((set, get) => {
         return;
       }
 
-      const { currentEpisodeIndex } = get();
+      const { currentEpisodeIndex, introEndTime } = get();
       const currentSource = detail.source;
       useDetailStore.getState().markSourceAsFailed(currentSource, `${errorType} error`);
       const fallbackSource = useDetailStore.getState().getNextAvailableSource(currentSource, currentEpisodeIndex);
 
       if (!fallbackSource) {
         logger.warn(`[SOURCE_SELECTION] All sources exhausted. Last failed: type=${errorType}, url=${failedUrl}`);
-        const msg = errorService.handle("所有播放源均不可用", { context: "handleVideoError", showToast: true });
-        set({ error: msg, isLoading: false, status: null });
+        if (currentEpisodeIndex >= (detail.episodes?.length || 0) - 1 && currentEpisodeIndex > 0) {
+          Toast.show({ type: "info", text1: "后续剧集暂未更新或不可用" });
+        } else {
+          errorService.handle("所有播放源均不可用", { context: "handleVideoError", showToast: true });
+        }
+        set({ error: "所有播放源均不可用", isLoading: false, status: null });
         return;
       }
 
@@ -475,8 +488,18 @@ const usePlayerStore = create<PlayerState>((set, get) => {
       const newEpisodes = fallbackSource.episodes || [];
       if (newEpisodes.length > currentEpisodeIndex) {
         const mappedEpisodes = newEpisodes.map((ep, index) => ({ url: ep, title: `第 ${index + 1} 集` }));
-        set({ episodes: mappedEpisodes, error: undefined, status: null, isLoading: true });
-        Toast.show({ type: "success", text1: "已切换播放源", text2: `正在使用 ${fallbackSource.source_name}` });
+        set({
+          episodes: mappedEpisodes,
+          error: undefined,
+          status: null,
+          isLoading: true,
+          initialPosition: introEndTime || 0,
+        });
+        Toast.show({
+          type: "success",
+          text1: "已自动切换播放源",
+          text2: `正在使用 ${fallbackSource.source_name} 播放第 ${currentEpisodeIndex + 1} 集`,
+        });
       } else {
         const msg = errorService.handle("回退的播放源缺少当前剧集", { context: "handleVideoError", showToast: false });
         set({ error: msg, isLoading: false, status: null });
