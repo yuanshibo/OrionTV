@@ -12,12 +12,15 @@ import {
   shouldPreferRawResult,
   shouldPreferEnrichedResult,
   mergeResultsByDedupeKey,
+  labelPriority,
+  resolutionPriority,
 } from "@/utils/DetailUtils";
 import { processNewResults } from "@/utils/DetailLogic";
 import {
   getDetailCacheEntry,
   setDetailCacheEntry,
   getResolutionWithCache,
+  probeM3U8WithCache,
 } from "@/utils/DetailCache";
 
 const logger = Logger.withTag('DetailStore');
@@ -192,7 +195,6 @@ const useDetailStore = create<DetailState>((set, get) => ({
       // 3. Determine Target Source (History Priority)
       let historySourceKey: string | null = null;
       let matchedRecord: any = null;
-      let hasLoggedPrewarm = false;
 
       if (playRecords) {
         // Precise matching using metadata if available
@@ -218,7 +220,6 @@ const useDetailStore = create<DetailState>((set, get) => ({
       }
 
       // Pre-set resume record if found in the bulk fetch (optimization)
-      // We will refine this later with getLatestByTitle for metadata, but this is a good start
       if (matchedRecord) {
         set({ resumeRecord: matchedRecord });
       }
@@ -226,6 +227,89 @@ const useDetailStore = create<DetailState>((set, get) => ({
       let validSourcesCount = 0;
       const MAX_VALID_SOURCES = 7;
       const loadedSourceKeys = new Set<string>();
+
+      // 4. Background Probing & Smart Quality Enrichment Helper
+      const probeAndEnrichSource = async (
+        sourceKey: string,
+        targetEpisodeUrl: string
+      ) => {
+        try {
+          const probeResult = await probeM3U8WithCache(targetEpisodeUrl, signal);
+          if (signal.aborted) return;
+
+          const snapshot = get();
+          if (probeResult.available) {
+            const detectedResolution = probeResult.resolution || undefined;
+            if (!detectedResolution) return;
+
+            // Update searchResults with detected resolution
+            const updatedSearchResults = snapshot.searchResults.map((item) => {
+              if (item.source === sourceKey) {
+                return { ...item, resolution: detectedResolution };
+              }
+              return item;
+            });
+
+            // Update sources with detected resolution
+            const updatedSources = snapshot.sources.map((item) => {
+              if (item.source === sourceKey) {
+                return { ...item, resolution: detectedResolution };
+              }
+              return item;
+            });
+
+            const updates: Partial<DetailState> = {
+              searchResults: updatedSearchResults,
+              sources: updatedSources,
+            };
+
+            // Update detail if this source is the current active detail
+            if (snapshot.detail?.source === sourceKey) {
+              updates.detail = { ...snapshot.detail, resolution: detectedResolution };
+            }
+
+            // Smart promotion check: If candidate has higher quality and complete episodes
+            const currentDetail = snapshot.detail;
+            const candidate = updatedSearchResults.find((r) => r.source === sourceKey);
+            if (
+              currentDetail &&
+              candidate &&
+              candidate.source !== currentDetail.source &&
+              candidate.episodes.length >= currentDetail.episodes.length &&
+              shouldPreferEnrichedResult(currentDetail, candidate)
+            ) {
+              const isStrictPreferred = preferredSource && currentDetail.source === preferredSource;
+              if (!isStrictPreferred) {
+                updates.detail = candidate;
+                logger.info(
+                  `[SMART_PROMOTION] Promoted high-quality source "${candidate.source}" (${candidate.resolution || 'HD'}) over "${currentDetail.source}"`
+                );
+              }
+            }
+
+            set(updates);
+          } else {
+            // M3U8 is dead
+            logger.warn(
+              `[PROBE_UNAVAILABLE] Source "${sourceKey}" target episode is unreachable: ${probeResult.error}`
+            );
+            get().markSourceAsFailed(sourceKey, probeResult.error || "Dead M3U8");
+
+            // If current detail is this dead source, seamlessly switch to next healthy source
+            if (snapshot.detail?.source === sourceKey) {
+              const nextSource = get().getNextAvailableSource(sourceKey, 0);
+              if (nextSource) {
+                logger.info(
+                  `[PROBE_FAILOVER] Auto-switching dead detail source "${sourceKey}" to healthy candidate "${nextSource.source}"`
+                );
+                set({ detail: nextSource });
+              }
+            }
+          }
+        } catch (e) {
+          logger.debug(`[PROBE] probeAndEnrichSource error for ${sourceKey}:`, e);
+        }
+      };
 
       // Helper to process and add results
       const addResults = (results: SearchResult[], sourceKey: string) => {
@@ -306,9 +390,23 @@ const useDetailStore = create<DetailState>((set, get) => ({
         set(updates);
         validSourcesCount++;
         loadedSourceKeys.add(sourceKey);
+
+        // Asynchronously trigger resolution probing & health check for this source
+        const validItem = results.find(r => r.source === sourceKey) || results[0];
+        if (validItem && validItem.episodes && validItem.episodes.length > 0) {
+          let targetIndex = 0;
+          const resumeRec = get().resumeRecord;
+          if (resumeRec && resumeRec.index > 0 && resumeRec.index <= validItem.episodes.length) {
+            targetIndex = resumeRec.index - 1;
+          }
+          const targetEpisode = validItem.episodes[targetIndex] || validItem.episodes[0];
+          if (targetEpisode) {
+            void probeAndEnrichSource(sourceKey, targetEpisode);
+          }
+        }
       };
 
-      // 4. Load Target Source First (Preferred or History)
+      // 5. Load Target Source First (Preferred or History)
       const targetSourceKey = preferredSource || historySourceKey;
       if (targetSourceKey) {
         logger.info(`[INFO] Loading target source first: ${targetSourceKey} ${preferredSource ? '(preferred)' : '(history)'}`);
@@ -326,11 +424,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
         }
       }
 
-      // 5. Sequential Load of Remaining Sources
-      // We iterate through resources and fetch them one by one (or small batches)
-      // skipping the history source if it was already attempted.
-
-      // 5. Batch Parallel Load of Remaining Sources
+      // 6. Batch Parallel Load of Remaining Sources
       const remainingResources = resources.filter(r => r.key !== targetSourceKey);
       const BATCH_SIZE = APP_CONFIG.DETAIL.MAX_CONCURRENT_SOURCE_REQUESTS || 3;
 
@@ -345,30 +439,6 @@ const useDetailStore = create<DetailState>((set, get) => ({
             const { results } = await api.searchVideo(q, res.key, signal);
             if (results.length > 0 && !signal.aborted) {
               addResults(results, res.key);
-
-              // Pre-warm resolution for the primary source (Resume Play priority)
-              const snapshot = get();
-              if (snapshot.detail && snapshot.detail.episodes) {
-                let targetIndex = 0; // Default to first episode
-
-                // Check if we have history for this title
-                if (snapshot.resumeRecord) {
-                  const match = snapshot.resumeRecord;
-                  if (match && match.index > 0 && match.index <= snapshot.detail.episodes.length) {
-                    targetIndex = match.index - 1;
-                    // Only log target identification once to reduce noise
-                    if (!hasLoggedPrewarm) {
-                      logger.debug(`[PREWARM] Target identified from history: Episode ${match.index}`);
-                      hasLoggedPrewarm = true;
-                    }
-                  }
-                }
-
-                const targetEpisode = snapshot.detail.episodes[targetIndex];
-                if (targetEpisode) {
-                  void getResolutionWithCache(targetEpisode, signal).catch(() => { });
-                }
-              }
             }
           } catch (e) {
             logger.warn(`[WARN] Source "${res.key}" failed:`, e);
@@ -376,7 +446,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
         }));
       }
 
-      // 6. Finalize
+      // 7. Finalize
       if (signal.aborted) return;
 
       const finalState = get();
@@ -401,11 +471,38 @@ const useDetailStore = create<DetailState>((set, get) => ({
 
   setDetail: async (detail) => {
     set({ detail });
-    const { source, id } = detail;
+    const { source, id, episodes } = detail;
     const isFavorited = await FavoriteManager.isFavorited(source, id.toString());
     const resumeRecord = await PlayRecordManager.getLatestByTitle(detail.title, detail.year, detail.type);
 
     set({ isFavorited, resumeRecord });
+
+    // Trigger probing for newly selected source if resolution is not yet populated
+    if (!detail.resolution && episodes && episodes.length > 0) {
+      let targetIndex = 0;
+      if (resumeRecord && resumeRecord.index > 0 && resumeRecord.index <= episodes.length) {
+        targetIndex = resumeRecord.index - 1;
+      }
+      const targetEpisode = episodes[targetIndex] || episodes[0];
+      if (targetEpisode) {
+        probeM3U8WithCache(targetEpisode).then((probeRes) => {
+          if (probeRes.available && probeRes.resolution) {
+            const snap = get();
+            if (snap.detail?.source === source) {
+              set({
+                detail: { ...snap.detail, resolution: probeRes.resolution },
+                searchResults: snap.searchResults.map((r) =>
+                  r.source === source ? { ...r, resolution: probeRes.resolution } : r
+                ),
+                sources: snap.sources.map((s) =>
+                  s.source === source ? { ...s, resolution: probeRes.resolution } : s
+                ),
+              });
+            }
+          }
+        }).catch(() => {});
+      }
+    }
 
     if (lastCacheKey) {
       const state = get();
@@ -417,7 +514,6 @@ const useDetailStore = create<DetailState>((set, get) => ({
         state.allSourcesLoaded
       );
     }
-
   },
 
   abort: () => {
@@ -480,8 +576,6 @@ const useDetailStore = create<DetailState>((set, get) => ({
       if (!result.episodes || result.episodes.length <= episodeIndex) return false;
 
       // Strict Metadata Check (if current detail exists)
-      // Use normalized comparison to tolerate minor format differences between sources
-      // e.g. "2023年" vs "2023", "TV" vs "tv"
       const normalizeYear = (y?: string) => y?.replace(/[年\s]/g, '').trim() ?? '';
       const normalizeType = (t?: string) => t?.toLowerCase().trim() ?? '';
 
@@ -501,12 +595,11 @@ const useDetailStore = create<DetailState>((set, get) => ({
 
     logger.info(`[SOURCE_SELECTION] Available sources: ${availableSources.length}`);
     availableSources.forEach(source => {
-      logger.info(`[SOURCE_SELECTION] - ${source.source} (${source.source_name}): ${source.episodes?.length || 0} episodes`);
+      logger.info(`[SOURCE_SELECTION] - ${source.source} (${source.source_name}): ${source.episodes?.length || 0} episodes, resolution: ${source.resolution || 'unknown'}`);
     });
 
     if (availableSources.length === 0) {
-      logger.error(`[SOURCE_SELECTION] No available sources for episode ${episodeIndex + 1}`);
-      // If all sources were marked failed, reset failedSources so subsequent user interactions can re-attempt
+      logger.warn(`[SOURCE_SELECTION] No available sources for episode ${episodeIndex + 1}`);
       if (failedSources.size > 0) {
         logger.info(`[SOURCE_SELECTION] Resetting failedSources set for recovery`);
         set({ failedSources: new Set() });
@@ -514,21 +607,21 @@ const useDetailStore = create<DetailState>((set, get) => ({
       return null;
     }
 
-    // 优先选择有高分辨率的source
+    // 优先选择高清晰度、无广/超清标签、剧集更全的可用源
     const sortedSources = availableSources.sort((a, b) => {
-      const aResolution = a.resolution || '';
-      const bResolution = b.resolution || '';
+      const bResScore = resolutionPriority(b.resolution);
+      const aResScore = resolutionPriority(a.resolution);
+      if (bResScore !== aResScore) {
+        return bResScore - aResScore;
+      }
 
-      // 优先级: 1080p > 720p > 其他 > 无分辨率
-      const resolutionPriority = (res: string) => {
-        if (res.includes('1080')) return 4;
-        if (res.includes('720')) return 3;
-        if (res.includes('480')) return 2;
-        if (res.includes('360')) return 1;
-        return 0;
-      };
+      const bLabelScore = labelPriority(b.source_name);
+      const aLabelScore = labelPriority(a.source_name);
+      if (bLabelScore !== aLabelScore) {
+        return bLabelScore - aLabelScore;
+      }
 
-      return resolutionPriority(bResolution) - resolutionPriority(aResolution);
+      return (b.episodes?.length || 0) - (a.episodes?.length || 0);
     });
 
     const selectedSource = sortedSources[0];

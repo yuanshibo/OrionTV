@@ -11,6 +11,7 @@ interface EpisodeHorizontalListProps {
     handlePlay: (index: number) => void;
     handleEpisodeFocus: (index: number) => void;
     firstRangeTag: number | null;
+    firstSourceTag?: number | null;
     dynamicStyles: any;
     setTargetEpisodeTag: (tag: number | null) => void;
 }
@@ -26,6 +27,7 @@ export const EpisodeHorizontalList = memo(forwardRef<EpisodeHorizontalListRef, E
     handlePlay,
     handleEpisodeFocus,
     firstRangeTag,
+    firstSourceTag,
     dynamicStyles,
     setTargetEpisodeTag,
 }, ref) => {
@@ -79,11 +81,12 @@ export const EpisodeHorizontalList = memo(forwardRef<EpisodeHorizontalListRef, E
                     style={[dynamicStyles.episodeButton, buttonStyleOverride]}
                     textStyle={[dynamicStyles.episodeButtonText, textStyleOverride]}
                     onFocus={handleEpisodeFocus}
+                    nextFocusUp={firstSourceTag || undefined}
                     nextFocusDown={index < 10 ? (firstRangeTag || undefined) : undefined}
                 />
             </View>
         );
-    }, [handlePlay, dynamicStyles, handleEpisodeFocus, itemContainerStyle, buttonStyleOverride, textStyleOverride, firstRangeTag, setTargetEpisodeTag]);
+    }, [handlePlay, dynamicStyles, handleEpisodeFocus, itemContainerStyle, buttonStyleOverride, textStyleOverride, firstRangeTag, firstSourceTag, setTargetEpisodeTag]);
 
     const flashListConfig = useMemo(() => 
         FlashListOptimizer.getHorizontalListConfig(deviceType, itemWidth),

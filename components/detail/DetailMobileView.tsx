@@ -60,8 +60,13 @@ const MobileTopInfo = memo(({
             disabled={isPlayDisabled}
           />
           <View style={dynamicStyles.metaContainer}>
-            <ThemedText style={dynamicStyles.metaText}>{detail.year}</ThemedText>
-            <ThemedText style={dynamicStyles.metaText}>{detail.type_name}</ThemedText>
+            {detail.year ? <ThemedText style={dynamicStyles.metaText}>{detail.year}</ThemedText> : null}
+            {detail.type_name ? <ThemedText style={dynamicStyles.metaText}>{detail.type_name}</ThemedText> : null}
+            {detail.resolution ? (
+              <View style={[dynamicStyles.badge, { backgroundColor: colors.border, alignSelf: 'center', marginLeft: 4 }]}>
+                <ThemedText style={dynamicStyles.badgeText}>{detail.resolution}</ThemedText>
+              </View>
+            ) : null}
           </View>
         </View>
       </View>

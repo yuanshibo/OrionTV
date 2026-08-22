@@ -98,6 +98,7 @@ const DetailTVContent = memo(({
                 handlePlay={handlePlay}
                 handleEpisodeFocus={handleEpisodeFocus}
                 firstRangeTag={firstRangeTag}
+                firstSourceTag={firstSourceTag}
                 dynamicStyles={dynamicStyles}
                 setTargetEpisodeTag={setTargetEpisodeTag}
               />
