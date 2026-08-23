@@ -5,16 +5,18 @@ import { PlayerControls } from "@/components/PlayerControls";
 import { SeekingBar } from "@/components/SeekingBar";
 import { SearchResultWithResolution } from "@/services/api";
 import { VideoViewPropsSubset } from "@/hooks/useVideoHandlers";
+import usePlayerStore from "@/stores/playerStore";
 import Logger from "@/utils/Logger";
 
 const logger = Logger.withTag("PlayerView");
 
-const ErrorContainer = memo(({ style, message, textStyle }: { style: any; message: string; textStyle: any }) => {
+const ErrorContainer = memo(({ style, message, textStyle, onRetry }: { style: any; message: string; textStyle: any; onRetry?: () => void }) => {
   logger.warn(`[UI] Displaying player error: ${message}`);
   return (
-    <View style={style}>
+    <TouchableOpacity activeOpacity={0.8} onPress={onRetry} style={style}>
       <Text style={textStyle}>{message}</Text>
-    </View>
+      <Text style={[textStyle, { fontSize: 13, opacity: 0.7, marginTop: 12 }]}>按确认键重试</Text>
+    </TouchableOpacity>
   );
 });
 ErrorContainer.displayName = "ErrorContainer";
@@ -138,7 +140,14 @@ const PlayerView = memo((props: PlayerViewProps) => {
         </View>
       )}
 
-      {error && <ErrorContainer style={dynamicStyles.overlayContainer} message={error} textStyle={dynamicStyles.errorText} />}
+      {error && (
+        <ErrorContainer
+          style={dynamicStyles.overlayContainer}
+          message={error}
+          textStyle={dynamicStyles.errorText}
+          onRetry={() => usePlayerStore.getState().retryCurrentPlayback()}
+        />
+      )}
 
       {!error && (
         <>

@@ -163,7 +163,7 @@ export default function HomeScreen() {
           backPressTimeRef.current = now;
           Toast.show({
             type: 'info',
-            text1: '再按一次退出 OrionTV',
+            text1: '再按一次退出',
             visibilityTime: 2000,
           });
           return true;

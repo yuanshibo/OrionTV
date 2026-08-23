@@ -82,6 +82,7 @@ interface PlayerState {
   }) => Promise<void>;
   playEpisode: (index: number) => void;
   togglePlayPause: () => void;
+  retryCurrentPlayback: () => Promise<void>;
   seek: (duration: number) => void;
   handlePlaybackStatusUpdate: (newStatus: PlaybackState) => void;
   setLoading: (loading: boolean) => void;
@@ -269,10 +270,64 @@ const usePlayerStore = create<PlayerState>((set, get) => {
       }
     },
 
-    togglePlayPause: () => {
-      const { status, videoPlayer } = get();
-      if (status?.isLoaded && videoPlayer) {
+    retryCurrentPlayback: async () => {
+      const { videoPlayer, currentEpisodeIndex, status, episodes, router, initialPosition } = get();
+      const { detail } = useDetailStore.getState();
+      const currentEpisode = episodes[currentEpisodeIndex];
+
+      const resumePosition = (status?.positionMillis && status.positionMillis > 0)
+        ? status.positionMillis
+        : initialPosition || 0;
+
+      set({ error: undefined, isLoading: true });
+
+      if (videoPlayer && currentEpisode?.url) {
         try {
+          if (typeof (videoPlayer as any).replaceAsync === 'function') {
+            await (videoPlayer as any).replaceAsync(currentEpisode.url);
+          } else if (typeof (videoPlayer as any).replace === 'function') {
+            (videoPlayer as any).replace(currentEpisode.url);
+          } else {
+            videoPlayer.replay();
+          }
+          if (resumePosition > 0) {
+            videoPlayer.currentTime = resumePosition / 1000;
+          }
+          videoPlayer.play();
+          set({ isUserPaused: false, isLoading: false });
+          return;
+        } catch (err) {
+          logger.warn('[PLAYER] retryCurrentPlayback via videoPlayer failed, falling back to full reload:', err);
+        }
+      }
+
+      if (detail && router) {
+        await get().loadVideo({
+          detail,
+          episodeIndex: currentEpisodeIndex,
+          position: resumePosition,
+          router,
+        });
+      }
+    },
+
+    togglePlayPause: () => {
+      const { status, videoPlayer, error } = get();
+
+      // If in error state or not loaded, pressing play/pause attempts in-place recovery
+      if (error || !status?.isLoaded) {
+        get().retryCurrentPlayback();
+        return;
+      }
+
+      if (videoPlayer) {
+        try {
+          const isNativeError = (videoPlayer as any).status === 'error';
+          if (isNativeError) {
+            get().retryCurrentPlayback();
+            return;
+          }
+
           if (status.isPlaying) {
             videoPlayer.pause();
             set({ isUserPaused: true });
@@ -281,7 +336,8 @@ const usePlayerStore = create<PlayerState>((set, get) => {
             set({ isUserPaused: false });
           }
         } catch (e) {
-          console.warn('[PLAYER] togglePlayPause error:', e);
+          console.warn('[PLAYER] togglePlayPause error, attempting recovery:', e);
+          get().retryCurrentPlayback();
         }
       }
     },

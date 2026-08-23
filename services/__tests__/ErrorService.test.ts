@@ -39,6 +39,11 @@ describe('ErrorService', () => {
         it('should detect Audio errors', () => {
             expect(errorService.detectErrorType('AudioSink error: DeadObjectException')).toBe(ErrorType.AUDIO);
             expect(errorService.detectErrorType(new Error('AudioTrack.write failed'))).toBe(ErrorType.AUDIO);
+            expect(errorService.detectErrorType('A playback exception has occurred: MediaCodecAudioRenderer error, index=1, format=Format(1, null, null, audio/mp4a-latm)')).toBe(ErrorType.AUDIO);
+            expect(errorService.detectErrorType('ERROR_CODE_AUDIO_TRACK_WRITE_FAILED')).toBe(ErrorType.AUDIO);
+            expect(errorService.detectErrorType('DeadSystemException')).toBe(ErrorType.AUDIO);
+            expect(errorService.detectErrorType('Audio device disconnected')).toBe(ErrorType.AUDIO);
+            expect(errorService.detectErrorType('AudioSink$UnexpectedDiscontinuityException')).toBe(ErrorType.AUDIO);
         });
 
         it('should return UNKNOWN for other errors', () => {

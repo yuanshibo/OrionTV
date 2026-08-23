@@ -46,6 +46,8 @@ export const useVideoHandlers = ({
   const statusRef = useRef<PlaybackState>(createInitialPlaybackState());
   const pendingSeekRef = useRef<number>(0);
   const lastErrorUrlRef = useRef<string | null>(null);
+  const audioRecoveryCountRef = useRef<number>(0);
+  const lastAudioRecoveryTimeRef = useRef<number>(0);
 
   const emitStatusUpdate = useCallback(
     (updates: Partial<PlaybackState>) => {
@@ -62,6 +64,8 @@ export const useVideoHandlers = ({
     handlePlaybackStatusUpdate(statusRef.current);
     lastErrorUrlRef.current = null;
     lastValidPositionRef.current = 0;
+    audioRecoveryCountRef.current = 0;
+    lastAudioRecoveryTimeRef.current = 0;
   }, [currentEpisode?.url, handlePlaybackStatusUpdate]);
 
   useEffect(() => {
@@ -116,24 +120,36 @@ export const useVideoHandlers = ({
               console.warn('[VIDEO] Failed to start playback automatically', err);
             }
             lastErrorUrlRef.current = null;
+            audioRecoveryCountRef.current = 0;
             break;
           case 'idle':
             emitStatusUpdate({ isLoaded: false, isPlaying: false, isBuffering: false });
             break;
           case 'error': {
             const message = error?.message ?? 'Unknown playback error';
-            if (currentEpisode?.url && lastErrorUrlRef.current !== currentEpisode.url) {
-              const errorType = errorService.detectErrorType(message);
+            const errorType = errorService.detectErrorType(message);
 
-              // Audio device routing change (e.g. Bluetooth speaker disconnected)
-              if (errorType === ErrorType.AUDIO) {
-                console.warn(`[VIDEO] Audio output changed/disconnected (${message}). Recovering playback...`);
+            // Audio device routing change (e.g. Bluetooth speaker disconnected)
+            if (errorType === ErrorType.AUDIO && currentEpisode?.url) {
+              const now = Date.now();
+              if (now - lastAudioRecoveryTimeRef.current > 10000) {
+                audioRecoveryCountRef.current = 0;
+              }
+              audioRecoveryCountRef.current += 1;
+              lastAudioRecoveryTimeRef.current = now;
+
+              if (audioRecoveryCountRef.current <= 3) {
+                console.warn(`[VIDEO] Audio output changed/disconnected (${message}). Recovering playback (attempt ${audioRecoveryCountRef.current})...`);
                 errorService.showToast('音频设备变动，正在自动恢复...', 'info');
-                const resumePosition = lastValidPositionRef.current;
+                const resumePosition = lastValidPositionRef.current || statusRef.current.positionMillis || 0;
                 pendingSeekRef.current = resumePosition;
 
+                emitStatusUpdate({ isLoaded: false, isBuffering: true, error: undefined });
+
                 try {
-                  if (typeof (player as any).replace === 'function') {
+                  if (typeof (player as any).replaceAsync === 'function') {
+                    (player as any).replaceAsync(currentEpisode.url);
+                  } else if (typeof (player as any).replace === 'function') {
                     (player as any).replace(currentEpisode.url);
                   } else {
                     player.replay();
@@ -142,8 +158,12 @@ export const useVideoHandlers = ({
                 } catch (recoveryErr) {
                   console.warn('[VIDEO] Audio recovery failed, falling back to source switch', recoveryErr);
                 }
+              } else {
+                console.warn('[VIDEO] Audio recovery exceeded retry limit, attempting normal error fallback');
               }
+            }
 
+            if (currentEpisode?.url && lastErrorUrlRef.current !== currentEpisode.url) {
               lastErrorUrlRef.current = currentEpisode.url;
               const { handleVideoError } = usePlayerStore.getState();
 

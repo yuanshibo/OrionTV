@@ -25,12 +25,28 @@ const ERROR_SIGNATURES = {
         'AudioSink',
         'AudioTrack',
         'DeadObjectException',
+        'DeadSystemException',
         'AudioTrack.write',
         'audio sink error',
         'AudioTrack.ERROR_DEAD_OBJECT',
         'AudioSink$WriteException',
         'AudioSink$InitializationException',
         'AudioSink$ConfigurationException',
+        'AudioSink$UnexpectedDiscontinuityException',
+        'MediaCodecAudioRenderer',
+        'ERROR_CODE_AUDIO_TRACK',
+        'ERROR_CODE_DECODER_INIT_FAILED',
+        'audio sink',
+        'audio track',
+        'audio renderer',
+        'audio device',
+        'audio server died',
+        'audio/raw',
+        'audio/mp4a-latm',
+        'audio/ac3',
+        'audio/eac3',
+        'becoming_noisy',
+        'audiofocus',
     ],
 } as const;
 
@@ -70,7 +86,23 @@ class ErrorService {
     detectErrorType(error: unknown): ErrorType {
         const message = this.getErrorMessage(error).toLowerCase();
 
-        if (ERROR_SIGNATURES.audio.some(token => message.includes(token.toLowerCase()))) return ErrorType.AUDIO;
+        if (
+            ERROR_SIGNATURES.audio.some(token => message.includes(token.toLowerCase())) ||
+            (message.includes('audio') && (
+                message.includes('renderer') ||
+                message.includes('codec') ||
+                message.includes('sink') ||
+                message.includes('track') ||
+                message.includes('write') ||
+                message.includes('init') ||
+                message.includes('error') ||
+                message.includes('failed') ||
+                message.includes('disconnect') ||
+                message.includes('exception')
+            ))
+        ) {
+            return ErrorType.AUDIO;
+        }
         if (ERROR_SIGNATURES.ssl.some(token => message.includes(token.toLowerCase()))) return ErrorType.SSL;
         if (ERROR_SIGNATURES.network.some(token => message.includes(token.toLowerCase()))) return ErrorType.NETWORK;
         if (ERROR_SIGNATURES.api.some(token => message.includes(token.toLowerCase()))) return ErrorType.API;
