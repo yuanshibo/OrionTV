@@ -1,7 +1,6 @@
 import { useRef, useCallback } from "react";
 import { Alert, Platform } from "react-native";
 import { useRouter, useNavigation } from "expo-router";
-import { CommonActions } from "@react-navigation/native";
 import { PlayRecordManager, FavoriteManager } from "@/services/storage";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { useModalStore } from "@/stores/modalStore";
@@ -101,11 +100,14 @@ export const useVideoCardInteractions = ({
             !['detail', 'play', 'related'].includes(r.name)
           );
 
-          return CommonActions.reset({
-            ...state,
-            routes: [...routesToKeep, { name: 'detail', params }],
-            index: routesToKeep.length,
-          });
+          return {
+            type: 'RESET',
+            payload: {
+              ...state,
+              routes: [...routesToKeep, { name: 'detail', params }],
+              index: routesToKeep.length,
+            },
+          };
         });
       } else {
         // Fallback if navigation is not available (shouldn't happen in expo-router)

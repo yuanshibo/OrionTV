@@ -1,20 +1,19 @@
 import React, { useState, useRef, useImperativeHandle, forwardRef, useMemo } from "react";
-import { View, TextInput, StyleSheet, Animated, Platform, useColorScheme, TouchableOpacity, ActivityIndicator } from "react-native";
-import { useTVEventHandler } from "react-native";
+import { View, TextInput, StyleSheet, useColorScheme, TouchableOpacity, ActivityIndicator } from "react-native";
 import { ThemedText } from "@/components/ThemedText";
 import { SettingsSection } from "./SettingsSection";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useRemoteControlStore } from "@/stores/remoteControlStore";
-import { useButtonAnimation } from "@/hooks/useAnimation";
+import { StyledButton } from "@/components/StyledButton";
 import { Colors } from "@/constants/Colors";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { CheckCircle2, AlertCircle, X } from "lucide-react-native";
+import Toast from "react-native-toast-message";
 
 interface LiveStreamSectionProps {
   onChanged: () => void;
   onFocus?: () => void;
   onBlur?: () => void;
-  onPress?: () => void;
 }
 
 export interface LiveStreamSectionRef {
@@ -22,7 +21,7 @@ export interface LiveStreamSectionRef {
 }
 
 export const LiveStreamSection = forwardRef<LiveStreamSectionRef, LiveStreamSectionProps>(
-  ({ onChanged, onFocus, onBlur, onPress }, ref) => {
+  ({ onChanged, onFocus, onBlur }, ref) => {
     const colorScheme = useColorScheme() === "light" ? "light" : "dark";
     const colors = Colors[colorScheme];
     const {
@@ -35,10 +34,8 @@ export const LiveStreamSection = forwardRef<LiveStreamSectionRef, LiveStreamSect
     } = useSettingsStore();
     const { serverUrl } = useRemoteControlStore();
     const [isInputFocused, setIsInputFocused] = useState(false);
-    const [isSectionFocused, setIsSectionFocused] = useState(false);
     const inputRef = useRef<TextInput>(null);
-    const inputAnimationStyle = useButtonAnimation(isSectionFocused, 1.01);
-    const deviceType = useResponsiveLayout().deviceType;
+    const { deviceType } = useResponsiveLayout();
 
     const handleUrlChange = (url: string) => {
       setM3uUrl(url);
@@ -57,38 +54,12 @@ export const LiveStreamSection = forwardRef<LiveStreamSectionRef, LiveStreamSect
       },
     }));
 
-    const handleSectionFocus = () => {
-      setIsSectionFocused(true);
-      onFocus?.();
-    };
-
-    const handleSectionBlur = () => {
-      setIsSectionFocused(false);
-      onBlur?.();
-    };
-
-    const handlePress = () => {
-      inputRef.current?.focus();
-      onPress?.();
-    };
-
-    const handleTVEvent = React.useCallback(
-      (event: any) => {
-        if (isSectionFocused && event.eventType === "select") {
-          inputRef.current?.focus();
-        }
-      },
-      [isSectionFocused]
-    );
-
-    useTVEventHandler(handleTVEvent);
-
-    const [selection, setSelection] = useState<{ start: number; end: number }>({
-      start: 0,
-      end: 0,
-    });
-    const onSelectionChange = ({ nativeEvent: { selection } }: any) => {
-      setSelection(selection);
+    const handleTestPress = () => {
+      if (!m3uUrl.trim()) {
+        Toast.show({ type: "error", text1: "请输入 M3U 直播源地址" });
+        return;
+      }
+      testM3uConnection();
     };
 
     const styles = useMemo(() => StyleSheet.create({
@@ -110,7 +81,7 @@ export const LiveStreamSection = forwardRef<LiveStreamSectionRef, LiveStreamSect
       inputRow: {
         flexDirection: "row",
         alignItems: "center",
-        gap: 8,
+        gap: 12,
         marginBottom: 8,
       },
       inputContainer: {
@@ -143,21 +114,8 @@ export const LiveStreamSection = forwardRef<LiveStreamSectionRef, LiveStreamSect
         zIndex: 10,
       },
       testButton: {
+        minWidth: 100,
         height: 50,
-        paddingHorizontal: 16,
-        borderRadius: 8,
-        backgroundColor: colors.primary,
-        justifyContent: "center",
-        alignItems: "center",
-        minWidth: 90,
-      },
-      testButtonDisabled: {
-        opacity: 0.6,
-      },
-      testButtonText: {
-        color: "#fff",
-        fontSize: 14,
-        fontWeight: "600",
       },
       statusBadge: {
         flexDirection: "row",
@@ -177,9 +135,7 @@ export const LiveStreamSection = forwardRef<LiveStreamSectionRef, LiveStreamSect
     }), [colors, m3uUrl]);
 
     return (
-      <SettingsSection focusable onFocus={handleSectionFocus} onBlur={handleSectionBlur}
-        onPress={Platform.isTV || deviceType !== "tv" ? undefined : handlePress}
-      >
+      <SettingsSection focusable={false}>
         <View style={{ marginBottom: 12 }}>
           <View style={styles.titleContainer}>
             <ThemedText style={styles.sectionTitle}>直播源地址</ThemedText>
@@ -188,7 +144,7 @@ export const LiveStreamSection = forwardRef<LiveStreamSectionRef, LiveStreamSect
             )}
           </View>
           <View style={styles.inputRow}>
-            <Animated.View style={[inputAnimationStyle, styles.inputContainer]}>
+            <View style={styles.inputContainer}>
               <TextInput
                 ref={inputRef}
                 style={[styles.input, isInputFocused && styles.inputFocused]}
@@ -198,36 +154,44 @@ export const LiveStreamSection = forwardRef<LiveStreamSectionRef, LiveStreamSect
                 placeholderTextColor={colors.icon}
                 autoCapitalize="none"
                 autoCorrect={false}
+                autoComplete="off"
+                multiline={false}
+                numberOfLines={1}
+                blurOnSubmit={true}
+                returnKeyType="done"
                 onFocus={() => {
                   setIsInputFocused(true);
-                  const end = m3uUrl.length;
-                  setSelection({ start: end, end: end });
-                  setTimeout(() => {
-                    inputRef.current?.setNativeProps({ selection: { start: end, end: end } });
-                  }, 0);
+                  onFocus?.();
                 }}
-                selection={selection}
-                onSelectionChange={onSelectionChange}
-                onBlur={() => setIsInputFocused(false)}
+                onBlur={() => {
+                  setIsInputFocused(false);
+                  onBlur?.();
+                }}
               />
               {Boolean(m3uUrl) && (
-                <TouchableOpacity style={styles.clearButton} onPress={handleClear} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <TouchableOpacity
+                  style={styles.clearButton}
+                  onPress={handleClear}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  focusable={deviceType !== "tv"}
+                >
                   <X size={18} color={colors.icon} />
                 </TouchableOpacity>
               )}
-            </Animated.View>
+            </View>
 
-            <TouchableOpacity
-              style={[styles.testButton, (!m3uUrl || isTestingM3u) && styles.testButtonDisabled]}
-              onPress={() => testM3uConnection()}
-              disabled={!m3uUrl || isTestingM3u}
+            <StyledButton
+              style={styles.testButton}
+              variant="primary"
+              onPress={handleTestPress}
+              disabled={isTestingM3u}
             >
               {isTestingM3u ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <ThemedText style={styles.testButtonText}>探测源</ThemedText>
+                <ThemedText style={{ color: "#fff", fontSize: 14, fontWeight: "600" }}>探测源</ThemedText>
               )}
-            </TouchableOpacity>
+            </StyledButton>
           </View>
 
           {lastM3uTestResult && (

@@ -271,7 +271,7 @@ const createStyles = (responsiveConfig: ResponsiveConfig, colors: (typeof Colors
     paddingHorizontal: 4,
   },
   overlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(0,0,0,0.3)",
     justifyContent: "center",
     alignItems: "center",

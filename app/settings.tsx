@@ -1,40 +1,36 @@
-import React, { useState, useEffect, useRef } from "react";
-import { View, StyleSheet, Alert, Platform } from "react-native";
-import { useTVEventHandler } from "react-native";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { View, StyleSheet, Alert, Platform, ScrollView, BackHandler } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRouter, useFocusEffect } from "expo-router";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { StyledButton } from "@/components/StyledButton";
 import { useThemeColor } from "@/hooks/useThemeColor";
 import { useSettingsStore } from "@/stores/settingsStore";
-// import useAuthStore from "@/stores/authStore";
 import { useRemoteControlStore } from "@/stores/remoteControlStore";
 import { APIConfigSection } from "@/components/settings/APIConfigSection";
 import { LiveStreamSection } from "@/components/settings/LiveStreamSection";
 import { RemoteInputSection } from "@/components/settings/RemoteInputSection";
 import { UpdateSection } from "@/components/settings/UpdateSection";
-// import { VideoSourceSection } from "@/components/settings/VideoSourceSection";
 import Toast from "react-native-toast-message";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { getCommonResponsiveStyles } from "@/utils/ResponsiveStyles";
 import ResponsiveNavigation from "@/components/navigation/ResponsiveNavigation";
 import ResponsiveHeader from "@/components/navigation/ResponsiveHeader";
 import { DeviceUtils } from "@/utils/DeviceUtils";
-import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 
 type SectionItem = {
   component: React.ReactElement;
   key: string;
 };
 
-/** 过滤掉 false/undefined，帮 TypeScript 推断出真正的数组元素类型 */
-function isSectionItem(
-  item: false | undefined | SectionItem
-): item is SectionItem {
+function isSectionItem(item: false | undefined | SectionItem): item is SectionItem {
   return !!item;
 }
 
 export default function SettingsScreen() {
+  const router = useRouter();
   const { loadSettings, saveSettings, setApiBaseUrl, setM3uUrl } = useSettingsStore();
   const { lastMessage, targetPage, clearMessage } = useRemoteControlStore();
   const backgroundColor = useThemeColor({}, "background");
@@ -46,25 +42,30 @@ export default function SettingsScreen() {
   const { deviceType, spacing } = responsiveConfig;
 
   const [isLoading, setIsLoading] = useState(false);
-  const [currentFocusIndex, setCurrentFocusIndex] = useState(0);
-  const [currentSection, setCurrentSection] = useState<string | null>(null);
 
   const saveButtonRef = useRef<any>(null);
   const apiSectionRef = useRef<any>(null);
   const liveStreamSectionRef = useRef<any>(null);
 
+  // TV遥控器返回键处理
+  useFocusEffect(
+    useCallback(() => {
+      const handler = BackHandler.addEventListener("hardwareBackPress", () => {
+        if (router.canGoBack()) {
+          router.back();
+        } else {
+          router.replace("/");
+        }
+        return true;
+      });
+
+      return () => handler.remove();
+    }, [router])
+  );
+
   useEffect(() => {
     loadSettings();
   }, [loadSettings]);
-
-  useEffect(() => {
-    if (lastMessage && !targetPage) {
-      const realMessage = lastMessage.split("_")[0];
-      handleRemoteInput(realMessage);
-      clearMessage(); // Clear the message after processing
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lastMessage, targetPage]);
 
   const handleRemoteInput = (message: string) => {
     if (message.startsWith("api:")) {
@@ -83,7 +84,7 @@ export default function SettingsScreen() {
 
     // Fallback for plain messages
     const trimmed = message.trim();
-    if (trimmed.toLowerCase().endsWith(".m3u") || trimmed.toLowerCase().includes(".m3u?") || currentSection === "livestream") {
+    if (trimmed.toLowerCase().endsWith(".m3u") || trimmed.toLowerCase().includes(".m3u?")) {
       setM3uUrl(trimmed);
       Toast.show({ type: "success", text1: "已填入直播源地址", text2: trimmed });
     } else {
@@ -91,6 +92,14 @@ export default function SettingsScreen() {
       Toast.show({ type: "success", text1: "已填入 API 地址", text2: trimmed });
     }
   };
+
+  useEffect(() => {
+    if (lastMessage && !targetPage) {
+      const realMessage = lastMessage.split("_")[0];
+      handleRemoteInput(realMessage);
+      clearMessage(); // Clear the message after processing
+    }
+  }, [lastMessage, targetPage]);
 
   const handleSave = async () => {
     setIsLoading(true);
@@ -113,10 +122,6 @@ export default function SettingsScreen() {
       component: (
         <RemoteInputSection
           onChanged={() => {}}
-          onFocus={() => {
-            setCurrentFocusIndex(0);
-            setCurrentSection("remote");
-          }}
         />
       ),
       key: "remote",
@@ -127,10 +132,6 @@ export default function SettingsScreen() {
           ref={apiSectionRef}
           onChanged={() => {}}
           hideDescription={deviceType === "mobile"}
-          onFocus={() => {
-            setCurrentFocusIndex(1);
-            setCurrentSection("api");
-          }}
         />
       ),
       key: "api",
@@ -141,10 +142,6 @@ export default function SettingsScreen() {
         <LiveStreamSection
           ref={liveStreamSectionRef}
           onChanged={() => {}}
-          onFocus={() => {
-            setCurrentFocusIndex(2);
-            setCurrentSection("livestream");
-          }}
         />
       ),
       key: "livestream",
@@ -153,75 +150,67 @@ export default function SettingsScreen() {
       component: <UpdateSection />,
       key: "update",
     },
-  ] as const; // 把每个对象都当作字面量保留
-  /** 这里得到的 sections 已经是 SectionItem[]（没有 false） */
+  ] as const;
+
   const sections: SectionItem[] = rawSections.filter(isSectionItem);
-
-  // TV遥控器事件处理 - 仅在TV设备上启用
-  const handleTVEvent = React.useCallback(
-    (event: any) => {
-      if (deviceType !== "tv") return;
-
-      if (event.eventType === "down") {
-        const nextIndex = Math.min(currentFocusIndex + 1, sections.length);
-        setCurrentFocusIndex(nextIndex);
-        if (nextIndex === sections.length) {
-          saveButtonRef.current?.focus();
-        }
-      } else if (event.eventType === "up") {
-        const prevIndex = Math.max(currentFocusIndex - 1, 0);
-        setCurrentFocusIndex(prevIndex);
-      }
-    },
-    [currentFocusIndex, sections.length, deviceType]
-  );
-
-  useTVEventHandler(deviceType === "tv" ? handleTVEvent : () => { });
-
-  // 动态样式
   const dynamicStyles = createResponsiveStyles(deviceType, spacing, insets);
 
-  const renderSettingsContent = () => (
-    // <KeyboardAvoidingView style={{ flex: 1, backgroundColor }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-    <KeyboardAwareScrollView
-      enableOnAndroid={true}
-      extraScrollHeight={20}
-      keyboardOpeningTime={0}
-      keyboardShouldPersistTaps="always"
-      scrollEnabled={true}
-      style={{ flex: 1, backgroundColor }}
-    >
+  const innerContent = (
+    <ThemedView style={[commonStyles.container, dynamicStyles.container]}>
+      {deviceType === "tv" && (
+        <View style={dynamicStyles.header}>
+          <ThemedText style={dynamicStyles.title}>设置</ThemedText>
+        </View>
+      )}
 
-      <ThemedView style={[commonStyles.container, dynamicStyles.container]}>
-        {deviceType === "tv" && (
-          <View style={dynamicStyles.header}>
-            <ThemedText style={dynamicStyles.title}>设置</ThemedText>
+      <View style={dynamicStyles.scrollView}>
+        {sections.map((item) => (
+          <View key={item.key} style={dynamicStyles.itemWrapper}>
+            {item.component}
           </View>
-        )}
+        ))}
+      </View>
 
-        <View style={dynamicStyles.scrollView}>
-          {sections.map(item => (
-            // 必须把 key 放在最外层的 View 上
-            <View key={item.key} style={dynamicStyles.itemWrapper}>
-              {item.component}
-            </View>
-          ))}
-        </View>
-
-        <View style={dynamicStyles.footer}>
-          <StyledButton
-            ref={saveButtonRef}
-            text={isLoading ? "保存中..." : "保存设置"}
-            onPress={handleSave}
-            variant="primary"
-            disabled={isLoading}
-            style={[dynamicStyles.saveButton, isLoading && dynamicStyles.disabledButton]}
-          />
-        </View>
-      </ThemedView>
-    </KeyboardAwareScrollView>
-    // </KeyboardAvoidingView>
+      <View style={dynamicStyles.footer}>
+        <StyledButton
+          ref={saveButtonRef}
+          text={isLoading ? "保存中..." : "保存设置"}
+          onPress={handleSave}
+          variant="primary"
+          disabled={isLoading}
+          style={[dynamicStyles.saveButton, isLoading && dynamicStyles.disabledButton]}
+        />
+      </View>
+    </ThemedView>
   );
+
+  const renderSettingsContent = () => {
+    if (deviceType === "tv") {
+      return (
+        <ScrollView
+          style={{ flex: 1, backgroundColor }}
+          contentContainerStyle={{ flexGrow: 1, paddingBottom: 60 }}
+          keyboardShouldPersistTaps="handled"
+          removeClippedSubviews={false}
+        >
+          {innerContent}
+        </ScrollView>
+      );
+    }
+
+    return (
+      <KeyboardAwareScrollView
+        enableOnAndroid={true}
+        extraScrollHeight={20}
+        keyboardOpeningTime={0}
+        keyboardShouldPersistTaps="always"
+        scrollEnabled={true}
+        style={{ flex: 1, backgroundColor }}
+      >
+        {innerContent}
+      </KeyboardAwareScrollView>
+    );
+  };
 
   // 根据设备类型决定是否包装在响应式导航中
   if (deviceType === "tv") {
@@ -259,7 +248,7 @@ const createResponsiveStyles = (deviceType: string, spacing: number, insets: any
       fontWeight: "bold",
       paddingTop: spacing,
       color: "white",
-      height: 45
+      height: 45,
     },
     scrollView: {
       flex: 1,
@@ -269,18 +258,19 @@ const createResponsiveStyles = (deviceType: string, spacing: number, insets: any
     },
     footer: {
       paddingTop: spacing,
+      paddingBottom: isTV ? 40 : 20,
       alignItems: isMobile ? "center" : "flex-end",
     },
     saveButton: {
-      minHeight: isMobile ? minTouchTarget : isTablet ? 50 : 50,
-      width: isMobile ? "100%" : isTablet ? 140 : 120,
+      minHeight: isMobile ? minTouchTarget : 50,
+      width: isMobile ? "100%" : isTablet ? 140 : 160,
       maxWidth: isMobile ? 280 : undefined,
     },
     disabledButton: {
       opacity: 0.5,
     },
     itemWrapper: {
-      marginBottom: spacing,   // 这里的 spacing 来自 useResponsiveLayout()
+      marginBottom: spacing,
     },
   });
 };

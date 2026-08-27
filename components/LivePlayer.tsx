@@ -185,7 +185,7 @@ export default function LivePlayer({ streamUrl, channelTitle, onPlaybackStatusUp
       marginTop: 10,
     },
     loadingOverlay: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       justifyContent: "center",
       alignItems: "center",
       backgroundColor: "rgba(0, 0, 0, 0.5)",

@@ -1,7 +1,8 @@
 import React, { useMemo } from "react";
-import { View, StyleSheet, Platform, ActivityIndicator, useColorScheme } from "react-native";
+import { View, StyleSheet, Platform, useColorScheme } from "react-native";
 import { ThemedText } from "../ThemedText";
 import { StyledButton } from "../StyledButton";
+import { SettingsSection } from "./SettingsSection";
 import { useUpdateStore } from "@/stores/updateStore";
 import { Colors } from "@/constants/Colors";
 
@@ -32,17 +33,10 @@ export function UpdateSection() {
   };
 
   const styles = useMemo(() => StyleSheet.create({
-    sectionContainer: {
-      marginBottom: 24,
-      padding: 16,
-      backgroundColor: colors.border,
-      borderRadius: 8,
-    },
     sectionTitle: {
-      fontSize: Platform.isTV ? 24 : 20,
+      fontSize: Platform.isTV ? 20 : 16,
       fontWeight: "bold",
       marginBottom: 16,
-      paddingTop: 8,
     },
     row: {
       flexDirection: "row",
@@ -51,58 +45,41 @@ export function UpdateSection() {
       marginBottom: 12,
     },
     label: {
-      fontSize: Platform.isTV ? 18 : 16,
+      fontSize: Platform.isTV ? 16 : 14,
       color: colors.icon,
     },
     value: {
-      fontSize: Platform.isTV ? 18 : 16,
+      fontSize: Platform.isTV ? 16 : 14,
     },
     newVersion: {
       color: colors.primary,
       fontWeight: "bold",
     },
     latestVersion: {
-      color: colors.primary,
+      color: "#4ade80",
       fontWeight: "500",
     },
     errorText: {
-      color: colors.primary, // Using primary for consistency in warm theme
+      color: "#f87171",
       fontWeight: "500",
     },
     buttonContainer: {
-      flexDirection: "row",
-      gap: 12,
-      marginTop: 16,
-      justifyContent: "center",
+      marginTop: 12,
       alignItems: "center",
     },
     button: {
-      width: "90%",
-      ...(Platform.isTV && {
-        borderWidth: 2,
-        borderColor: "transparent",
-      }),
-    },
-    buttonText: {
-      color: colors.text,
-      fontSize: Platform.isTV ? 16 : 14,
-      fontWeight: "500",
-    },
-    hint: {
-      fontSize: Platform.isTV ? 14 : 12,
-      color: colors.icon,
-      marginTop: 12,
-      textAlign: "center",
+      width: "100%",
+      height: 48,
     },
   }), [colors]);
 
   return (
-    <View style={styles.sectionContainer}>
+    <SettingsSection focusable={false}>
       <ThemedText style={styles.sectionTitle}>应用更新</ThemedText>
 
       <View style={styles.row}>
         <ThemedText style={styles.label}>当前版本</ThemedText>
-        <ThemedText style={styles.value}>v{currentVersion}  </ThemedText>
+        <ThemedText style={styles.value}>v{currentVersion}</ThemedText>
       </View>
 
       {updateAvailable && (
@@ -134,14 +111,14 @@ export function UpdateSection() {
       )}
 
       <View style={styles.buttonContainer}>
-        <StyledButton onPress={handleCheckUpdate} disabled={checking || downloading} style={styles.button}>
-          {checking ? (
-            <ActivityIndicator color={colors.text} size="small" />
-          ) : (
-            <ThemedText style={styles.buttonText}>检查更新</ThemedText>
-          )}
-        </StyledButton>
+        <StyledButton
+          onPress={handleCheckUpdate}
+          disabled={checking || downloading}
+          text={checking ? "检查中..." : "检查更新"}
+          variant="primary"
+          style={styles.button}
+        />
       </View>
-    </View>
+    </SettingsSection>
   );
 }

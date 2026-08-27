@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
-import { View, StyleSheet, TouchableOpacity, StatusBar, Platform, useColorScheme } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Platform, useColorScheme } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { ArrowLeft } from 'lucide-react-native';
 import { ThemedText } from '@/components/ThemedText';
@@ -44,7 +45,7 @@ const ResponsiveHeader: React.FC<ResponsiveHeaderProps> = ({
 
   return (
     <>
-      {Platform.OS === 'android' && <StatusBar backgroundColor={colors.background} barStyle="light-content" />}
+      {Platform.OS === 'android' && <StatusBar style="light" />}
       <View style={dynamicStyles.container}>
         <View style={dynamicStyles.content}>
           <View style={dynamicStyles.leftSection}>

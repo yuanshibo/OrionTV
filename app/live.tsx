@@ -32,6 +32,12 @@ export default function LiveScreen() {
 
   const selectedChannelUrl = channels.length > 0 ? getPlayableUrl(channels[currentChannelIndex].url) : null;
 
+  const showChannelTitle = (title: string) => {
+    setChannelTitle(title);
+    if (titleTimer.current) clearTimeout(titleTimer.current);
+    titleTimer.current = setTimeout(() => setChannelTitle(null), 3000);
+  };
+
   useEffect(() => {
     const loadChannels = async () => {
       if (!m3uUrl) return;
@@ -60,12 +66,6 @@ export default function LiveScreen() {
     };
     loadChannels();
   }, [m3uUrl]);
-
-  const showChannelTitle = (title: string) => {
-    setChannelTitle(title);
-    if (titleTimer.current) clearTimeout(titleTimer.current);
-    titleTimer.current = setTimeout(() => setChannelTitle(null), 3000);
-  };
 
   const handleSelectChannel = useCallback((channel: Channel) => {
     const globalIndex = channels.findIndex((c) => c.id === channel.id);
