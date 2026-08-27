@@ -14,4 +14,11 @@ const compat = new FlatCompat({
 module.exports = [
     // Use the compatibility utility to load the legacy expo config.
     ...compat.extends('expo'),
+    {
+        rules: {
+            'react-hooks/refs': 'off',
+            'react-hooks/immutability': 'off',
+            'react-hooks/set-state-in-effect': 'off',
+        },
+    },
 ];

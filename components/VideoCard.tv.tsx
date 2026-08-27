@@ -281,7 +281,7 @@ const createStyles = (colors: typeof Colors.dark) => StyleSheet.create({
     height: "100%",
   },
   overlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(0,0,0,0.3)",
     borderColor: colors.primary,
     borderWidth: 2,

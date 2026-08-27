@@ -10,12 +10,6 @@ import {
 import { ResponsiveConfig } from "@/hooks/useResponsiveLayout";
 import { DeviceUtils } from "../DeviceUtils";
 
-jest.mock("react-native", () => ({
-  StyleSheet: {
-    create: jest.fn((styles) => styles),
-  },
-}));
-
 jest.mock("@/hooks/useResponsiveLayout", () => ({
   useResponsiveLayout: jest.fn(),
 }));
@@ -27,10 +21,19 @@ jest.mock("@/utils/DeviceUtils", () => ({
   },
 }));
 
-const mockedStyleSheet = StyleSheet as jest.Mocked<typeof StyleSheet>;
 const mockedDeviceUtils = DeviceUtils as jest.Mocked<typeof DeviceUtils>;
 
 describe("ResponsiveStyles", () => {
+  let createSpy: jest.SpyInstance;
+
+  beforeAll(() => {
+    createSpy = jest.spyOn(StyleSheet, "create").mockImplementation((styles: any) => styles);
+  });
+
+  afterAll(() => {
+    createSpy.mockRestore();
+  });
+
   const mockConfig: ResponsiveConfig = {
     deviceType: "mobile",
     columns: 3,
@@ -59,7 +62,7 @@ describe("ResponsiveStyles", () => {
       const responsiveStylesFunc = createResponsiveStyles(styleCreator);
       const styles = responsiveStylesFunc(mockConfig);
 
-      expect(mockedStyleSheet.create).toHaveBeenCalledWith({
+      expect(StyleSheet.create).toHaveBeenCalledWith({
         container: {
           padding: 16,
         },

@@ -27,21 +27,21 @@ const createResponsiveStyles = (deviceType: string) => {
 
   return StyleSheet.create({
     videoContainer: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       zIndex: isMobile || isTablet ? 1 : undefined,
     },
-    videoPlayer: { ...StyleSheet.absoluteFillObject },
-    posterContainer: { ...StyleSheet.absoluteFillObject },
+    videoPlayer: { ...StyleSheet.absoluteFill },
+    posterContainer: { ...StyleSheet.absoluteFill },
     posterImage: { flex: 1 },
     overlayContainer: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       backgroundColor: "rgba(0, 0, 0, 0.8)",
       justifyContent: "center",
       alignItems: "center",
       zIndex: 10,
     },
     indicatorContainer: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       justifyContent: "center",
       alignItems: "center",
       zIndex: 20, // Ensure it's on top of other elements

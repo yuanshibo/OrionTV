@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
-import { Modal, View, TextInput, StyleSheet, ActivityIndicator, Alert, Keyboard, InteractionManager, useColorScheme } from "react-native";
+import { Modal, View, TextInput, StyleSheet, ActivityIndicator, Alert, Keyboard, useColorScheme } from "react-native";
 import { usePathname } from "expo-router";
 import Toast from "react-native-toast-message";
 import useAuthStore from "@/stores/authStore";
@@ -108,7 +108,7 @@ const LoginModal = () => {
         }, 100);
       };
 
-      InteractionManager.runAfterInteractions(hideAndAlert);
+      hideAndAlert();
 
     } catch (error) {
       Toast.show({

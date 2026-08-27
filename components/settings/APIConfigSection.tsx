@@ -1,20 +1,19 @@
 import React, { useState, useRef, useImperativeHandle, forwardRef, useMemo } from "react";
-import { View, TextInput, StyleSheet, Animated, Platform, useColorScheme, TouchableOpacity, ActivityIndicator } from "react-native";
-import { useTVEventHandler } from "react-native";
+import { View, TextInput, StyleSheet, useColorScheme, TouchableOpacity, ActivityIndicator } from "react-native";
 import { ThemedText } from "@/components/ThemedText";
 import { SettingsSection } from "./SettingsSection";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useRemoteControlStore } from "@/stores/remoteControlStore";
-import { useButtonAnimation } from "@/hooks/useAnimation";
+import { StyledButton } from "@/components/StyledButton";
 import { Colors } from "@/constants/Colors";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { CheckCircle2, AlertCircle, X } from "lucide-react-native";
+import Toast from "react-native-toast-message";
 
 interface APIConfigSectionProps {
   onChanged: () => void;
   onFocus?: () => void;
   onBlur?: () => void;
-  onPress?: () => void;
   hideDescription?: boolean;
 }
 
@@ -23,7 +22,7 @@ export interface APIConfigSectionRef {
 }
 
 export const APIConfigSection = forwardRef<APIConfigSectionRef, APIConfigSectionProps>(
-  ({ onChanged, onFocus, onBlur, onPress, hideDescription = false }, ref) => {
+  ({ onChanged, onFocus, onBlur, hideDescription = false }, ref) => {
     const colorScheme = useColorScheme() === "light" ? "light" : "dark";
     const colors = Colors[colorScheme];
     const {
@@ -36,10 +35,8 @@ export const APIConfigSection = forwardRef<APIConfigSectionRef, APIConfigSection
     } = useSettingsStore();
     const { serverUrl } = useRemoteControlStore();
     const [isInputFocused, setIsInputFocused] = useState(false);
-    const [isSectionFocused, setIsSectionFocused] = useState(false);
     const inputRef = useRef<TextInput>(null);
-    const inputAnimationStyle = useButtonAnimation(isSectionFocused, 1.01);
-    const deviceType = useResponsiveLayout().deviceType;
+    const { deviceType } = useResponsiveLayout();
 
     const handleUrlChange = (url: string) => {
       setApiBaseUrl(url);
@@ -58,38 +55,12 @@ export const APIConfigSection = forwardRef<APIConfigSectionRef, APIConfigSection
       },
     }));
 
-    const handleSectionFocus = () => {
-      setIsSectionFocused(true);
-      onFocus?.();
-    };
-
-    const handleSectionBlur = () => {
-      setIsSectionFocused(false);
-      onBlur?.();
-    };
-
-    const handleTVEvent = React.useCallback(
-      (event: any) => {
-        if (isSectionFocused && event.eventType === "select") {
-          inputRef.current?.focus();
-        }
-      },
-      [isSectionFocused]
-    );
-
-    const handlePress = () => {
-      inputRef.current?.focus();
-      onPress?.();
-    };
-
-    useTVEventHandler(handleTVEvent);
-
-    const [selection, setSelection] = useState<{ start: number; end: number }>({
-      start: 0,
-      end: 0,
-    });
-    const onSelectionChange = ({ nativeEvent: { selection } }: any) => {
-      setSelection(selection);
+    const handleTestPress = () => {
+      if (!apiBaseUrl.trim()) {
+        Toast.show({ type: "error", text1: "请输入 API 服务器地址" });
+        return;
+      }
+      testApiConnection();
     };
 
     const styles = useMemo(() => StyleSheet.create({
@@ -111,7 +82,7 @@ export const APIConfigSection = forwardRef<APIConfigSectionRef, APIConfigSection
       inputRow: {
         flexDirection: "row",
         alignItems: "center",
-        gap: 8,
+        gap: 12,
         marginBottom: 8,
       },
       inputContainer: {
@@ -144,21 +115,8 @@ export const APIConfigSection = forwardRef<APIConfigSectionRef, APIConfigSection
         zIndex: 10,
       },
       testButton: {
+        minWidth: 100,
         height: 50,
-        paddingHorizontal: 16,
-        borderRadius: 8,
-        backgroundColor: colors.primary,
-        justifyContent: "center",
-        alignItems: "center",
-        minWidth: 90,
-      },
-      testButtonDisabled: {
-        opacity: 0.6,
-      },
-      testButtonText: {
-        color: "#fff",
-        fontSize: 14,
-        fontWeight: "600",
       },
       statusBadge: {
         flexDirection: "row",
@@ -178,9 +136,7 @@ export const APIConfigSection = forwardRef<APIConfigSectionRef, APIConfigSection
     }), [colors, apiBaseUrl]);
 
     return (
-      <SettingsSection focusable onFocus={handleSectionFocus} onBlur={handleSectionBlur}
-        {...Platform.isTV || deviceType !== "tv" ? undefined : { onPress: handlePress }}
-      >
+      <SettingsSection focusable={false}>
         <View style={{ marginBottom: 12 }}>
           <View style={styles.titleContainer}>
             <ThemedText style={styles.sectionTitle}>API 地址</ThemedText>
@@ -189,7 +145,7 @@ export const APIConfigSection = forwardRef<APIConfigSectionRef, APIConfigSection
             )}
           </View>
           <View style={styles.inputRow}>
-            <Animated.View style={[inputAnimationStyle, styles.inputContainer]}>
+            <View style={styles.inputContainer}>
               <TextInput
                 ref={inputRef}
                 style={[styles.input, isInputFocused && styles.inputFocused]}
@@ -199,36 +155,44 @@ export const APIConfigSection = forwardRef<APIConfigSectionRef, APIConfigSection
                 placeholderTextColor={colors.icon}
                 autoCapitalize="none"
                 autoCorrect={false}
+                autoComplete="off"
+                multiline={false}
+                numberOfLines={1}
+                blurOnSubmit={true}
+                returnKeyType="done"
                 onFocus={() => {
                   setIsInputFocused(true);
-                  const end = apiBaseUrl.length;
-                  setSelection({ start: end, end: end });
-                  setTimeout(() => {
-                    inputRef.current?.setNativeProps({ selection: { start: end, end: end } });
-                  }, 0);
+                  onFocus?.();
                 }}
-                selection={selection}
-                onSelectionChange={onSelectionChange}
-                onBlur={() => setIsInputFocused(false)}
+                onBlur={() => {
+                  setIsInputFocused(false);
+                  onBlur?.();
+                }}
               />
               {Boolean(apiBaseUrl) && (
-                <TouchableOpacity style={styles.clearButton} onPress={handleClear} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <TouchableOpacity
+                  style={styles.clearButton}
+                  onPress={handleClear}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  focusable={deviceType !== "tv"}
+                >
                   <X size={18} color={colors.icon} />
                 </TouchableOpacity>
               )}
-            </Animated.View>
+            </View>
 
-            <TouchableOpacity
-              style={[styles.testButton, (!apiBaseUrl || isTestingApi) && styles.testButtonDisabled]}
-              onPress={() => testApiConnection()}
-              disabled={!apiBaseUrl || isTestingApi}
+            <StyledButton
+              style={styles.testButton}
+              variant="primary"
+              onPress={handleTestPress}
+              disabled={isTestingApi}
             >
               {isTestingApi ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <ThemedText style={styles.testButtonText}>测试连接</ThemedText>
+                <ThemedText style={{ color: "#fff", fontSize: 14, fontWeight: "600" }}>测试连接</ThemedText>
               )}
-            </TouchableOpacity>
+            </StyledButton>
           </View>
 
           {lastApiTestResult && (

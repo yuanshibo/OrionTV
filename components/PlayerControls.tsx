@@ -87,7 +87,7 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
 
   const styles = useMemo(() => StyleSheet.create({
     controlsOverlay: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       backgroundColor: "rgba(0, 0, 0, 0.4)",
       justifyContent: "space-between",
       padding: 20,
