@@ -17,22 +17,60 @@ interface HomeHeaderProps {
   };
   searchButtonRef?: React.RefObject<any>;
   selectedCategoryRef?: React.RefObject<any>;
+  allCategoryRef?: React.RefObject<any>;
+  onSearchButtonMount?: (tag: number) => void;
+  selectedCategoryTag?: number;
+  allCategoryTag?: number;
 }
 
-export const HomeHeader = React.memo(({ styles, searchButtonRef, selectedCategoryRef }: HomeHeaderProps) => {
+export const HomeHeader = React.memo(({
+  styles,
+  searchButtonRef,
+  selectedCategoryRef,
+  allCategoryRef,
+  onSearchButtonMount,
+  selectedCategoryTag: propSelectedCategoryTag,
+  allCategoryTag: propAllCategoryTag,
+}: HomeHeaderProps) => {
   const router = useRouter();
   const colorScheme = useColorScheme() === 'light' ? 'light' : 'dark';
   const { isLoggedIn, logout } = useAuthStore();
   const setCurrentFocusArea = useHomeUIStore((s) => s.setCurrentFocusArea);
   const internalSearchRef = useRef<View>(null);
-  const activeSearchRef = searchButtonRef || internalSearchRef;
+  const settingsRef = useRef<View>(null);
+  const logoutRef = useRef<View>(null);
 
   const handleHeaderFocus = useCallback(() => {
     setCurrentFocusArea('header');
   }, [setCurrentFocusArea]);
 
-  const targetCategoryTag = selectedCategoryRef?.current
+  const handleSearchRef = useCallback((ref: any) => {
+    if (searchButtonRef && 'current' in searchButtonRef) {
+      (searchButtonRef as any).current = ref;
+    }
+    if (internalSearchRef) {
+      (internalSearchRef as any).current = ref;
+    }
+    if (onSearchButtonMount && ref) {
+      const tag = findNodeHandle(ref);
+      if (tag) onSearchButtonMount(tag);
+    }
+  }, [searchButtonRef, onSearchButtonMount]);
+
+  const targetCategoryTag = propSelectedCategoryTag ?? (selectedCategoryRef?.current
     ? (findNodeHandle(selectedCategoryRef.current) ?? undefined)
+    : undefined);
+
+  const allCategoryTag = propAllCategoryTag ?? (allCategoryRef?.current
+    ? (findNodeHandle(allCategoryRef.current) ?? undefined)
+    : undefined);
+
+  const settingsTag = settingsRef.current
+    ? (findNodeHandle(settingsRef.current) ?? undefined)
+    : undefined;
+
+  const logoutTag = logoutRef.current
+    ? (findNodeHandle(logoutRef.current) ?? undefined)
     : undefined;
 
   return (
@@ -47,10 +85,11 @@ export const HomeHeader = React.memo(({ styles, searchButtonRef, selectedCategor
         </View>
         <View style={styles.rightHeaderButtons}>
           <StyledButton
-            ref={activeSearchRef}
+            ref={handleSearchRef}
             style={styles.iconButton}
             onPress={() => router.push({ pathname: '/search' })}
             onFocus={handleHeaderFocus}
+            nextFocusLeft={allCategoryTag ?? targetCategoryTag}
             nextFocusDown={targetCategoryTag}
             variant="ghost"
           >
@@ -66,20 +105,24 @@ export const HomeHeader = React.memo(({ styles, searchButtonRef, selectedCategor
             <Heart color={Colors[colorScheme].tint} size={24} />
           </StyledButton>
           <StyledButton
+            ref={settingsRef}
             style={styles.iconButton}
             onPress={() => router.push('/settings')}
             onFocus={handleHeaderFocus}
             nextFocusDown={targetCategoryTag}
+            nextFocusRight={isLoggedIn ? undefined : settingsTag}
             variant="ghost"
           >
             <Settings color={Colors[colorScheme].tint} size={24} />
           </StyledButton>
           {isLoggedIn && (
             <StyledButton
+              ref={logoutRef}
               style={styles.iconButton}
               onPress={logout}
               onFocus={handleHeaderFocus}
               nextFocusDown={targetCategoryTag}
+              nextFocusRight={logoutTag}
               variant="ghost"
             >
               <LogOut color={Colors[colorScheme].tint} size={24} />
