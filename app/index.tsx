@@ -31,6 +31,10 @@ export default function HomeScreen() {
   const firstItemRef = useRef<View>(null);
   const searchButtonRef = useRef<View>(null);
   const selectedCategoryRef = useRef<View>(null);
+  const allCategoryRef = useRef<View>(null);
+  const [searchButtonTag, setSearchButtonTag] = useState<number | undefined>(undefined);
+  const [selectedCategoryTag, setSelectedCategoryTag] = useState<number | undefined>(undefined);
+  const [allCategoryTag, setAllCategoryTag] = useState<number | undefined>(undefined);
   const lastCheckedPlayRecords = useRef<number>(0);
   const posterUpdateTimer = useRef<any>(null);
 
@@ -288,6 +292,10 @@ export default function HomeScreen() {
           styles={headerStyles}
           searchButtonRef={searchButtonRef}
           selectedCategoryRef={selectedCategoryRef}
+          allCategoryRef={allCategoryRef}
+          selectedCategoryTag={selectedCategoryTag}
+          allCategoryTag={allCategoryTag}
+          onSearchButtonMount={(tag) => setSearchButtonTag(tag)}
         />
       )}
       <CategoryNavigation
@@ -303,6 +311,10 @@ export default function HomeScreen() {
         selectedCategoryRef={selectedCategoryRef}
         searchButtonRef={searchButtonRef}
         firstItemRef={firstItemRef}
+        allCategoryRef={allCategoryRef}
+        searchButtonTag={searchButtonTag}
+        onSelectedCategoryMount={(tag) => setSelectedCategoryTag(tag)}
+        onAllCategoryMount={(tag) => setAllCategoryTag(tag)}
       />
       <ContentDisplay
         apiConfigStatus={apiConfigStatus}

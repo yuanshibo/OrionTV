@@ -27,6 +27,10 @@ interface CategoryNavigationProps {
   selectedCategoryRef?: React.MutableRefObject<any>;
   searchButtonRef?: React.RefObject<any>;
   firstItemRef?: React.RefObject<any>;
+  allCategoryRef?: React.MutableRefObject<any>;
+  searchButtonTag?: number;
+  onSelectedCategoryMount?: (tag: number) => void;
+  onAllCategoryMount?: (tag: number) => void;
 }
 
 interface CategoryItemProps {
@@ -41,6 +45,8 @@ interface CategoryItemProps {
   hasTVPreferredFocus?: boolean;
   nextFocusUp?: number;
   nextFocusDown?: number;
+  nextFocusLeft?: number;
+  nextFocusRight?: number;
 }
 
 const CategoryItem = memo(({
@@ -55,6 +61,8 @@ const CategoryItem = memo(({
   hasTVPreferredFocus,
   nextFocusUp,
   nextFocusDown,
+  nextFocusLeft,
+  nextFocusRight,
 }: CategoryItemProps) => (
   <StyledButton
     ref={(ref) => setRef(index, ref)}
@@ -66,6 +74,8 @@ const CategoryItem = memo(({
     hasTVPreferredFocus={hasTVPreferredFocus}
     nextFocusUp={nextFocusUp}
     nextFocusDown={nextFocusDown}
+    nextFocusLeft={nextFocusLeft}
+    nextFocusRight={nextFocusRight}
     style={styles.categoryButton}
     textStyle={styles.categoryText}
   />
@@ -125,6 +135,10 @@ const CategoryNavigationComponent: React.FC<CategoryNavigationProps> = ({
   selectedCategoryRef,
   searchButtonRef,
   firstItemRef,
+  allCategoryRef,
+  searchButtonTag: propSearchButtonTag,
+  onSelectedCategoryMount,
+  onAllCategoryMount,
 }) => {
   const buttonRefs = useRef<(any)[]>([]);
   const tagButtonRefs = useRef<(any)[]>([]);
@@ -169,10 +183,25 @@ const CategoryNavigationComponent: React.FC<CategoryNavigationProps> = ({
 
   const setRef = useCallback((index: number, ref: any) => {
     buttonRefs.current[index] = ref;
-    if (selectedCategory && categories[index]?.title === selectedCategory.title && selectedCategoryRef) {
-      selectedCategoryRef.current = ref;
+    if (selectedCategory && categories[index]?.title === selectedCategory.title) {
+      if (selectedCategoryRef) {
+        selectedCategoryRef.current = ref;
+      }
+      if (onSelectedCategoryMount && ref) {
+        const tag = findNodeHandle(ref);
+        if (tag) onSelectedCategoryMount(tag);
+      }
     }
-  }, [categories, selectedCategory, selectedCategoryRef]);
+    if (index === categories.length - 1) {
+      if (allCategoryRef) {
+        allCategoryRef.current = ref;
+      }
+      if (onAllCategoryMount && ref) {
+        const tag = findNodeHandle(ref);
+        if (tag) onAllCategoryMount(tag);
+      }
+    }
+  }, [categories, selectedCategory, selectedCategoryRef, allCategoryRef, onSelectedCategoryMount, onAllCategoryMount]);
 
   const setTagRef = useCallback((index: number, ref: any) => {
     tagButtonRefs.current[index] = ref;
@@ -205,9 +234,9 @@ const CategoryNavigationComponent: React.FC<CategoryNavigationProps> = ({
     ? (findNodeHandle(tagButtonRefs.current[activeTagIndex]) ?? undefined)
     : undefined;
 
-  const searchButtonTag = searchButtonRef?.current
+  const searchButtonTag = propSearchButtonTag ?? (searchButtonRef?.current
     ? (findNodeHandle(searchButtonRef.current) ?? undefined)
-    : undefined;
+    : undefined);
 
   const firstItemTag = firstItemRef?.current
     ? (findNodeHandle(firstItemRef.current) ?? undefined)
@@ -224,6 +253,11 @@ const CategoryNavigationComponent: React.FC<CategoryNavigationProps> = ({
   const renderCategory = useCallback(
     ({ item, index }: { item: Category; index: number }) => {
       const isSelected = selectedCategory?.title === item.title;
+      const isLastItem = index === categories.length - 1;
+      const selfTag = buttonRefs.current[index]
+        ? (findNodeHandle(buttonRefs.current[index]) ?? undefined)
+        : undefined;
+
       return (
         <CategoryItem
           item={item}
@@ -237,10 +271,12 @@ const CategoryNavigationComponent: React.FC<CategoryNavigationProps> = ({
           hasTVPreferredFocus={index === 0 && isSelected && deviceType === "tv"}
           nextFocusUp={searchButtonTag}
           nextFocusDown={hasTags ? activeTagTag : firstItemTag}
+          nextFocusLeft={index === 0 ? selfTag : undefined}
+          nextFocusRight={isLastItem ? searchButtonTag : undefined}
         />
       );
     },
-    [selectedCategory?.title, onCategorySelect, onCategoryLongPress, handleCategoryFocus, categoryStyles, setRef, deviceType, searchButtonTag, hasTags, activeTagTag, firstItemTag]
+    [selectedCategory?.title, categories.length, onCategorySelect, onCategoryLongPress, handleCategoryFocus, categoryStyles, setRef, deviceType, searchButtonTag, hasTags, activeTagTag, firstItemTag]
   );
 
   const renderTag = useCallback(
