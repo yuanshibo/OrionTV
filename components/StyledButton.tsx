@@ -76,29 +76,74 @@ export const StyledButton = memo(forwardRef<View, StyledButtonProps>(
     // Memoize dynamic styles that depend on colors
     const dynamicStyles = useMemo(() => ({
       default: {
-        selectedButton: { backgroundColor: colors.primary },
-        focusedButton: { borderColor: colors.primary },
+        selectedButton: {
+          backgroundColor: colors.primary,
+          borderColor: "transparent",
+        },
+        focusedButton: {
+          borderColor: "#FFFFFF",
+          borderWidth: 2,
+          shadowColor: "#FFFFFF",
+          shadowOffset: { width: 0, height: 0 },
+          shadowOpacity: 0.5,
+          shadowRadius: 5,
+          elevation: 4,
+        },
+        focusedSelectedButton: {
+          backgroundColor: colors.primary,
+          borderColor: "#FFFFFF",
+          borderWidth: 2,
+          shadowColor: "#FFFFFF",
+          shadowOffset: { width: 0, height: 0 },
+          shadowOpacity: 0.8,
+          shadowRadius: 8,
+          elevation: 6,
+        },
         selectedText: { color: Colors.dark.text },
       },
       primary: {
-        focusedButton: { backgroundColor: colors.primary, borderColor: colors.background },
-        selectedButton: { backgroundColor: colors.primary },
+        focusedButton: {
+          backgroundColor: colors.primary,
+          borderColor: "#FFFFFF",
+          borderWidth: 2,
+        },
+        focusedSelectedButton: {
+          backgroundColor: colors.primary,
+          borderColor: "#FFFFFF",
+          borderWidth: 2,
+        },
+        selectedButton: {
+          backgroundColor: colors.primary,
+          borderColor: "transparent",
+        },
         selectedText: { color: colors.link },
       },
       ghost: {
-        focusedButton: { backgroundColor: "rgba(119, 119, 119, 0.2)", borderColor: colors.primary },
-        selectedButton: {},
+        focusedButton: {
+          backgroundColor: "rgba(255, 255, 255, 0.15)",
+          borderColor: "#FFFFFF",
+          borderWidth: 2,
+        },
+        focusedSelectedButton: {
+          backgroundColor: colors.primary,
+          borderColor: "#FFFFFF",
+          borderWidth: 2,
+        },
+        selectedButton: {
+          backgroundColor: colors.primary,
+          borderColor: "transparent",
+        },
         selectedText: { color: colors.link },
       },
       common: {
         focusedButton: {
-          backgroundColor: colors.link,
-          borderColor: colors.background,
+          borderColor: "#FFFFFF",
+          borderWidth: 2,
           elevation: 5,
-          shadowColor: colors.link,
+          shadowColor: "#FFFFFF",
           shadowOffset: { width: 0, height: 0 },
-          shadowOpacity: 1,
-          shadowRadius: 15,
+          shadowOpacity: 0.8,
+          shadowRadius: 8,
         },
         selectedButton: {
           backgroundColor: colors.tint,
@@ -135,7 +180,13 @@ export const StyledButton = memo(forwardRef<View, StyledButtonProps>(
             variantBaseStyles[variant].button,
             isSelected && (dynamicStyles[variant].selectedButton ?? dynamicStyles.common.selectedButton),
             buttonStyle,
-            focused && (focusedStyle ?? dynamicStyles[variant].focusedButton ?? dynamicStyles.common.focusedButton),
+            focused && (
+              focusedStyle ??
+              (isSelected
+                ? ((dynamicStyles[variant] as any).focusedSelectedButton ?? dynamicStyles[variant].focusedButton)
+                : dynamicStyles[variant].focusedButton) ??
+              dynamicStyles.common.focusedButton
+            ),
           ]}
           {...rest}
         >

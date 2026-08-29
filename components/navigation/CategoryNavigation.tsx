@@ -29,6 +29,8 @@ interface CategoryNavigationProps {
   firstItemRef?: React.RefObject<any>;
   allCategoryRef?: React.MutableRefObject<any>;
   searchButtonTag?: number;
+  firstFilterRowRef?: React.RefObject<any>;
+  firstFilterRowTag?: number;
   onSelectedCategoryMount?: (tag: number) => void;
   onAllCategoryMount?: (tag: number) => void;
 }
@@ -137,6 +139,8 @@ const CategoryNavigationComponent: React.FC<CategoryNavigationProps> = ({
   firstItemRef,
   allCategoryRef,
   searchButtonTag: propSearchButtonTag,
+  firstFilterRowRef,
+  firstFilterRowTag: propFirstFilterRowTag,
   onSelectedCategoryMount,
   onAllCategoryMount,
 }) => {
@@ -242,6 +246,10 @@ const CategoryNavigationComponent: React.FC<CategoryNavigationProps> = ({
     ? (findNodeHandle(firstItemRef.current) ?? undefined)
     : undefined;
 
+  const firstFilterRowTag = propFirstFilterRowTag ?? (firstFilterRowRef?.current
+    ? (findNodeHandle(firstFilterRowRef.current) ?? undefined)
+    : undefined);
+
   const selectedCategoryTag = selectedCategoryRef?.current
     ? (findNodeHandle(selectedCategoryRef.current) ?? undefined)
     : undefined;
@@ -249,6 +257,11 @@ const CategoryNavigationComponent: React.FC<CategoryNavigationProps> = ({
   const targetDestination = hasTags
     ? (tagButtonRefs.current[activeTagIndex] || selectedCategoryRef?.current)
     : selectedCategoryRef?.current;
+
+  const hasFilterConfig = Boolean(selectedCategory?.filterConfig);
+  const targetCategoryDownTag = hasTags
+    ? activeTagTag
+    : (hasFilterConfig ? (firstFilterRowTag ?? firstItemTag) : firstItemTag);
 
   const renderCategory = useCallback(
     ({ item, index }: { item: Category; index: number }) => {
@@ -270,13 +283,13 @@ const CategoryNavigationComponent: React.FC<CategoryNavigationProps> = ({
           setRef={setRef}
           hasTVPreferredFocus={index === 0 && isSelected && deviceType === "tv"}
           nextFocusUp={searchButtonTag}
-          nextFocusDown={hasTags ? activeTagTag : firstItemTag}
+          nextFocusDown={targetCategoryDownTag}
           nextFocusLeft={index === 0 ? selfTag : undefined}
           nextFocusRight={isLastItem ? searchButtonTag : undefined}
         />
       );
     },
-    [selectedCategory?.title, categories.length, onCategorySelect, onCategoryLongPress, handleCategoryFocus, categoryStyles, setRef, deviceType, searchButtonTag, hasTags, activeTagTag, firstItemTag]
+    [selectedCategory?.title, categories.length, onCategorySelect, onCategoryLongPress, handleCategoryFocus, categoryStyles, setRef, deviceType, searchButtonTag, targetCategoryDownTag]
   );
 
   const renderTag = useCallback(

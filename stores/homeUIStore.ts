@@ -16,6 +16,7 @@ interface HomeUIState {
     // Actions
     selectCategory: (category: Category) => void;
     updateFilterOption: (categoryTitle: string, key: DoubanFilterKey, value: string) => void;
+    resetFilterOptions: (categoryTitle: string) => void;
     refreshPlayRecords: () => Promise<void>;
     deletePlayRecord: (source: string, id: string) => Promise<void>;
     initialize: () => Promise<void>;
@@ -123,6 +124,47 @@ export const useHomeUIStore = create<HomeUIState>((set, get) => ({
                 activeFilters: { ...currentFilters, [key]: value },
             });
         }
+
+        const updatedCategories = state.categories.map((c) =>
+            c.title === categoryTitle ? updatedCategory : c
+        );
+
+        set({ categories: updatedCategories });
+
+        if (state.selectedCategory.title === categoryTitle) {
+            get().selectCategory(updatedCategory);
+        }
+    },
+
+    resetFilterOptions: (categoryTitle) => {
+        const state = get();
+        const targetCategory = state.categories.find((c) => c.title === categoryTitle);
+        if (!targetCategory?.filterConfig) return;
+
+        let resetConfig = targetCategory.filterConfig;
+        let newKind = resetConfig.kind;
+        let newActiveFilters = buildDefaultFilters(resetConfig);
+
+        // If it was "所有", ensure default kind is 'tv'
+        if (targetCategory.title === "所有" && newKind !== "tv") {
+            newKind = "tv";
+            const newKindGroups = DOUBAN_FILTERS_METADATA.tv;
+            resetConfig = {
+                ...resetConfig,
+                kind: "tv",
+                groups: [ALL_MEDIA_KIND_SELECTOR_GROUP, ...newKindGroups],
+                staticFilters: { format: "电视剧", label: "all" },
+            };
+            newActiveFilters = buildDefaultFilters(resetConfig);
+            newActiveFilters.kind = "tv";
+        }
+
+        const updatedCategory = initializeFilterableCategory({
+            ...targetCategory,
+            type: newKind as "movie" | "tv",
+            filterConfig: resetConfig,
+            activeFilters: newActiveFilters,
+        });
 
         const updatedCategories = state.categories.map((c) =>
             c.title === categoryTitle ? updatedCategory : c
