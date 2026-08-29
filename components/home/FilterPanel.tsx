@@ -197,7 +197,13 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ isVisible, onClose, category,
             )}
           </ScrollView>
         </View>
-        <TouchableOpacity style={{ flex: 1 }} onPress={handleClose} activeOpacity={0} />
+        <TouchableOpacity
+          style={{ flex: 1 }}
+          onPress={handleClose}
+          activeOpacity={0}
+          focusable={false}
+          accessible={false}
+        />
       </View>
     </Modal>
   );

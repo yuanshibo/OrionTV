@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo } from 'react';
-import { View, ActivityIndicator, StyleSheet, StyleProp, ViewStyle } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, StyleProp, ViewStyle, findNodeHandle } from 'react-native';
 import Reanimated, { SharedValue, useAnimatedStyle } from 'react-native-reanimated';
 import { ThemedText } from '@/components/ThemedText';
 import CustomScrollView from '@/components/CustomScrollView';
@@ -27,6 +27,7 @@ interface ContentDisplayProps {
   onShowFilterPanel: () => void;
   onRecordDeleted?: (source: string, id: string) => void;
   firstItemRef?: React.RefObject<any>;
+  selectedCategoryRef?: React.RefObject<any>;
   onFocus?: (item?: any) => void;
 }
 
@@ -52,6 +53,7 @@ export const ContentDisplay: React.FC<ContentDisplayProps> = React.memo(({
   onShowFilterPanel,
   onRecordDeleted,
   firstItemRef,
+  selectedCategoryRef,
   onFocus,
 }) => {
   const animatedStyle = useAnimatedStyle(() => ({
@@ -59,6 +61,10 @@ export const ContentDisplay: React.FC<ContentDisplayProps> = React.memo(({
   }));
 
   const shouldShowApiConfig = apiConfigStatus.needsConfiguration && selectedCategory && !selectedCategory.tags;
+
+  const categoryTag = selectedCategoryRef?.current
+    ? (findNodeHandle(selectedCategoryRef.current) ?? undefined)
+    : undefined;
 
   const renderContentItem = useCallback(({ item, index, style }: { item: RowItem; index: number; style?: StyleProp<ViewStyle> }) => {
     const isFilterable = selectedCategory?.title === "所有";
@@ -96,9 +102,10 @@ export const ContentDisplay: React.FC<ContentDisplayProps> = React.memo(({
         onFocus={onFocus}
         deviceType={deviceType}
         mediaType={item.type}
+        nextFocusUp={index < 5 ? categoryTag : undefined}
       />
     );
-  }, [selectedCategory, deviceType, onShowFilterPanel, onRecordDeleted, firstItemRef, onFocus]);
+  }, [selectedCategory, deviceType, onShowFilterPanel, onRecordDeleted, firstItemRef, onFocus, categoryTag]);
 
   const footerComponent = useMemo(() => {
     if (!loadingMore) return null;

@@ -301,6 +301,8 @@ export default function HomeScreen() {
         spacing={spacing}
         focusTrigger={categoryFocusTrigger}
         selectedCategoryRef={selectedCategoryRef}
+        searchButtonRef={searchButtonRef}
+        firstItemRef={firstItemRef}
       />
       <ContentDisplay
         apiConfigStatus={apiConfigStatus}
@@ -318,6 +320,7 @@ export default function HomeScreen() {
         onShowFilterPanel={showFilterPanel}
         onRecordDeleted={deletePlayRecord}
         firstItemRef={firstItemRef}
+        selectedCategoryRef={selectedCategoryRef}
         onFocus={handleItemFocus}
       />
       {selectedCategory && (

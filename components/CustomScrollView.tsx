@@ -256,6 +256,8 @@ const CustomScrollView = React.memo(forwardRef<React.ElementRef<typeof FlashList
           <TouchableOpacity
             onPress={scrollToTop}
             activeOpacity={0.8}
+            focusable={showScrollToTop}
+            accessible={showScrollToTop}
           >
             <ThemedText>⬆️</ThemedText>
           </TouchableOpacity>
