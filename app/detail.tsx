@@ -44,6 +44,7 @@ export default function DetailScreen() {
     abort,
     isFavorited,
     toggleFavorite,
+    resumeRecord,
   } = useDetailStore(useShallow((state) => ({
     detail: state.detail,
     searchResults: state.searchResults,
@@ -55,6 +56,7 @@ export default function DetailScreen() {
     abort: state.abort,
     isFavorited: state.isFavorited,
     toggleFavorite: state.toggleFavorite,
+    resumeRecord: state.resumeRecord,
   })));
 
   // Use the extracted hook for resume logic
@@ -133,7 +135,8 @@ export default function DetailScreen() {
     setDetail,
     dynamicStyles,
     colors,
-    deviceType
+    deviceType,
+    resumeRecord,
   }), [
     detail,
     searchResults,
@@ -147,7 +150,8 @@ export default function DetailScreen() {
     setDetail,
     dynamicStyles,
     colors,
-    deviceType
+    deviceType,
+    resumeRecord,
   ]);
 
   const renderDetailContent = () => {
