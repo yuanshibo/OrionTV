@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Dimensions, Platform } from "react-native";
+import { DeviceUtils } from "@/utils/DeviceUtils";
 
 export type DeviceType = "mobile" | "tablet" | "tv";
 
@@ -20,25 +21,8 @@ const BREAKPOINTS = {
   tv: { min: 1024, max: Infinity },
 };
 
-const isTVPlatform = (): boolean => {
-  if (Platform.isTV) {
-    return true;
-  }
-
-  const platformConstants = (Platform as any)?.constants;
-  if (platformConstants?.interfaceIdiom === "tv") {
-    return true;
-  }
-
-  if (platformConstants?.isTV === true) {
-    return true;
-  }
-
-  return false;
-};
-
 const getDeviceType = (width: number): DeviceType => {
-  if (isTVPlatform()) return "tv";
+  if (DeviceUtils.isTV()) return "tv";
 
   if (width >= BREAKPOINTS.tv.min) return "tv";
   if (width >= BREAKPOINTS.tablet.min) return "tablet";

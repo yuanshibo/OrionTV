@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useMemo } from 'react';
 import { View, Animated, useWindowDimensions, StyleProp, ViewStyle } from 'react-native';
 import { Colors } from '@/constants/Colors';
 import { useResponsiveLayout } from '@/hooks/useResponsiveLayout';
@@ -34,7 +34,7 @@ const SkeletonItem = ({ style }: { style: StyleProp<ViewStyle> }) => {
 export const DetailTVSkeleton = () => {
     const { deviceType, spacing } = useResponsiveLayout();
     const colors = Colors.dark;
-    const styles = createResponsiveStyles(deviceType, spacing, colors);
+    const styles = useMemo(() => createResponsiveStyles(deviceType, spacing, colors), [deviceType, spacing, colors]);
     const { width } = useWindowDimensions();
 
     // Calculate item width for episodes/sources

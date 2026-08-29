@@ -8,6 +8,7 @@ import { SourceList } from '@/components/detail/SourceList';
 import RelatedSeries from '@/components/RelatedSeries';
 import { EpisodeRangeSelector } from '@/components/detail/EpisodeRangeSelector';
 import { Heart } from 'lucide-react-native';
+import { chunkEpisodes } from '@/utils/episodeUtils';
 
 interface DetailMobileViewProps {
   detail: any;
@@ -97,15 +98,12 @@ export const DetailMobileView: React.FC<DetailMobileViewProps> = memo(({
 }) => {
   const [currentRange, setCurrentRange] = useState(0);
   const chunkSize = 50;
+  
+  const chunks = useMemo(() => chunkEpisodes(detail.episodes || [], chunkSize), [detail.episodes, chunkSize]);
 
   const visibleEpisodes = useMemo(() => {
-    if (!detail.episodes) return [];
-    if (detail.episodes.length <= chunkSize) return detail.episodes;
-
-    const start = currentRange * chunkSize;
-    const end = Math.min((currentRange + 1) * chunkSize, detail.episodes.length);
-    return detail.episodes.slice(start, end);
-  }, [detail.episodes, currentRange]);
+    return chunks[currentRange]?.items || [];
+  }, [chunks, currentRange]);
 
   const handleRangeSelect = useCallback((index: number) => {
     setCurrentRange(index);
@@ -137,7 +135,7 @@ export const DetailMobileView: React.FC<DetailMobileViewProps> = memo(({
           <View style={dynamicStyles.episodesContainer}>
             <ThemedText style={dynamicStyles.episodesTitle}>播放列表</ThemedText>
             <EpisodeRangeSelector
-              totalEpisodes={detail.episodes.length}
+              episodes={detail.episodes}
               currentRange={currentRange}
               onRangeSelect={handleRangeSelect}
               chunkSize={chunkSize}

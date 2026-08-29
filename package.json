@@ -16,8 +16,7 @@
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
     "clean": "expo r -c && yarn cache clean && cd android && ./gradlew clean",
-    "clean-modules": "rm -rf node_modules && yarn install",
-    "reset-project": "./scripts/reset-project.js"
+    "clean-modules": "rm -rf node_modules && yarn install"
   },
   "jest": {
     "preset": "jest-expo",
@@ -58,7 +57,6 @@
     "react-native-file-viewer": "^2.1.5",
     "react-native-gesture-handler": "~2.32.0",
     "react-native-keyboard-aware-scroll-view": "^0.9.5",
-    "react-native-media-console": "^2.2.4",
     "react-native-qrcode-svg": "^6.3.21",
     "react-native-reanimated": "~4.5.0",
     "react-native-safe-area-context": "~5.9.1",
@@ -68,7 +66,6 @@
     "react-native-toast-message": "^2.4.0",
     "react-native-web": "~0.21.1",
     "react-native-worklets": "~0.10.4",
-    "webpack": "^5.109.2",
     "zustand": "^5.0.15"
   },
   "devDependencies": {
@@ -82,6 +79,7 @@
     "@types/react": "~19.2.18",
     "@types/react-test-renderer": "~19.1.0",
     "babel-plugin-transform-remove-console": "^6.9.4",
+    "cross-env": "^7.0.3",
     "babel-preset-expo": "~57.0.7",
     "eslint": "^9.39.5",
     "eslint-config-expo": "~57.0.1",

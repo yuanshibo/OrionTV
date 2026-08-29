@@ -4,8 +4,10 @@ import { StyledButton } from '@/components/StyledButton';
 // import { Colors } from '@/constants/Colors';
 import { useResponsiveLayout } from '@/hooks/useResponsiveLayout';
 
+import { chunkEpisodes } from '@/utils/episodeUtils';
+
 interface EpisodeRangeSelectorProps {
-    totalEpisodes: number;
+    episodes: any[];
     currentRange: number;
     onRangeSelect: (index: number) => void;
     chunkSize?: number;
@@ -17,7 +19,7 @@ interface EpisodeRangeSelectorProps {
 }
 
 export const EpisodeRangeSelector = memo(({
-    totalEpisodes,
+    episodes,
     currentRange,
     onRangeSelect,
     chunkSize = 50,
@@ -34,18 +36,10 @@ export const EpisodeRangeSelector = memo(({
     // const colors = propColors || Colors.dark;
 
     const ranges = useMemo(() => {
-        if (totalEpisodes <= chunkSize) return [];
-
-        const numChunks = Math.ceil(totalEpisodes / chunkSize);
-        return Array.from({ length: numChunks }, (_, i) => {
-            const start = i * chunkSize + 1;
-            const end = Math.min((i + 1) * chunkSize, totalEpisodes);
-            return {
-                label: `${start}-${end}`,
-                index: i,
-            };
-        });
-    }, [totalEpisodes, chunkSize]);
+        const chunks = chunkEpisodes(episodes, chunkSize);
+        if (chunks.length <= 1) return [];
+        return chunks;
+    }, [episodes, chunkSize]);
 
     const flatListRef = React.useRef<FlatList>(null);
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { View, FlatList, StyleSheet, ActivityIndicator, Modal, useTVEventHandler, HWEvent, Text } from "react-native";
 import LivePlayer from "@/components/LivePlayer";
 import { fetchAndParseM3u, getPlayableUrl, Channel } from "@/services/m3u";
@@ -10,6 +10,7 @@ import { getCommonResponsiveStyles } from "@/utils/ResponsiveStyles";
 import ResponsiveNavigation from "@/components/navigation/ResponsiveNavigation";
 import ResponsiveHeader from "@/components/navigation/ResponsiveHeader";
 import { DeviceUtils } from "@/utils/DeviceUtils";
+import Toast from "react-native-toast-message";
 
 export default function LiveScreen() {
   const { m3uUrl } = useSettingsStore();
@@ -42,27 +43,37 @@ export default function LiveScreen() {
     const loadChannels = async () => {
       if (!m3uUrl) return;
       setIsLoading(true);
-      const parsedChannels = await fetchAndParseM3u(m3uUrl);
-      setChannels(parsedChannels);
+      try {
+        const parsedChannels = await fetchAndParseM3u(m3uUrl);
+        setChannels(parsedChannels);
 
-      const groups: Record<string, Channel[]> = parsedChannels.reduce((acc, channel) => {
-        const groupName = channel.group || "Other";
-        if (!acc[groupName]) {
-          acc[groupName] = [];
+        const groups: Record<string, Channel[]> = parsedChannels.reduce((acc, channel) => {
+          const groupName = channel.group || "Other";
+          if (!acc[groupName]) {
+            acc[groupName] = [];
+          }
+          acc[groupName].push(channel);
+          return acc;
+        }, {} as Record<string, Channel[]>);
+
+        const groupNames = Object.keys(groups);
+        setGroupedChannels(groups);
+        setChannelGroups(groupNames);
+        setSelectedGroup(groupNames[0] || "");
+
+        if (parsedChannels.length > 0) {
+          showChannelTitle(parsedChannels[0].name);
         }
-        acc[groupName].push(channel);
-        return acc;
-      }, {} as Record<string, Channel[]>);
-
-      const groupNames = Object.keys(groups);
-      setGroupedChannels(groups);
-      setChannelGroups(groupNames);
-      setSelectedGroup(groupNames[0] || "");
-
-      if (parsedChannels.length > 0) {
-        showChannelTitle(parsedChannels[0].name);
+      } catch (error) {
+        console.error("Failed to load channels:", error);
+        Toast.show({
+          type: "error",
+          text1: "频道加载失败",
+          text2: error instanceof Error ? error.message : "未知错误",
+        });
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     };
     loadChannels();
   }, [m3uUrl]);
@@ -100,10 +111,11 @@ export default function LiveScreen() {
     [changeChannel, isChannelListVisible, deviceType]
   );
 
-  useTVEventHandler(deviceType === 'tv' ? handleTVEvent : () => { });
+  const noopTVEventHandler = useCallback(() => {}, []);
+  useTVEventHandler(deviceType === 'tv' ? handleTVEvent : noopTVEventHandler);
 
   // 动态样式
-  const dynamicStyles = createResponsiveStyles(deviceType, spacing);
+  const dynamicStyles = useMemo(() => createResponsiveStyles(deviceType, spacing), [deviceType, spacing]);
 
   const renderGroupItem = useCallback(({ item }: { item: string }) => (
     <StyledButton

@@ -110,7 +110,7 @@ const DetailTVContent = memo(({
               {/* Range Selector (Bottom) */}
               {episodes.length > chunkSize && (
                 <EpisodeRangeSelector
-                  totalEpisodes={episodes.length}
+                  episodes={episodes}
                   currentRange={currentRange}
                   onRangeSelect={handleRangeSelect}
                   chunkSize={chunkSize}

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, StyleSheet, ViewStyle, TouchableOpacity } from 'react-native';
 import { useResponsiveLayout } from '@/hooks/useResponsiveLayout';
 
@@ -20,7 +20,7 @@ const ResponsiveCard: React.FC<ResponsiveCardProps> = ({
   disabled = false,
 }) => {
   const { deviceType, spacing } = useResponsiveLayout();
-  const dynamicStyles = createResponsiveStyles(deviceType, spacing);
+  const dynamicStyles = useMemo(() => createResponsiveStyles(deviceType, spacing), [deviceType, spacing]);
 
   const cardStyle = [
     dynamicStyles.baseCard,

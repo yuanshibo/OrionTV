@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { View, StyleSheet, Alert, Platform, ScrollView, BackHandler } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -8,6 +8,7 @@ import { StyledButton } from "@/components/StyledButton";
 import { useThemeColor } from "@/hooks/useThemeColor";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useRemoteControlStore } from "@/stores/remoteControlStore";
+import { useRemoteMessage } from "@/hooks/useRemoteMessage";
 import { APIConfigSection } from "@/components/settings/APIConfigSection";
 import { LiveStreamSection } from "@/components/settings/LiveStreamSection";
 import { RemoteInputSection } from "@/components/settings/RemoteInputSection";
@@ -32,7 +33,6 @@ function isSectionItem(item: false | undefined | SectionItem): item is SectionIt
 export default function SettingsScreen() {
   const router = useRouter();
   const { loadSettings, saveSettings, setApiBaseUrl, setM3uUrl } = useSettingsStore();
-  const { lastMessage, targetPage, clearMessage } = useRemoteControlStore();
   const backgroundColor = useThemeColor({}, "background");
   const insets = useSafeAreaInsets();
 
@@ -67,7 +67,7 @@ export default function SettingsScreen() {
     loadSettings();
   }, [loadSettings]);
 
-  const handleRemoteInput = (message: string) => {
+  const handleRemoteInput = useCallback((message: string) => {
     if (message.startsWith("api:")) {
       const url = message.slice(4).trim();
       setApiBaseUrl(url);
@@ -91,15 +91,9 @@ export default function SettingsScreen() {
       setApiBaseUrl(trimmed);
       Toast.show({ type: "success", text1: "已填入 API 地址", text2: trimmed });
     }
-  };
+  }, [setApiBaseUrl, setM3uUrl]);
 
-  useEffect(() => {
-    if (lastMessage && !targetPage) {
-      const realMessage = lastMessage.split("_")[0];
-      handleRemoteInput(realMessage);
-      clearMessage(); // Clear the message after processing
-    }
-  }, [lastMessage, targetPage]);
+  useRemoteMessage(handleRemoteInput);
 
   const handleSave = async () => {
     setIsLoading(true);
@@ -153,7 +147,7 @@ export default function SettingsScreen() {
   ] as const;
 
   const sections: SectionItem[] = rawSections.filter(isSectionItem);
-  const dynamicStyles = createResponsiveStyles(deviceType, spacing, insets);
+  const dynamicStyles = useMemo(() => createResponsiveStyles(deviceType, spacing, insets), [deviceType, spacing, insets]);
 
   const innerContent = (
     <ThemedView style={[commonStyles.container, dynamicStyles.container]}>

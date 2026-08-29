@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef } from 'react';
 import { Animated, ImageStyle, StyleProp, View, StyleSheet, ImageProps } from 'react-native';
 
 interface FadeInImageProps extends ImageProps {
@@ -7,7 +7,7 @@ interface FadeInImageProps extends ImageProps {
 }
 
 export const FadeInImage: React.FC<FadeInImageProps> = ({ style, duration = 500, ...props }) => {
-    const [opacity] = useState(new Animated.Value(0));
+    const opacity = useRef(new Animated.Value(0)).current;
 
     const onLoad = () => {
         Animated.timing(opacity, {

@@ -11,6 +11,7 @@ import { VideoCardViewModel } from "@/utils/searchUtils";
 import { Search, QrCode } from "lucide-react-native";
 import { StyledButton } from "@/components/StyledButton";
 import { useRemoteControlStore } from "@/stores/remoteControlStore";
+import { useRemoteMessage } from "@/hooks/useRemoteMessage";
 import { RemoteControlModal } from "@/components/RemoteControlModal";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -54,7 +55,7 @@ export default function SearchScreen() {
 
   const textInputRef = useRef<TextInput>(null);
   const [isInputFocused, setIsInputFocused] = useState(false);
-  const { showModal: showRemoteModal, lastMessage, targetPage, clearMessage } = useRemoteControlStore();
+  const { showModal: showRemoteModal } = useRemoteControlStore();
   const { remoteInputEnabled } = useSettingsStore();
   const router = useRouter();
   const colorScheme = useColorScheme() === 'light' ? 'light' : 'dark';
@@ -66,16 +67,13 @@ export default function SearchScreen() {
   const commonStyles = getCommonResponsiveStyles(responsiveConfig);
   const { deviceType, spacing } = responsiveConfig;
 
+  const handleRemoteMessage = useCallback((message: string) => {
+    logger.debug("Received remote input:", message);
+    setKeyword(message);
+    doSearch(message);
+  }, [setKeyword, doSearch]);
 
-  useEffect(() => {
-    if (lastMessage && targetPage === 'search') {
-      logger.debug("Received remote input:", lastMessage);
-      const realMessage = lastMessage.split("_")[0];
-      setKeyword(realMessage);
-      doSearch(realMessage);
-      clearMessage(); // Clear the message after processing
-    }
-  }, [lastMessage, targetPage, clearMessage, doSearch, setKeyword]);
+  useRemoteMessage(handleRemoteMessage, 'search');
 
   useEffect(() => {
     if (params.q) {

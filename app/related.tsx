@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { ThemedView } from '@/components/ThemedView';
@@ -10,7 +10,7 @@ export default function PostPlayScreen() {
   const { title } = useLocalSearchParams<{ title?: string }>();
   const { spacing } = useResponsiveLayout();
 
-  const styles = StyleSheet.create({
+  const styles = useMemo(() => StyleSheet.create({
     container: {
       flex: 1,
       justifyContent: 'center',
@@ -18,7 +18,7 @@ export default function PostPlayScreen() {
       padding: spacing / 2,
       marginBottom: spacing,
     },
-  });
+  }), [spacing]);
 
   return (
     <ThemedView style={styles.container}>

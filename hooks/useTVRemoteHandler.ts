@@ -7,6 +7,7 @@ const MAX_SEEK_STEP = 300 * 1000;    // 最大快进/快退时间步长(5分钟)
 const ACCELERATION_FACTOR = 1.2;     // 加速因子(每次增加20%)
 const CONTROLS_TIMEOUT = 5000;       // 定时器延迟时间(毫秒)
 const FAST_SEEK_INTERVAL = 200;      // 连续快进/快退的间隔时间(毫秒)
+const MAX_SEEK_DURATION = 10 * 1000; // 安全超时时间(10秒)
 
 export const useTVRemoteHandler = () => {
   const showControls = usePlayerStore((state) => state.showControls);
@@ -106,7 +107,14 @@ export const useTVRemoteHandler = () => {
 
             if (event.eventType === 'longLeft' && event.eventKeyAction === 0 && !seekIntervalRef.current) {
               currentSeekStepRef.current = INITIAL_SEEK_STEP;
+              const startTime = Date.now();
               seekIntervalRef.current = setInterval(() => {
+                if (Date.now() - startTime >= MAX_SEEK_DURATION) {
+                  if (seekIntervalRef.current) clearInterval(seekIntervalRef.current);
+                  seekIntervalRef.current = null;
+                  currentSeekStepRef.current = INITIAL_SEEK_STEP;
+                  return;
+                }
                 currentSeekStepRef.current = Math.min(currentSeekStepRef.current * ACCELERATION_FACTOR, MAX_SEEK_STEP);
                 seek(-currentSeekStepRef.current);
               }, FAST_SEEK_INTERVAL);
@@ -120,7 +128,14 @@ export const useTVRemoteHandler = () => {
 
             if (event.eventType === 'longRight' && event.eventKeyAction === 0 && !seekIntervalRef.current) {
               currentSeekStepRef.current = INITIAL_SEEK_STEP;
+              const startTime = Date.now();
               seekIntervalRef.current = setInterval(() => {
+                if (Date.now() - startTime >= MAX_SEEK_DURATION) {
+                  if (seekIntervalRef.current) clearInterval(seekIntervalRef.current);
+                  seekIntervalRef.current = null;
+                  currentSeekStepRef.current = INITIAL_SEEK_STEP;
+                  return;
+                }
                 currentSeekStepRef.current = Math.min(currentSeekStepRef.current * ACCELERATION_FACTOR, MAX_SEEK_STEP);
                 seek(currentSeekStepRef.current);
               }, FAST_SEEK_INTERVAL);

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { TouchableOpacity, StyleSheet, ViewStyle, TextStyle } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { useResponsiveLayout } from '@/hooks/useResponsiveLayout';
@@ -29,7 +29,7 @@ const ResponsiveButton: React.FC<ResponsiveButtonProps> = ({
   textStyle,
 }) => {
   const { deviceType, spacing } = useResponsiveLayout();
-  const dynamicStyles = createResponsiveStyles(deviceType, spacing);
+  const dynamicStyles = useMemo(() => createResponsiveStyles(deviceType, spacing), [deviceType, spacing]);
 
   const buttonStyle = [
     dynamicStyles.baseButton,

@@ -103,7 +103,7 @@ export default function DetailScreen() {
     }, [isTvExperience, router])
   );
 
-  const handlePlay = (episodeIndex: number, position?: number) => {
+  const handlePlay = useCallback((episodeIndex: number, position?: number) => {
     if (!detail) return;
     abort();
     const params: Record<string, string> = {
@@ -121,9 +121,9 @@ export default function DetailScreen() {
       pathname: "/play",
       params,
     });
-  };
+  }, [detail, abort, router]);
 
-  const handlePrimaryPlay = () => {
+  const handlePrimaryPlay = useCallback(() => {
     if (!detail || !detail.episodes || detail.episodes.length === 0) {
       return;
     }
@@ -132,6 +132,48 @@ export default function DetailScreen() {
     const resumePosition = resumeInfo.hasRecord ? resumeInfo.position : undefined;
 
     handlePlay(targetEpisodeIndex, resumePosition);
+  }, [detail, resumeInfo, handlePlay]);
+
+  const totalEpisodes = detail?.episodes?.length ?? 0;
+  const isPlayDisabled = totalEpisodes === 0;
+  const playButtonLabel = (resumeInfo.hasRecord ? `继续播放 · 第${resumeInfo.episodeIndex + 1}集` : "立即播放 · 第1集") + `/全${totalEpisodes}集`;
+
+  const detailViewProps = useMemo(() => ({
+    detail,
+    searchResults,
+    allSourcesLoaded,
+    isFavorited,
+    toggleFavorite,
+    handlePrimaryPlay,
+    handlePlay,
+    playButtonLabel,
+    isPlayDisabled,
+    setDetail,
+    dynamicStyles,
+    colors,
+    deviceType
+  }), [
+    detail,
+    searchResults,
+    allSourcesLoaded,
+    isFavorited,
+    toggleFavorite,
+    handlePrimaryPlay,
+    handlePlay,
+    playButtonLabel,
+    isPlayDisabled,
+    setDetail,
+    dynamicStyles,
+    colors,
+    deviceType
+  ]);
+
+  const renderDetailContent = () => {
+    if (deviceType === 'mobile') {
+      return <DetailMobileView {...detailViewProps} />;
+    } else {
+      return <DetailTVView {...detailViewProps} />;
+    }
   };
 
   if (loading) {
@@ -222,33 +264,6 @@ export default function DetailScreen() {
     );
   }
 
-  const totalEpisodes = detail.episodes?.length ?? 0;
-  const isPlayDisabled = totalEpisodes === 0;
-  const playButtonLabel = (resumeInfo.hasRecord ? `继续播放 · 第${resumeInfo.episodeIndex + 1}集` : "立即播放 · 第1集") + `/全${totalEpisodes}集`;
-
-  const renderDetailContent = () => {
-    const props = {
-      detail,
-      searchResults,
-      allSourcesLoaded,
-      isFavorited,
-      toggleFavorite,
-      handlePrimaryPlay,
-      handlePlay,
-      playButtonLabel,
-      isPlayDisabled,
-      setDetail,
-      dynamicStyles,
-      colors,
-      deviceType
-    };
-
-    if (deviceType === 'mobile') {
-      return <DetailMobileView {...props} />;
-    } else {
-      return <DetailTVView {...props} />;
-    }
-  };
 
   const content = (
     <ThemedView style={[commonStyles.container, isTvExperience && { padding: 0, paddingHorizontal: 0, paddingVertical: 0, margin: 0 }]}>
