@@ -2,7 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { RowItem, CacheItem, Category } from "./dataTypes";
 
 const CACHE_EXPIRE_TIME = 5 * 60 * 1000; // 5 minutes
-const MAX_CACHE_SIZE = 20; // max in-memory buckets (increased from 10 for better multi-category UX)
+const MAX_CACHE_SIZE = 50; // max in-memory buckets (expanded for rich filter combinations)
 const MAX_ITEMS_PER_CACHE = 40; // max items persisted per bucket
 
 const HOME_CACHE_STORAGE_KEY = "home_content_cache_v1";

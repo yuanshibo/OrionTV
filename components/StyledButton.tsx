@@ -116,7 +116,7 @@ export const StyledButton = memo(forwardRef<View, StyledButtonProps>(
           backgroundColor: colors.primary,
           borderColor: "transparent",
         },
-        selectedText: { color: colors.link },
+        selectedText: { color: Colors.dark.text },
       },
       ghost: {
         focusedButton: {
@@ -125,15 +125,15 @@ export const StyledButton = memo(forwardRef<View, StyledButtonProps>(
           borderWidth: 2,
         },
         focusedSelectedButton: {
-          backgroundColor: colors.primary,
+          backgroundColor: "rgba(255, 255, 255, 0.15)",
           borderColor: "#FFFFFF",
           borderWidth: 2,
         },
         selectedButton: {
-          backgroundColor: colors.primary,
+          backgroundColor: "transparent",
           borderColor: "transparent",
         },
-        selectedText: { color: colors.link },
+        selectedText: { color: colors.link, fontWeight: "700" as const },
       },
       common: {
         focusedButton: {

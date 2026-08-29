@@ -136,21 +136,36 @@ export class API {
       }
     }
 
-    let controller: AbortController | null = null;
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort(new Error(`NETWORK_TIMEOUT: Request exceeded ${timeoutMs}ms`));
+    }, timeoutMs);
 
-    if (!options.signal) {
-      controller = new AbortController();
-      options.signal = controller.signal;
-      timeoutId = setTimeout(() => {
-        controller?.abort(new Error(`NETWORK_TIMEOUT: Request exceeded ${timeoutMs}ms`));
-      }, timeoutMs);
+    const userSignal = options.signal;
+    let onUserAbort: (() => void) | null = null;
+
+    if (userSignal) {
+      if (userSignal.aborted) {
+        clearTimeout(timeoutId);
+        controller.abort((userSignal as any).reason || new Error("Aborted"));
+      } else {
+        onUserAbort = () => {
+          clearTimeout(timeoutId);
+          controller.abort((userSignal as any).reason || new Error("Aborted"));
+        };
+        userSignal.addEventListener("abort", onUserAbort, { once: true });
+      }
     }
+
+    const fetchOptions: RequestInit = {
+      ...options,
+      signal: controller.signal,
+    };
 
     let response: Response;
 
     try {
-      response = await fetch(`${this.baseURL}${url}`, options);
+      response = await fetch(`${this.baseURL}${url}`, fetchOptions);
     } catch (error) {
       if (isStatusZeroRangeError(error)) {
         logger.warn(
@@ -160,8 +175,9 @@ export class API {
       }
       throw error;
     } finally {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
+      clearTimeout(timeoutId);
+      if (userSignal && onUserAbort) {
+        userSignal.removeEventListener("abort", onUserAbort);
       }
     }
 

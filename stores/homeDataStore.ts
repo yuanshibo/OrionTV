@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { RowItem, Category } from "@/services/dataTypes";
 import { homeService } from "@/services/HomeService";
 import { contentCacheService } from "@/services/ContentCacheService";
+import { ImagePreloader } from "@/services/ImagePreloader";
 import useAuthStore from "./authStore";
 import errorService from "@/services/ErrorService";
 
@@ -28,6 +29,7 @@ interface HomeDataState {
 let currentFetchAbortController: AbortController | null = null;
 let currentRequestToken = 0;
 let pendingFetchKey: string | null = null;
+let filterDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 const prefetchingCacheKeys = new Set<string>();
 let prefetchConcurrency = 0;
 const MAX_PREFETCH_CONCURRENT = 2;
@@ -128,10 +130,14 @@ export const useHomeDataStore = create<HomeDataState>((set, get) => ({
 
         if (isDuplicateFetch && !forceRefresh) return;
 
-        // Check cache first if not forcing refresh
+        // Check cache first if not forcing refresh - Instant 0ms cache hits!
         if (!forceRefresh) {
             const cachedData = contentCacheService.getValidCacheEntry(category);
             if (cachedData) {
+                if (filterDebounceTimer) {
+                    clearTimeout(filterDebounceTimer);
+                    filterDebounceTimer = null;
+                }
                 set({
                     loading: false,
                     contentData: cachedData.data,
@@ -140,11 +146,44 @@ export const useHomeDataStore = create<HomeDataState>((set, get) => ({
                     error: null,
                     loadingMore: false,
                 });
+
+                // Prewarm first batch images in background
+                const posterUrls = cachedData.data
+                    .slice(0, 8)
+                    .map(item => item.poster)
+                    .filter((url): url is string => Boolean(url));
+                if (posterUrls.length > 0) {
+                    void ImagePreloader.preload(posterUrls);
+                }
                 return;
             }
         }
 
-        // Fetch Fresh
+        // For filter-based categories on cache miss, apply a light 150ms debounce
+        if (category.filterConfig && !forceRefresh) {
+            if (filterDebounceTimer) clearTimeout(filterDebounceTimer);
+            set({ loading: true, error: null });
+
+            filterDebounceTimer = setTimeout(async () => {
+                filterDebounceTimer = null;
+                const requestToken = beginRequest();
+                pendingFetchKey = cacheKey;
+                set({ contentData: [], pageStart: 0, hasMore: true, loadingMore: false });
+
+                try {
+                    await get().loadMoreData(category);
+                } finally {
+                    if (pendingFetchKey === cacheKey) pendingFetchKey = null;
+                }
+            }, 150);
+            return;
+        }
+
+        // Fetch Fresh (Normal Category or Force Refresh)
+        if (filterDebounceTimer) {
+            clearTimeout(filterDebounceTimer);
+            filterDebounceTimer = null;
+        }
         const requestToken = beginRequest();
         pendingFetchKey = cacheKey;
 
@@ -154,11 +193,6 @@ export const useHomeDataStore = create<HomeDataState>((set, get) => ({
             await get().loadMoreData(category);
         } finally {
             if (pendingFetchKey === cacheKey) pendingFetchKey = null;
-            // If request is still active (not cancelled by another fetch), ensure loading is off
-            if (isRequestActive(requestToken)) {
-                // loadMoreData handles setting loading to false, but double check?
-                // Actually loadMoreData sets loading: false in finally block if active.
-            }
         }
     },
 
@@ -166,10 +200,7 @@ export const useHomeDataStore = create<HomeDataState>((set, get) => ({
         const { pageStart, loadingMore, hasMore } = get();
 
         // Safety check: if we are already loading more, or no more data, skip
-        // BUT: fetchDataForCategory calls this with pageStart=0, so we must allow it even if loadingMore was true (though it shouldn't be)
-        // The requestToken check handles concurrency.
-
-        const requestToken = currentRequestToken; // Assumes beginRequest was called if this is a fresh fetch, or we use current if just loading more
+        const requestToken = currentRequestToken;
 
         // If this is a "load more" triggered by scroll (not fresh fetch), we need to set loadingMore
         if (pageStart > 0) {
@@ -182,8 +213,6 @@ export const useHomeDataStore = create<HomeDataState>((set, get) => ({
         try {
             // 1. Play Records - Handled by UI store usually, but if passed here:
             if (category.type === "record") {
-                // Records are usually fetched via refreshPlayRecords in UI store and passed via setDirectData
-                // But if we want to support it here:
                 const { isLoggedIn } = useAuthStore.getState();
                 if (!isLoggedIn) {
                     if (isRequestActive(requestToken)) set({ contentData: [], hasMore: false, pageStart: 0 });
@@ -223,6 +252,15 @@ export const useHomeDataStore = create<HomeDataState>((set, get) => ({
                         hasMore: newHasMore,
                     });
                     schedulePrefetchAdditionalTags(category);
+
+                    // Prewarm first batch images in background
+                    const posterUrls = items
+                        .slice(0, 8)
+                        .map(item => item.poster)
+                        .filter((url): url is string => Boolean(url));
+                    if (posterUrls.length > 0) {
+                        void ImagePreloader.preload(posterUrls);
+                    }
                 } else {
                     contentCacheService.appendCacheEntry(category, items, newHasMore);
                     if (!isRequestActive(requestToken)) return;
@@ -258,6 +296,10 @@ export const useHomeDataStore = create<HomeDataState>((set, get) => ({
     },
 
     setDirectData: (data: RowItem[]) => {
+        if (filterDebounceTimer) {
+            clearTimeout(filterDebounceTimer);
+            filterDebounceTimer = null;
+        }
         cancelOngoingRequest();
         set({
             contentData: data,
@@ -272,6 +314,10 @@ export const useHomeDataStore = create<HomeDataState>((set, get) => ({
     clearError: () => set({ error: null }),
 
     resetData: () => {
+        if (filterDebounceTimer) {
+            clearTimeout(filterDebounceTimer);
+            filterDebounceTimer = null;
+        }
         cancelOngoingRequest();
         set({ contentData: [], pageStart: 0, hasMore: true, loading: false, loadingMore: false, error: null });
     }
