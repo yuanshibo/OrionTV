@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo } from "react";
-import { View, Switch, StyleSheet, Pressable, Animated, useColorScheme } from "react-native";
+import { View, Switch, StyleSheet, useColorScheme } from "react-native";
+import Reanimated from "react-native-reanimated";
 import { ThemedText } from "@/components/ThemedText";
 import { SettingsSection } from "./SettingsSection";
 import { useSettingsStore } from "@/stores/settingsStore";
@@ -85,14 +86,14 @@ export const RemoteInputSection: React.FC<RemoteInputSectionProps> = ({ onChange
         <View style={styles.settingInfo}>
           <ThemedText style={styles.settingName}>启用远程输入</ThemedText>
         </View>
-        <Animated.View style={animationStyle}>
+        <Reanimated.View style={animationStyle}>
           <Switch
             value={remoteInputEnabled}
             onValueChange={handleToggle}
             trackColor={{ false: colors.icon, true: colors.primary }}
             thumbColor={remoteInputEnabled ? colors.tint : colors.icon}
           />
-        </Animated.View>
+        </Reanimated.View>
       </View>
 
       {remoteInputEnabled && (

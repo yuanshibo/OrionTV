@@ -82,7 +82,7 @@ const VideoCardMobile = forwardRef<View, VideoCardMobileProps>(
               contentFit="cover"
               transition={200}
               recyclingKey={poster}
-              cachePolicy="disk"
+              cachePolicy="memory-disk"
             />
 
             {isContinueWatching && (

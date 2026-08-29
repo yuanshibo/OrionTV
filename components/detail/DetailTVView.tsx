@@ -57,7 +57,11 @@ const DetailTVContent = memo(({
   handleRelatedSeriesFocus
 }: any) => {
   return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={dynamicStyles.scrollContainer}>
+    <ScrollView
+      style={{ flex: 1 }}
+      contentContainerStyle={dynamicStyles.scrollContainer}
+      removeClippedSubviews={false}
+    >
       <TVTopInfo
         detail={detail}
         isFavorited={isFavorited}

@@ -166,6 +166,8 @@ export default function SearchScreen() {
               onFocus={() => setIsInputFocused(true)}
               onBlur={() => setIsInputFocused(false)}
               returnKeyType="search"
+              blurOnSubmit={true}
+              autoComplete="off"
             />
           </TouchableOpacity>
           <StyledButton style={dynamicStyles.searchButton} onPress={onSearchPress}>

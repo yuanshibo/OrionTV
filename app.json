@@ -29,7 +29,8 @@
             "buildToolsVersion": "36.0.0",
             "kotlinVersion": "2.1.20",
             "enableProguardInReleaseBuilds": true,
-            "enableShrinkResourcesInReleaseBuilds": true
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "usePrecompiledHeaders": true
           }
         }
       ],
@@ -40,7 +41,8 @@
       "expo-image"
     ],
     "experiments": {
-      "typedRoutes": true
+      "typedRoutes": true,
+      "reactCompiler": true
     },
     "name": "OrionTV",
     "slug": "OrionTV",
