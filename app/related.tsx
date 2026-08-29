@@ -5,10 +5,13 @@ import { useLocalSearchParams } from 'expo-router';
 import { ThemedView } from '@/components/ThemedView';
 import RelatedSeries from '@/components/RelatedSeries';
 import { useResponsiveLayout } from '@/hooks/useResponsiveLayout';
+import { useTVBackHandler } from '@/hooks/useTVBackHandler';
 
 export default function PostPlayScreen() {
   const { title } = useLocalSearchParams<{ title?: string }>();
   const { spacing } = useResponsiveLayout();
+
+  useTVBackHandler({ fallbackRoute: "/" });
 
   const styles = useMemo(() => StyleSheet.create({
     container: {

@@ -122,7 +122,7 @@ export class API {
     return requestPromise;
   }
 
-  private async _fetch(url: string, options: RequestInit = {}): Promise<Response> {
+  private async _fetch(url: string, options: RequestInit = {}, timeoutMs = 15000): Promise<Response> {
     if (!this.baseURL) {
       throw new Error("API_URL_NOT_SET");
     }
@@ -134,6 +134,17 @@ export class API {
         headers.set("Cookie", this.authCookie);
         options.headers = headers;
       }
+    }
+
+    let controller: AbortController | null = null;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    if (!options.signal) {
+      controller = new AbortController();
+      options.signal = controller.signal;
+      timeoutId = setTimeout(() => {
+        controller?.abort(new Error(`NETWORK_TIMEOUT: Request exceeded ${timeoutMs}ms`));
+      }, timeoutMs);
     }
 
     let response: Response;
@@ -148,6 +159,10 @@ export class API {
         throw createNetworkStatusZeroError(error);
       }
       throw error;
+    } finally {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     }
 
     if (response.status === 0) {

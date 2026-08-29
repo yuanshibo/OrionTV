@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { View, FlatList, StyleSheet, ActivityIndicator, Modal, useTVEventHandler, HWEvent, Text } from "react-native";
+import { View, FlatList, StyleSheet, ActivityIndicator, useTVEventHandler, HWEvent } from "react-native";
 import LivePlayer from "@/components/LivePlayer";
 import { fetchAndParseM3u, getPlayableUrl, Channel } from "@/services/m3u";
 import { ThemedView } from "@/components/ThemedView";
 import { StyledButton } from "@/components/StyledButton";
+import { PlayerModalBase } from "@/components/player/PlayerModalBase";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { useTVBackHandler } from "@/hooks/useTVBackHandler";
 import { getCommonResponsiveStyles } from "@/utils/ResponsiveStyles";
 import ResponsiveNavigation from "@/components/navigation/ResponsiveNavigation";
 import ResponsiveHeader from "@/components/navigation/ResponsiveHeader";
@@ -38,6 +40,25 @@ export default function LiveScreen() {
     if (titleTimer.current) clearTimeout(titleTimer.current);
     titleTimer.current = setTimeout(() => setChannelTitle(null), 3000);
   };
+
+  useEffect(() => {
+    return () => {
+      if (titleTimer.current) {
+        clearTimeout(titleTimer.current);
+      }
+    };
+  }, []);
+
+  useTVBackHandler({
+    onBackPress: () => {
+      if (isChannelListVisible) {
+        setIsChannelListVisible(false);
+        return true;
+      }
+      return false;
+    },
+    fallbackRoute: "/",
+  });
 
   useEffect(() => {
     const loadChannels = async () => {
@@ -145,38 +166,34 @@ export default function LiveScreen() {
         channelTitle={channelTitle}
         onPlaybackStatusUpdate={() => { }}
       />
-      <Modal
-        animationType="slide"
-        transparent={true}
+      <PlayerModalBase
         visible={isChannelListVisible}
-        onRequestClose={() => setIsChannelListVisible(false)}
+        onClose={() => setIsChannelListVisible(false)}
+        title="选择频道"
+        width={deviceType === 'tablet' ? 400 : 450}
+        contentStyle={dynamicStyles.modalContent}
       >
-        <View style={dynamicStyles.modalContainer}>
-          <View style={dynamicStyles.modalContent}>
-            <Text style={dynamicStyles.modalTitle}>选择频道</Text>
-            <View style={dynamicStyles.listContainer}>
-              <View style={dynamicStyles.groupColumn}>
-                <FlatList
-                  data={channelGroups}
-                  keyExtractor={(item, index) => `group-${item}-${index}`}
-                  renderItem={renderGroupItem}
-                />
-              </View>
-              <View style={dynamicStyles.channelColumn}>
-                {isLoading ? (
-                  <ActivityIndicator size="large" />
-                ) : (
-                  <FlatList
-                    data={groupedChannels[selectedGroup] || []}
-                    keyExtractor={(item, index) => `${item.id}-${item.group}-${index}`}
-                    renderItem={renderChannelItem}
-                  />
-                )}
-              </View>
-            </View>
+        <View style={dynamicStyles.listContainer}>
+          <View style={dynamicStyles.groupColumn}>
+            <FlatList
+              data={channelGroups}
+              keyExtractor={(item, index) => `group-${item}-${index}`}
+              renderItem={renderGroupItem}
+            />
+          </View>
+          <View style={dynamicStyles.channelColumn}>
+            {isLoading ? (
+              <ActivityIndicator size="large" />
+            ) : (
+              <FlatList
+                data={groupedChannels[selectedGroup] || []}
+                keyExtractor={(item, index) => `${item.id}-${item.group}-${index}`}
+                renderItem={renderChannelItem}
+              />
+            )}
           </View>
         </View>
-      </Modal>
+      </PlayerModalBase>
     </>
   );
 

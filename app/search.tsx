@@ -2,8 +2,7 @@ import React, { useState, useRef, useEffect, useMemo, useCallback } from "react"
 import { View, TextInput, StyleSheet, Alert, TouchableOpacity, useColorScheme, ActivityIndicator, StyleProp, ViewStyle } from "react-native";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
-import VideoCardMobile from "@/components/VideoCard.mobile";
-import VideoCardTV from "@/components/VideoCard.tv";
+import VideoCard from "@/components/VideoCard";
 import VideoLoadingAnimation from "@/components/VideoLoadingAnimation";
 import { api } from "@/services/api";
 import { useSearchStore } from "@/stores/searchStore";
@@ -115,10 +114,10 @@ export default function SearchScreen() {
     }
   };
 
-  const renderItem = useCallback(({ item, style }: { item: VideoCardViewModel; index: number; style?: StyleProp<ViewStyle> }) => {
-    if (deviceType === 'mobile') {
+  const renderItem = useCallback(
+    ({ item, style }: { item: VideoCardViewModel; index: number; style?: StyleProp<ViewStyle> }) => {
       return (
-        <VideoCardMobile
+        <VideoCard
           id={item.id}
           source={item.source}
           title={item.title}
@@ -128,25 +127,12 @@ export default function SearchScreen() {
           rate={item.rate}
           api={api}
           style={style}
+          onFocus={(focusedItem: any) => setFocusedPoster(focusedItem?.poster || null)}
         />
       );
-    } else {
-      return (
-        <VideoCardTV
-          id={item.id}
-          source={item.source}
-          title={item.title}
-          poster={item.poster}
-          year={item.year}
-          sourceName={item.sourceName}
-          rate={item.rate}
-          api={api}
-          style={style}
-          onFocus={(item: any) => setFocusedPoster(item?.poster || null)}
-        />
-      );
-    }
-  }, [deviceType]);
+    },
+    []
+  );
 
   // 动态样式
   const dynamicStyles = useMemo(() => createResponsiveStyles(deviceType, spacing, colors), [deviceType, spacing, colors]);

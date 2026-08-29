@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import { FlashList } from "@shopify/flash-list";
 import { ThemedText } from "@/components/ThemedText";
-import VideoCard from "@/components/VideoCard.tv";
+import VideoCard from "@/components/VideoCard";
 import { api } from "@/services/api";
 import { FlashListOptimizer } from '@/utils/FlashListOptimizer';
 import { useResponsiveLayout } from '@/hooks/useResponsiveLayout';
