@@ -28,6 +28,10 @@ interface ContentDisplayProps {
   onRecordDeleted?: (source: string, id: string) => void;
   firstItemRef?: React.RefObject<any>;
   selectedCategoryRef?: React.RefObject<any>;
+  firstFilterRowRef?: React.RefObject<any>;
+  firstFilterRowTag?: number;
+  lastFilterRowRef?: React.RefObject<any>;
+  lastFilterRowTag?: number;
   onFocus?: (item?: any) => void;
 }
 
@@ -54,6 +58,10 @@ export const ContentDisplay: React.FC<ContentDisplayProps> = React.memo(({
   onRecordDeleted,
   firstItemRef,
   selectedCategoryRef,
+  firstFilterRowRef,
+  firstFilterRowTag: propFirstFilterRowTag,
+  lastFilterRowRef,
+  lastFilterRowTag: propLastFilterRowTag,
   onFocus,
 }) => {
   const animatedStyle = useAnimatedStyle(() => ({
@@ -65,6 +73,16 @@ export const ContentDisplay: React.FC<ContentDisplayProps> = React.memo(({
   const categoryTag = selectedCategoryRef?.current
     ? (findNodeHandle(selectedCategoryRef.current) ?? undefined)
     : undefined;
+
+  const firstFilterRowTag = propFirstFilterRowTag ?? (firstFilterRowRef?.current
+    ? (findNodeHandle(firstFilterRowRef.current) ?? undefined)
+    : undefined);
+
+  const lastFilterRowTag = propLastFilterRowTag ?? (lastFilterRowRef?.current
+    ? (findNodeHandle(lastFilterRowRef.current) ?? undefined)
+    : undefined);
+
+  const upperFocusTag = firstFilterRowTag ?? lastFilterRowTag ?? categoryTag;
 
   const renderContentItem = useCallback(({ item, index, style }: { item: RowItem; index: number; style?: StyleProp<ViewStyle> }) => {
     const isFilterable = selectedCategory?.title === "所有";
@@ -102,10 +120,10 @@ export const ContentDisplay: React.FC<ContentDisplayProps> = React.memo(({
         onFocus={onFocus}
         deviceType={deviceType}
         mediaType={item.type}
-        nextFocusUp={index < 5 ? categoryTag : undefined}
+        nextFocusUp={index < 5 ? upperFocusTag : undefined}
       />
     );
-  }, [selectedCategory, deviceType, onShowFilterPanel, onRecordDeleted, firstItemRef, onFocus, categoryTag]);
+  }, [selectedCategory, deviceType, onShowFilterPanel, onRecordDeleted, firstItemRef, onFocus, upperFocusTag]);
 
   const footerComponent = useMemo(() => {
     if (!loadingMore) return null;

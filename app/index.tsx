@@ -17,7 +17,7 @@ import { SyncQueue } from "@/services/storage/SyncQueue";
 import { HomeHeader } from "@/components/navigation/HomeHeader";
 import { CategoryNavigation } from "@/components/navigation/CategoryNavigation";
 import { ContentDisplay } from "@/components/home/ContentDisplay";
-import FilterPanel from "@/components/home/FilterPanel";
+import { InlineFilterBar } from "@/components/home/InlineFilterBar";
 import { requestTVFocus } from "@/utils/tvUtils";
 import { useShallow } from "zustand/react/shallow";
 import { useFocusStore } from "@/stores/focusStore";
@@ -32,9 +32,13 @@ export default function HomeScreen() {
   const searchButtonRef = useRef<View>(null);
   const selectedCategoryRef = useRef<View>(null);
   const allCategoryRef = useRef<View>(null);
+  const firstFilterRowRef = useRef<View>(null);
+  const lastFilterRowRef = useRef<View>(null);
   const [searchButtonTag, setSearchButtonTag] = useState<number | undefined>(undefined);
   const [selectedCategoryTag, setSelectedCategoryTag] = useState<number | undefined>(undefined);
   const [allCategoryTag, setAllCategoryTag] = useState<number | undefined>(undefined);
+  const [firstFilterRowTag, setFirstFilterRowTag] = useState<number | undefined>(undefined);
+  const [lastFilterRowTag, setLastFilterRowTag] = useState<number | undefined>(undefined);
   const lastCheckedPlayRecords = useRef<number>(0);
   const posterUpdateTimer = useRef<any>(null);
 
@@ -49,23 +53,27 @@ export default function HomeScreen() {
     selectedCategory,
     selectCategory,
     updateFilterOption,
+    resetFilterOptions,
     refreshPlayRecords,
     deletePlayRecord,
     initialize,
     setFocusedPoster,
     setLastFocusedCardIndex,
     setCurrentFocusArea,
+    currentFocusArea,
   } = useHomeUIStore(useShallow(state => ({
     categories: state.categories,
     selectedCategory: state.selectedCategory,
     selectCategory: state.selectCategory,
     updateFilterOption: state.updateFilterOption,
+    resetFilterOptions: state.resetFilterOptions,
     refreshPlayRecords: state.refreshPlayRecords,
     deletePlayRecord: state.deletePlayRecord,
     initialize: state.initialize,
     setFocusedPoster: state.setFocusedPoster,
     setLastFocusedCardIndex: state.setLastFocusedCardIndex,
     setCurrentFocusArea: state.setCurrentFocusArea,
+    currentFocusArea: state.currentFocusArea,
   })));
 
   // Data Store
@@ -92,7 +100,6 @@ export default function HomeScreen() {
   const hadContentRef = useRef(hasContent);
   const selectedCategoryType = selectedCategory?.type;
   const apiConfigStatus = useApiConfig();
-  const [isFilterPanelVisible, setFilterPanelVisible] = useState(false);
   const [categoryFocusTrigger, setCategoryFocusTrigger] = useState(0);
   const setFocusArea = useFocusStore(s => s.setFocusArea);
 
@@ -132,18 +139,11 @@ export default function HomeScreen() {
     doublePressToExit: true,
     exitToastMessage: "再按一次退出",
     onBackPress: useCallback(() => {
-      // Level 1: If filter panel is visible, close it and refocus category
-      if (isFilterPanelVisible) {
-        setFilterPanelVisible(false);
-        setCategoryFocusTrigger(p => p + 1);
-        return true;
-      }
-
       const currentArea = useHomeUIStore.getState().currentFocusArea;
       const lastIndex = useHomeUIStore.getState().lastFocusedCardIndex;
       const columns = responsiveConfig.columns || 4;
 
-      // Level 2: If focus is deep in content (beyond row 1), scroll to top & focus first card
+      // Level 1: If focus is deep in content (beyond row 1), scroll to top & focus first card
       if (currentArea === "content" && lastIndex >= columns) {
         listRef.current?.scrollToOffset({ offset: 0, animated: true });
         setTimeout(() => {
@@ -152,15 +152,29 @@ export default function HomeScreen() {
         return true;
       }
 
-      // Level 3: If focus is in row 1 of content or on tags, retreat back to categories
-      if (currentArea === "content" || currentArea === "tags") {
+      // Level 2: If focus is in row 1 of content, retreat to tags / filter bar and expand
+      if (currentArea === "content") {
+        setCurrentFocusArea("tags");
+        setTimeout(() => {
+          if (firstFilterRowRef.current) {
+            requestTVFocus(firstFilterRowRef, { priority: FocusPriority.NAVIGATION, duration: 200 });
+          } else {
+            setCategoryFocusTrigger(p => p + 1);
+          }
+        }, 50);
+        return true;
+      }
+
+      // Level 3: If on tags / filter bar, retreat back to category navigation
+      if (currentArea === "tags") {
+        setCurrentFocusArea("category");
         setCategoryFocusTrigger(p => p + 1);
         return true;
       }
 
       // Return false so doublePressToExit can handle the exit prompt
       return false;
-    }, [isFilterPanelVisible, responsiveConfig.columns]),
+    }, [responsiveConfig.columns, setCurrentFocusArea]),
   });
 
   // 数据获取逻辑
@@ -200,19 +214,12 @@ export default function HomeScreen() {
   }, [loading, hasContent, fadeAnim]);
 
   const handleCategorySelect = useCallback((category: Category) => {
-    if (category.title === "所有") {
-      selectCategory(category);
-      setFilterPanelVisible(true);
-      return;
-    }
     selectCategory(category);
   }, [selectCategory]);
 
   const handleCategoryLongPress = useCallback((category: Category) => {
-    if (deviceType === "tv" && category.title === "所有") {
-      setFilterPanelVisible(true);
-    }
-  }, [deviceType]);
+    selectCategory(category);
+  }, [selectCategory]);
 
   const handleTagSelect = useCallback((tag: string) => {
     if (selectedCategory) {
@@ -280,8 +287,6 @@ export default function HomeScreen() {
     categoryText: { fontSize: deviceType === "mobile" ? 14 : 16, fontWeight: "500" },
   }), [deviceType, spacing]);
 
-  const showFilterPanel = useCallback(() => setFilterPanelVisible(true), []);
-
   const content = (
     <ThemedView style={[commonStyles.container, dynamicContainerStyle]}>
       <DynamicBackground />
@@ -313,9 +318,29 @@ export default function HomeScreen() {
         firstItemRef={firstItemRef}
         allCategoryRef={allCategoryRef}
         searchButtonTag={searchButtonTag}
+        firstFilterRowRef={firstFilterRowRef}
+        firstFilterRowTag={firstFilterRowTag}
         onSelectedCategoryMount={(tag) => setSelectedCategoryTag(tag)}
         onAllCategoryMount={(tag) => setAllCategoryTag(tag)}
       />
+      {selectedCategory?.filterConfig && (
+        <InlineFilterBar
+          category={selectedCategory}
+          onFilterChange={handleFilterChange}
+          onResetFilters={() => resetFilterOptions(selectedCategory.title)}
+          deviceType={deviceType}
+          spacing={spacing}
+          currentFocusArea={currentFocusArea}
+          firstRowRef={firstFilterRowRef}
+          lastRowRef={lastFilterRowRef}
+          firstItemRef={firstItemRef}
+          selectedCategoryRef={selectedCategoryRef}
+          selectedCategoryTag={selectedCategoryTag}
+          onFirstRowMount={(tag) => setFirstFilterRowTag(tag)}
+          onLastRowMount={(tag) => setLastFilterRowTag(tag)}
+          onFocus={() => setCurrentFocusArea('tags')}
+        />
+      )}
       <ContentDisplay
         apiConfigStatus={apiConfigStatus}
         selectedCategory={selectedCategory}
@@ -329,24 +354,16 @@ export default function HomeScreen() {
         loadMoreData={() => selectedCategory && loadMoreData(selectedCategory)}
         loadingMore={loadingMore}
         deviceType={deviceType}
-        onShowFilterPanel={showFilterPanel}
+        onShowFilterPanel={() => {}}
         onRecordDeleted={deletePlayRecord}
         firstItemRef={firstItemRef}
         selectedCategoryRef={selectedCategoryRef}
+        firstFilterRowRef={firstFilterRowRef}
+        firstFilterRowTag={firstFilterRowTag}
+        lastFilterRowRef={lastFilterRowRef}
+        lastFilterRowTag={lastFilterRowTag}
         onFocus={handleItemFocus}
       />
-      {selectedCategory && (
-        <FilterPanel
-          isVisible={isFilterPanelVisible}
-          onClose={() => {
-            setFilterPanelVisible(false);
-            setCategoryFocusTrigger(p => p + 1);
-          }}
-          category={selectedCategory}
-          onFilterChange={handleFilterChange}
-          deviceType={deviceType}
-        />
-      )}
     </ThemedView>
   );
 

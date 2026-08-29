@@ -1,9 +1,13 @@
 import { create } from "zustand";
 import { api } from "@/services/api";
+import { fetchAISearchResults } from "@/services/searchService";
 import { VideoCardViewModel, normalizeSearchResult } from "@/utils/searchUtils";
 import Logger from "@/utils/Logger";
 
 const logger = Logger.withTag("SearchStore");
+
+let currentSearchAbortController: AbortController | null = null;
+let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 interface SearchState {
   keyword: string;
@@ -19,7 +23,7 @@ interface SearchState {
   loadDiscoverData: (page: number) => Promise<void>;
   doSearch: (term: string) => Promise<void>;
   loadMoreSearchResults: () => void;
-  handleSearch: (searchText?: string) => void;
+  handleSearch: (searchText?: string, immediate?: boolean) => void;
   resetSearch: () => void;
 }
 
@@ -71,11 +75,24 @@ export const useSearchStore = create<SearchState>((set, get) => ({
   },
 
   doSearch: async (term: string) => {
+    if (searchDebounceTimer) {
+      clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = null;
+    }
+
+    if (currentSearchAbortController) {
+      currentSearchAbortController.abort();
+      currentSearchAbortController = null;
+    }
+
     if (!term.trim()) {
       get().resetSearch();
       get().loadDiscoverData(1);
       return;
     }
+
+    const abortController = new AbortController();
+    currentSearchAbortController = abortController;
 
     set({
       loading: true,
@@ -85,7 +102,9 @@ export const useSearchStore = create<SearchState>((set, get) => ({
     });
 
     try {
-      const { results: searchResults } = await api.aiAssistantSearch(term);
+      const searchResults = await fetchAISearchResults(term, abortController.signal);
+      if (abortController.signal.aborted) return;
+
       if (searchResults.length > 0) {
         const normalizedResults = searchResults.map((item, index) => normalizeSearchResult(item, index));
         set({
@@ -97,10 +116,14 @@ export const useSearchStore = create<SearchState>((set, get) => ({
         set({ error: "没有找到相关内容，为你推荐..." });
         get().loadDiscoverData(1);
       }
-    } catch (err) {
+    } catch (err: any) {
+      if (err?.name === "AbortError" || err?.message === "Aborted") return;
       logger.info("Search failed:", err);
       set({ error: "搜索失败，请稍后重试。" });
     } finally {
+      if (currentSearchAbortController === abortController) {
+        currentSearchAbortController = null;
+      }
       set({ loading: false });
     }
   },
@@ -129,12 +152,31 @@ export const useSearchStore = create<SearchState>((set, get) => ({
     }, 200);
   },
 
-  handleSearch: (searchText?: string) => {
+  handleSearch: (searchText?: string, immediate = true) => {
     const term = typeof searchText === "string" ? searchText : get().keyword;
-    get().doSearch(term);
+    if (immediate) {
+      if (searchDebounceTimer) {
+        clearTimeout(searchDebounceTimer);
+        searchDebounceTimer = null;
+      }
+      get().doSearch(term);
+    } else {
+      if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = setTimeout(() => {
+        get().doSearch(term);
+      }, 300);
+    }
   },
 
   resetSearch: () => {
+    if (searchDebounceTimer) {
+      clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = null;
+    }
+    if (currentSearchAbortController) {
+      currentSearchAbortController.abort();
+      currentSearchAbortController = null;
+    }
     set({
       keyword: "",
       error: null,
