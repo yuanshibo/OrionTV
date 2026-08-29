@@ -1,5 +1,6 @@
 import React, { forwardRef, memo, useMemo } from "react";
-import { Animated, Pressable, StyleSheet, StyleProp, ViewStyle, PressableProps, TextStyle, View, Platform, TextProps } from "react-native";
+import { Pressable, StyleSheet, StyleProp, ViewStyle, PressableProps, TextStyle, View, Platform, TextProps } from "react-native";
+import Reanimated from "react-native-reanimated";
 import { ThemedText } from "./ThemedText";
 import { Colors } from "@/constants/Colors";
 import { useButtonAnimation } from "@/hooks/useAnimation";
@@ -112,7 +113,7 @@ export const StyledButton = memo(forwardRef<View, StyledButtonProps>(
     }), [colors]);
 
     return (
-      <Animated.View style={[animationStyle, style]}>
+      <Reanimated.View style={[animationStyle, style]}>
         <Pressable
           android_ripple={Platform.isTV || deviceType !== 'tv' ? { color: 'transparent' } : { color: Colors.dark.link }}
           ref={ref}
@@ -155,7 +156,7 @@ export const StyledButton = memo(forwardRef<View, StyledButtonProps>(
             children
           )}
         </Pressable>
-      </Animated.View>
+      </Reanimated.View>
     );
   }
 ));

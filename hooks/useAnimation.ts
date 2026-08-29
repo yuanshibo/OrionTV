@@ -1,18 +1,22 @@
-import { useRef, useEffect } from 'react';
-import { Animated } from 'react-native';
+import { useEffect } from 'react';
+import { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 
 export const useButtonAnimation = (isFocused: boolean, size: number = 1.1) => {
-  const scaleValue = useRef(new Animated.Value(1)).current;
+  const scale = useSharedValue(1);
 
   useEffect(() => {
-    Animated.spring(scaleValue, {
-      toValue: isFocused ? size : 1,
-      friction: 5,
-      useNativeDriver: true,
-    }).start();
-  }, [ isFocused, scaleValue, size]);
+    scale.value = withSpring(isFocused ? size : 1, {
+      damping: 15,
+      stiffness: 150,
+      mass: 0.6,
+    });
+  }, [isFocused, size, scale]);
 
-  return {
-    transform: [{ scale: scaleValue }],
-  };
+  const animatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: scale.value }],
+    };
+  });
+
+  return animatedStyle;
 };

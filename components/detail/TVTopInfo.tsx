@@ -1,21 +1,25 @@
 import React, { memo } from 'react';
-import { View, ScrollView } from 'react-native';
+import { View } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { StyledButton } from '@/components/StyledButton';
 import { Heart } from 'lucide-react-native';
 import { FadeInImage } from '@/components/FadeInImage';
 
+import { SearchResultWithResolution } from '@/types';
+import { Colors } from '@/constants/Colors';
+
 interface TVTopInfoProps {
-    detail: any;
+    detail: SearchResultWithResolution;
     isFavorited: boolean;
     toggleFavorite: () => void;
     handlePrimaryPlay: () => void;
     playButtonLabel: string;
     isPlayDisabled: boolean;
     dynamicStyles: any;
-    colors: any;
+    colors: (typeof Colors.dark) | (typeof Colors.light);
     nextFocusDown?: number | null;
     onFocus?: () => void;
+    onOpenDetailModal?: () => void;
 }
 
 export const TVTopInfo = memo(({
@@ -28,7 +32,8 @@ export const TVTopInfo = memo(({
     dynamicStyles,
     colors,
     nextFocusDown,
-    onFocus
+    onFocus,
+    onOpenDetailModal,
 }: TVTopInfoProps) => {
     return (
         <View style={dynamicStyles.topContainer}>
@@ -66,16 +71,29 @@ export const TVTopInfo = memo(({
                     ) : null}
                 </View>
 
-                <ScrollView
-                    style={dynamicStyles.descriptionScrollView}
-                    showsVerticalScrollIndicator={false}
+                <StyledButton
+                    variant="ghost"
+                    onPress={onOpenDetailModal}
+                    style={dynamicStyles.descButton}
                     nextFocusDown={nextFocusDown}
                 >
-                    <ThemedText style={dynamicStyles.description}>{detail.desc}</ThemedText>
-                </ScrollView>
+                    <View style={dynamicStyles.descWrapper}>
+                        <ThemedText
+                            style={dynamicStyles.description}
+                            numberOfLines={3}
+                            ellipsizeMode="tail"
+                        >
+                            {detail.desc && detail.desc.trim().length > 0 ? detail.desc.trim() : "暂无简介信息"}
+                        </ThemedText>
+                        <ThemedText style={dynamicStyles.moreDetailText}>
+                            [ 详情/演职员 ⏎ ]
+                        </ThemedText>
+                    </View>
+                </StyledButton>
             </View>
         </View>
     );
 });
 
 TVTopInfo.displayName = 'TVTopInfo';
+

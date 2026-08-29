@@ -1,24 +1,11 @@
-import { api, DoubanItem, DoubanRecommendationItem, PlayRecord } from "@/services/api";
+import { api } from "@/services/api";
 import { PlayRecordManager } from "@/services/storage";
-import { RowItem, Category, DoubanFilterConfig, ActiveDoubanFilters } from "./dataTypes";
+import { RowItem, Category, DoubanItem, DoubanRecommendationItem, PlayRecord } from "@/types";
+import { buildDefaultFilters } from "./homeConfig";
 
 const DOUBAN_RECOMMENDATION_PAGE_SIZE = 25;
 
 export class HomeService {
-
-  private buildDefaultFilters(config: DoubanFilterConfig): ActiveDoubanFilters {
-    const defaults: ActiveDoubanFilters = {};
-
-    config.groups.forEach((group) => {
-      if (group.key === 'kind') {
-        defaults[group.key] = group.defaultValue;
-      } else {
-        defaults[group.key] = group.defaultValue;
-      }
-    });
-
-    return { ...defaults, ...(config.staticFilters ?? {}) };
-  }
 
   private mapDoubanItemsToRows(items: DoubanItem[]): RowItem[] {
     return items.map((item) => ({
@@ -41,10 +28,10 @@ export class HomeService {
   }
 
   private parseRecordKey(key: string) {
-    const [source, id] = key.split("+");
+    const firstPlusIndex = key.indexOf("+");
     return {
-      source: source || "",
-      id: id || key,
+      source: firstPlusIndex !== -1 ? key.slice(0, firstPlusIndex) : "",
+      id: firstPlusIndex !== -1 ? key.slice(firstPlusIndex + 1) : key,
     };
   }
 
@@ -103,7 +90,7 @@ export class HomeService {
     // Logic for Filter Config (New API)
     if (category.filterConfig) {
       const limit = DOUBAN_RECOMMENDATION_PAGE_SIZE;
-      const activeFilters = category.activeFilters ?? this.buildDefaultFilters(category.filterConfig);
+      const activeFilters = category.activeFilters ?? buildDefaultFilters(category.filterConfig);
 
       const result = await api.getDoubanRecommendations(
         category.filterConfig.kind,
@@ -111,7 +98,7 @@ export class HomeService {
           ...activeFilters,
           start: pageStart,
           limit,
-        },
+        } as any,
         signal
       );
 

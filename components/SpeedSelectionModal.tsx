@@ -1,6 +1,7 @@
 import React from "react";
-import { View, Text, StyleSheet, Modal, FlatList } from "react-native";
+import { StyleSheet, FlatList } from "react-native";
 import { StyledButton } from "./StyledButton";
+import { PlayerModalBase } from "./player/PlayerModalBase";
 import usePlayerStore from "@/stores/playerStore";
 
 interface SpeedOption {
@@ -31,52 +32,33 @@ export const SpeedSelectionModal: React.FC = () => {
   };
 
   return (
-    <Modal visible={showSpeedModal} transparent={true} animationType="slide" onRequestClose={onClose}>
-      <View style={styles.modalContainer}>
-        <View style={styles.modalContent}>
-          <Text style={styles.modalTitle}>播放速度</Text>
-          <FlatList
-            data={SPEED_OPTIONS}
-            numColumns={4}
-            contentContainerStyle={styles.speedList}
-            keyExtractor={(item) => `speed-${item.rate}`}
-            renderItem={({ item }) => (
-              <StyledButton
-                text={item.label}
-                onPress={() => onSelectSpeed(item.rate)}
-                isSelected={playbackRate === item.rate}
-                hasTVPreferredFocus={playbackRate === item.rate}
-                style={styles.speedItem}
-                textStyle={styles.speedItemText}
-              />
-            )}
+    <PlayerModalBase
+      visible={showSpeedModal}
+      onClose={onClose}
+      title="播放速度"
+      width={400}
+    >
+      <FlatList
+        data={SPEED_OPTIONS}
+        numColumns={4}
+        contentContainerStyle={styles.speedList}
+        keyExtractor={(item) => `speed-${item.rate}`}
+        renderItem={({ item }) => (
+          <StyledButton
+            text={item.label}
+            onPress={() => onSelectSpeed(item.rate)}
+            isSelected={playbackRate === item.rate}
+            hasTVPreferredFocus={playbackRate === item.rate}
+            style={styles.speedItem}
+            textStyle={styles.speedItemText}
           />
-        </View>
-      </View>
-    </Modal>
+        )}
+      />
+    </PlayerModalBase>
   );
 };
 
 const styles = StyleSheet.create({
-  modalContainer: {
-    flex: 1,
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    backgroundColor: "transparent",
-  },
-  modalContent: {
-    width: 400,
-    height: "100%",
-    backgroundColor: "rgba(0, 0, 0, 0.3)",
-    padding: 20,
-  },
-  modalTitle: {
-    color: "white",
-    marginBottom: 12,
-    textAlign: "center",
-    fontSize: 18,
-    fontWeight: "bold",
-  },
   speedList: {
     justifyContent: "flex-start",
   },

@@ -1,3 +1,5 @@
+export const DEFAULT_API_BASE_URL = "http://192.168.10.103:3000";
+
 export const APP_CONFIG = {
     DETAIL: {
         MAX_PLAY_SOURCES: 8,

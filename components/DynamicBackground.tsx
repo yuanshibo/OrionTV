@@ -38,15 +38,24 @@ export const PureDynamicBackground = React.memo(({ poster, useProxy = true }: Dy
     if (!targetUri) return;
     if (targetUri === currentUri) return;
 
+    // Initial background loads immediately without delay
     if (!currentUri) {
       setCurrentUri(targetUri);
       fadeAnim.value = 1;
-    } else {
+      return;
+    }
+
+    // Debounce crossfade transitions on fast D-Pad navigation
+    const timer = setTimeout(() => {
       setPrevUri(currentUri);
       setCurrentUri(targetUri);
       fadeAnim.value = 0;
       fadeAnim.value = withTiming(1, { duration: 250 });
-    }
+    }, 200);
+
+    return () => {
+      clearTimeout(timer);
+    };
   }, [targetUri, currentUri, fadeAnim]);
 
   const animatedStyle = useAnimatedStyle(() => ({

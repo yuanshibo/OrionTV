@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useCallback, memo, useMemo } from "react";
-import { View, ViewStyle, TextStyle } from "react-native";
+import { View, ViewStyle, TextStyle, findNodeHandle, TVFocusGuideView } from "react-native";
 import { FlashList, FlashListRef } from "@shopify/flash-list";
 import { StyledButton } from "@/components/StyledButton";
 import { Category } from "@/services/dataTypes";
@@ -25,6 +25,8 @@ interface CategoryNavigationProps {
   spacing: number;
   focusTrigger?: number;
   selectedCategoryRef?: React.MutableRefObject<any>;
+  searchButtonRef?: React.RefObject<any>;
+  firstItemRef?: React.RefObject<any>;
 }
 
 interface CategoryItemProps {
@@ -36,9 +38,24 @@ interface CategoryItemProps {
   onFocus: (index: number) => void;
   styles: any;
   setRef: (index: number, ref: any) => void;
+  hasTVPreferredFocus?: boolean;
+  nextFocusUp?: number;
+  nextFocusDown?: number;
 }
 
-const CategoryItem = memo(({ item, index, isSelected, onSelect, onLongPress, onFocus, styles, setRef }: CategoryItemProps) => (
+const CategoryItem = memo(({
+  item,
+  index,
+  isSelected,
+  onSelect,
+  onLongPress,
+  onFocus,
+  styles,
+  setRef,
+  hasTVPreferredFocus,
+  nextFocusUp,
+  nextFocusDown,
+}: CategoryItemProps) => (
   <StyledButton
     ref={(ref) => setRef(index, ref)}
     text={item.title}
@@ -46,6 +63,9 @@ const CategoryItem = memo(({ item, index, isSelected, onSelect, onLongPress, onF
     onLongPress={() => onLongPress && onLongPress(item)}
     onFocus={() => onFocus(index)}
     isSelected={isSelected}
+    hasTVPreferredFocus={hasTVPreferredFocus}
+    nextFocusUp={nextFocusUp}
+    nextFocusDown={nextFocusDown}
     style={styles.categoryButton}
     textStyle={styles.categoryText}
   />
@@ -60,14 +80,30 @@ interface TagItemProps {
   onSelect: (tag: string) => void;
   onFocus: (index: number) => void;
   styles: any;
+  setRef?: (index: number, ref: any) => void;
+  nextFocusUp?: number;
+  nextFocusDown?: number;
 }
 
-const TagItem = memo(({ item, index, isSelected, onSelect, onFocus, styles }: TagItemProps) => (
+const TagItem = memo(({
+  item,
+  index,
+  isSelected,
+  onSelect,
+  onFocus,
+  styles,
+  setRef,
+  nextFocusUp,
+  nextFocusDown,
+}: TagItemProps) => (
   <StyledButton
+    ref={setRef ? (ref) => setRef(index, ref) : undefined}
     text={item}
     onPress={() => onSelect(item)}
     onFocus={() => onFocus(index)}
     isSelected={isSelected}
+    nextFocusUp={nextFocusUp}
+    nextFocusDown={nextFocusDown}
     style={styles.categoryButton}
     textStyle={styles.categoryText}
     variant="ghost"
@@ -87,8 +123,11 @@ const CategoryNavigationComponent: React.FC<CategoryNavigationProps> = ({
   spacing,
   focusTrigger,
   selectedCategoryRef,
+  searchButtonRef,
+  firstItemRef,
 }) => {
   const buttonRefs = useRef<(any)[]>([]);
+  const tagButtonRefs = useRef<(any)[]>([]);
   const categoryListRef = useRef<FlashListRef<Category>>(null);
   const tagListRef = useRef<FlashListRef<string>>(null);
   const lastSelectedTitleRef = useRef<string | undefined>(undefined);
@@ -96,6 +135,8 @@ const CategoryNavigationComponent: React.FC<CategoryNavigationProps> = ({
 
   const setCurrentFocusArea = useHomeUIStore((state) => state.setCurrentFocusArea);
   const setFocusArea = useFocusStore((state) => state.setFocusArea);
+
+  const hasTags = Boolean(selectedCategory?.tags && selectedCategory.tags.length > 0);
 
   useEffect(() => {
     setFocusArea('navigation', FocusPriority.NAVIGATION);
@@ -133,6 +174,10 @@ const CategoryNavigationComponent: React.FC<CategoryNavigationProps> = ({
     }
   }, [categories, selectedCategory, selectedCategoryRef]);
 
+  const setTagRef = useCallback((index: number, ref: any) => {
+    tagButtonRefs.current[index] = ref;
+  }, []);
+
   const handleCategoryFocus = useCallback((index: number) => {
     setCurrentFocusArea('category');
     try {
@@ -147,20 +192,55 @@ const CategoryNavigationComponent: React.FC<CategoryNavigationProps> = ({
     } catch {}
   }, [setCurrentFocusArea]);
 
+  const currentTags = selectedCategory?.tags;
+  const currentTag = selectedCategory?.tag;
+
+  const activeTagIndex = useMemo(() => {
+    if (!currentTags || !currentTag) return 0;
+    const idx = currentTags.findIndex((t) => t === currentTag);
+    return idx >= 0 ? idx : 0;
+  }, [currentTags, currentTag]);
+
+  const activeTagTag = tagButtonRefs.current[activeTagIndex]
+    ? (findNodeHandle(tagButtonRefs.current[activeTagIndex]) ?? undefined)
+    : undefined;
+
+  const searchButtonTag = searchButtonRef?.current
+    ? (findNodeHandle(searchButtonRef.current) ?? undefined)
+    : undefined;
+
+  const firstItemTag = firstItemRef?.current
+    ? (findNodeHandle(firstItemRef.current) ?? undefined)
+    : undefined;
+
+  const selectedCategoryTag = selectedCategoryRef?.current
+    ? (findNodeHandle(selectedCategoryRef.current) ?? undefined)
+    : undefined;
+
+  const targetDestination = hasTags
+    ? (tagButtonRefs.current[activeTagIndex] || selectedCategoryRef?.current)
+    : selectedCategoryRef?.current;
+
   const renderCategory = useCallback(
-    ({ item, index }: { item: Category; index: number }) => (
-      <CategoryItem
-        item={item}
-        index={index}
-        isSelected={selectedCategory?.title === item.title}
-        onSelect={onCategorySelect}
-        onLongPress={onCategoryLongPress}
-        onFocus={handleCategoryFocus}
-        styles={categoryStyles}
-        setRef={setRef}
-      />
-    ),
-    [selectedCategory?.title, onCategorySelect, onCategoryLongPress, handleCategoryFocus, categoryStyles, setRef]
+    ({ item, index }: { item: Category; index: number }) => {
+      const isSelected = selectedCategory?.title === item.title;
+      return (
+        <CategoryItem
+          item={item}
+          index={index}
+          isSelected={isSelected}
+          onSelect={onCategorySelect}
+          onLongPress={onCategoryLongPress}
+          onFocus={handleCategoryFocus}
+          styles={categoryStyles}
+          setRef={setRef}
+          hasTVPreferredFocus={index === 0 && isSelected && deviceType === "tv"}
+          nextFocusUp={searchButtonTag}
+          nextFocusDown={hasTags ? activeTagTag : firstItemTag}
+        />
+      );
+    },
+    [selectedCategory?.title, onCategorySelect, onCategoryLongPress, handleCategoryFocus, categoryStyles, setRef, deviceType, searchButtonTag, hasTags, activeTagTag, firstItemTag]
   );
 
   const renderTag = useCallback(
@@ -172,12 +252,13 @@ const CategoryNavigationComponent: React.FC<CategoryNavigationProps> = ({
         onSelect={onTagSelect}
         onFocus={handleTagFocus}
         styles={categoryStyles}
+        setRef={setTagRef}
+        nextFocusUp={selectedCategoryTag}
+        nextFocusDown={firstItemTag}
       />
     ),
-    [selectedCategory?.tag, onTagSelect, handleTagFocus, categoryStyles]
+    [selectedCategory?.tag, onTagSelect, handleTagFocus, categoryStyles, setTagRef, selectedCategoryTag, firstItemTag]
   );
-
-  const hasTags = selectedCategory?.type === "record";
 
   const categoryListConfig = useMemo(() => 
     FlashListOptimizer.getHorizontalListConfig(deviceType, 90),
@@ -192,30 +273,38 @@ const CategoryNavigationComponent: React.FC<CategoryNavigationProps> = ({
   const FlashListAny = FlashList as any;
 
   return (
-    <View style={[categoryStyles.categoryContainer, hasTags && { paddingBottom: spacing * 0.8 }]}>
-      <FlashListAny
-        ref={categoryListRef}
-        horizontal
-        data={categories}
-        renderItem={renderCategory}
-        keyExtractor={(item: Category) => item.title}
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={categoryStyles.categoryListContent}
-        {...categoryListConfig}
-      />
-      {selectedCategory?.tags && (
+    <TVFocusGuideView
+      trapFocusUp={false}
+      trapFocusDown={false}
+      destinations={targetDestination ? [targetDestination] : []}
+    >
+      <View style={[categoryStyles.categoryContainer, hasTags && { paddingBottom: spacing * 0.8 }]}>
         <FlashListAny
-          ref={tagListRef}
+          ref={categoryListRef}
           horizontal
-          data={selectedCategory.tags}
-          renderItem={renderTag}
-          keyExtractor={(item: string) => item}
+          data={categories}
+          renderItem={renderCategory}
+          keyExtractor={(item: Category) => item.title}
           showsHorizontalScrollIndicator={false}
+          removeClippedSubviews={false}
           contentContainerStyle={categoryStyles.categoryListContent}
-          {...tagListConfig}
+          {...categoryListConfig}
         />
-      )}
-    </View>
+        {hasTags && (
+          <FlashListAny
+            ref={tagListRef}
+            horizontal
+            data={selectedCategory?.tags}
+            renderItem={renderTag}
+            keyExtractor={(item: string) => item}
+            showsHorizontalScrollIndicator={false}
+            removeClippedSubviews={false}
+            contentContainerStyle={categoryStyles.categoryListContent}
+            {...tagListConfig}
+          />
+        )}
+      </View>
+    </TVFocusGuideView>
   );
 };
 

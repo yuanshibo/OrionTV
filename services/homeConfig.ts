@@ -1,4 +1,4 @@
-import { Category, DoubanFilterConfig, DoubanFilterGroup, ActiveDoubanFilters, DoubanRecommendationFilters } from "./dataTypes";
+import { Category, DoubanFilterConfig, DoubanFilterGroup, ActiveDoubanFilters } from "@/types";
 
 export const SHARED_FILTER_GROUPS: DoubanFilterGroup[] = [
   {

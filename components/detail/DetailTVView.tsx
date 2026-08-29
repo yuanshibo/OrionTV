@@ -1,16 +1,23 @@
-import React, { memo, useCallback, useState } from 'react';
+import React, { memo, useCallback, useState, useMemo } from 'react';
 import { View, ScrollView, useWindowDimensions, findNodeHandle, TVFocusGuideView } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
+import { StyledButton } from '@/components/StyledButton';
 import { SourceList } from '@/components/detail/SourceList';
 import RelatedSeries from '@/components/RelatedSeries';
 import { EpisodeRangeSelector } from '@/components/detail/EpisodeRangeSelector';
 import { PureDynamicBackground } from '@/components/DynamicBackground';
 import { TVTopInfo } from '@/components/detail/TVTopInfo';
 import { EpisodeHorizontalList, EpisodeHorizontalListRef } from '@/components/detail/EpisodeHorizontalList';
+import { DetailInfoModal } from '@/components/detail/DetailInfoModal';
+import { ArrowUpDown } from 'lucide-react-native';
+
+import { SearchResultWithResolution, PlayRecord } from '@/types';
+import { Colors } from '@/constants/Colors';
+import { buildDisplayEpisodes, chunkDisplayEpisodes, EpisodeItem, EpisodeChunk } from '@/utils/episodeUtils';
 
 interface DetailTVViewProps {
-  detail: any;
-  searchResults: any[];
+  detail: SearchResultWithResolution;
+  searchResults: SearchResultWithResolution[];
   allSourcesLoaded: boolean;
   isFavorited: boolean;
   toggleFavorite: () => void;
@@ -18,10 +25,36 @@ interface DetailTVViewProps {
   handlePlay: (episodeIndex: number, position?: number) => void;
   playButtonLabel: string;
   isPlayDisabled: boolean;
-  setDetail: (detail: any) => void;
+  setDetail: (detail: SearchResultWithResolution) => void;
   dynamicStyles: any;
-  colors: any;
+  colors: (typeof Colors.dark) | (typeof Colors.light);
   deviceType: 'mobile' | 'tablet' | 'tv';
+  resumeRecord?: PlayRecord | null;
+}
+
+interface DetailTVContentProps extends DetailTVViewProps {
+  firstSourceTag: number | null;
+  handleTVTopInfoFocus: () => void;
+  setFirstSourceRef: (node: any) => void;
+  targetEpisodeTag: number | null;
+  displayEpisodes: EpisodeItem[];
+  chunks: EpisodeChunk<EpisodeItem>[];
+  itemWidth: number;
+  handleEpisodeFocus: (index: number) => void;
+  firstRangeTag: number | null;
+  episodeListRef: React.RefObject<EpisodeHorizontalListRef | null>;
+  setTargetEpisodeTag: (tag: number | null) => void;
+  chunkSize: number;
+  currentRange: number;
+  handleRangeSelect: (index: number) => void;
+  focusOffset: number;
+  handleSetFirstRangeRef: (node: any) => void;
+  handleRelatedSeriesFocus: (item: any) => void;
+  isReversed: boolean;
+  toggleSortOrder: () => void;
+  onOpenDetailModal: () => void;
+  sortButtonTag: number | null;
+  setSortButtonRef: (node: any) => void;
 }
 
 // Extracted content component to prevent re-renders when background changes
@@ -42,7 +75,8 @@ const DetailTVContent = memo(({
   setDetail,
   setFirstSourceRef,
   targetEpisodeTag,
-  episodes,
+  displayEpisodes,
+  chunks,
   itemWidth,
   handlePlay,
   handleEpisodeFocus,
@@ -54,10 +88,22 @@ const DetailTVContent = memo(({
   handleRangeSelect,
   focusOffset,
   handleSetFirstRangeRef,
-  handleRelatedSeriesFocus
-}: any) => {
+  handleRelatedSeriesFocus,
+  isReversed,
+  toggleSortOrder,
+  onOpenDetailModal,
+  resumeRecord,
+  sortButtonTag,
+  setSortButtonRef,
+}: DetailTVContentProps) => {
+  const nextTargetDown = sortButtonTag || targetEpisodeTag;
+
   return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={dynamicStyles.scrollContainer}>
+    <ScrollView
+      style={{ flex: 1 }}
+      contentContainerStyle={dynamicStyles.scrollContainer}
+      removeClippedSubviews={false}
+    >
       <TVTopInfo
         detail={detail}
         isFavorited={isFavorited}
@@ -69,9 +115,10 @@ const DetailTVContent = memo(({
         colors={colors}
         nextFocusDown={firstSourceTag}
         onFocus={handleTVTopInfoFocus}
+        onOpenDetailModal={onOpenDetailModal}
       />
       <View style={dynamicStyles.bottomContainer}>
-        <TVFocusGuideView trapFocusUp={false} trapFocusDown={false} destinations={[targetEpisodeTag].filter(Boolean) as any}>
+        <TVFocusGuideView trapFocusUp={false} trapFocusDown={false} destinations={[nextTargetDown].filter(Boolean) as any}>
           <SourceList
             searchResults={searchResults}
             currentSource={detail.source}
@@ -81,32 +128,58 @@ const DetailTVContent = memo(({
             styles={dynamicStyles}
             colors={colors}
             setFirstSourceRef={setFirstSourceRef}
-            nextFocusDown={targetEpisodeTag}
+            nextFocusDown={nextTargetDown}
           />
         </TVFocusGuideView>
 
-        {episodes.length > 0 && (
+        {displayEpisodes.length > 0 && (
           <TVFocusGuideView trapFocusUp={false} trapFocusDown={false}>
             <View>
-              <ThemedText style={dynamicStyles.episodesTitle}>播放列表</ThemedText>
+              <View style={dynamicStyles.episodesHeaderContainer}>
+                <View style={dynamicStyles.episodesTitleGroup}>
+                  <ThemedText style={dynamicStyles.episodesTitle}>播放列表</ThemedText>
+                  {displayEpisodes.length > 1 && (
+                    <StyledButton
+                      ref={setSortButtonRef}
+                      variant="ghost"
+                      onPress={toggleSortOrder}
+                      style={dynamicStyles.sortOrderButton}
+                      nextFocusUp={firstSourceTag || undefined}
+                      nextFocusDown={targetEpisodeTag || undefined}
+                      focusedStyle={{
+                        backgroundColor: colors.primary,
+                        borderColor: colors.text,
+                      }}
+                    >
+                      <ArrowUpDown size={14} color={colors.text} />
+                      <ThemedText style={dynamicStyles.sortOrderButtonText}>
+                        {isReversed ? "倒序 (最新在前)" : "正序"}
+                      </ThemedText>
+                    </StyledButton>
+                  )}
+                </View>
+              </View>
 
               {/* Episode List (Horizontal) */}
               <EpisodeHorizontalList
                 ref={episodeListRef}
-                episodes={episodes}
+                episodes={displayEpisodes}
                 itemWidth={itemWidth}
                 handlePlay={handlePlay}
                 handleEpisodeFocus={handleEpisodeFocus}
                 firstRangeTag={firstRangeTag}
                 firstSourceTag={firstSourceTag}
+                nextFocusUpTag={sortButtonTag || firstSourceTag}
                 dynamicStyles={dynamicStyles}
                 setTargetEpisodeTag={setTargetEpisodeTag}
+                resumeRecord={resumeRecord}
+                detailTitle={detail.title}
               />
 
               {/* Range Selector (Bottom) */}
-              {episodes.length > chunkSize && (
+              {displayEpisodes.length > chunkSize && (
                 <EpisodeRangeSelector
-                  totalEpisodes={episodes.length}
+                  chunks={chunks}
                   currentRange={currentRange}
                   onRangeSelect={handleRangeSelect}
                   chunkSize={chunkSize}
@@ -146,9 +219,13 @@ export const DetailTVView: React.FC<DetailTVViewProps> = memo(({
   dynamicStyles,
   colors,
   deviceType,
+  resumeRecord,
 }) => {
   const [currentRange, setCurrentRange] = useState(0);
-  const chunkSize = 10; // Changed to 10
+  const [isReversed, setIsReversed] = useState(false);
+  const [showInfoModal, setShowInfoModal] = useState(false);
+
+  const chunkSize = 10;
   const episodeListRef = React.useRef<EpisodeHorizontalListRef>(null);
   const { width } = useWindowDimensions();
   const [overridePoster, setOverridePoster] = useState<string | null>(null);
@@ -158,6 +235,7 @@ export const DetailTVView: React.FC<DetailTVViewProps> = memo(({
   const [firstSourceTag, setFirstSourceTag] = useState<number | null>(null);
   const [targetEpisodeTag, setTargetEpisodeTag] = useState<number | null>(null);
   const [firstRangeTag, setFirstRangeTag] = useState<number | null>(null);
+  const [sortButtonTag, setSortButtonTag] = useState<number | null>(null);
 
   const setFirstSourceRef = useCallback((node: any) => {
     if (node) {
@@ -171,11 +249,36 @@ export const DetailTVView: React.FC<DetailTVViewProps> = memo(({
     }
   }, []);
 
-  // Show ALL episodes
-  const episodes = detail.episodes || [];
+  const setSortButtonRef = useCallback((node: any) => {
+    if (node) {
+      setSortButtonTag(findNodeHandle(node));
+    }
+  }, []);
+
+  // Show ALL episodes with optional reverse order
+  const displayEpisodes = useMemo(() => {
+    return buildDisplayEpisodes(detail.episodes || [], isReversed);
+  }, [detail.episodes, isReversed]);
+
+  const chunks = useMemo(() => {
+    return chunkDisplayEpisodes(displayEpisodes, chunkSize);
+  }, [displayEpisodes, chunkSize]);
+
+  const toggleSortOrder = useCallback(() => {
+    setIsReversed(prev => !prev);
+    setCurrentRange(0);
+    requestAnimationFrame(() => {
+      episodeListRef.current?.scrollToIndex({
+        index: 0,
+        animated: false,
+        viewPosition: 0,
+        viewOffset: 0,
+      });
+      episodeListRef.current?.updateTargetEpisode(0);
+    });
+  }, []);
 
   // Calculate item width to fit 10 items.
-  // Assuming some padding (e.g. 40px total horizontal padding).
   const padding = 40;
   const itemWidth = (width - padding) / 10;
   const focusOffset = itemWidth * 0.5;
@@ -188,21 +291,12 @@ export const DetailTVView: React.FC<DetailTVViewProps> = memo(({
 
     setCurrentRange(index);
     const startIndex = index * chunkSize;
-    // Scroll episode list to the start of the selected range
-    // Align to second item by scrolling to startIndex with offset
-    // Use animated: false for instant jump
     episodeListRef.current?.scrollToIndex({
       index: startIndex,
       animated: false,
       viewPosition: 0,
       viewOffset: startIndex === 0 ? 0 : focusOffset
     });
-    // Try to update target to the start of the range (if rendered)
-    // We need to wait for layout/render? FlashList might not have mounted the new items yet.
-    // But updateTargetEpisode checks if node exists.
-    // For FlashList, we might need a small delay or rely on onFocus if focus moves there.
-    // However, for "nextFocusUp" to work immediately, we need the tag.
-    // Since we just scrolled, the item *should* be rendered soon.
     requestAnimationFrame(() => {
       updateTargetEpisode(startIndex);
     });
@@ -215,13 +309,9 @@ export const DetailTVView: React.FC<DetailTVViewProps> = memo(({
       return prev;
     });
 
-    // Update the target tag for SourceList -> EpisodeList navigation
     updateTargetEpisode(index);
 
-    // Use requestAnimationFrame for smoother and faster interaction with native focus
-    // forcing the focused item to align to the left immediately
     requestAnimationFrame(() => {
-      // Align to second item by scrolling to index with offset
       episodeListRef.current?.scrollToIndex({
         index,
         animated: true,
@@ -262,7 +352,6 @@ export const DetailTVView: React.FC<DetailTVViewProps> = memo(({
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       {/* Background Atmosphere */}
-      {/* Detail page poster URL works better without proxy (direct access or already proxied) */}
       <PureDynamicBackground poster={activePoster} useProxy={false} />
 
       <DetailTVContent
@@ -282,7 +371,8 @@ export const DetailTVView: React.FC<DetailTVViewProps> = memo(({
         setDetail={setDetail}
         setFirstSourceRef={setFirstSourceRef}
         targetEpisodeTag={targetEpisodeTag}
-        episodes={episodes}
+        displayEpisodes={displayEpisodes}
+        chunks={chunks}
         itemWidth={itemWidth}
         handlePlay={handlePlay}
         handleEpisodeFocus={handleEpisodeFocus}
@@ -295,6 +385,20 @@ export const DetailTVView: React.FC<DetailTVViewProps> = memo(({
         focusOffset={focusOffset}
         handleSetFirstRangeRef={handleSetFirstRangeRef}
         handleRelatedSeriesFocus={handleRelatedSeriesFocus}
+        isReversed={isReversed}
+        toggleSortOrder={toggleSortOrder}
+        onOpenDetailModal={() => setShowInfoModal(true)}
+        resumeRecord={resumeRecord}
+        sortButtonTag={sortButtonTag}
+        setSortButtonRef={setSortButtonRef}
+      />
+
+      {/* Full Synopsis & Cast Modal */}
+      <DetailInfoModal
+        visible={showInfoModal}
+        onClose={() => setShowInfoModal(false)}
+        detail={detail}
+        colors={colors}
       />
     </View>
   );

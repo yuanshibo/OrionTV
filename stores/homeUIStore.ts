@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { Category, DoubanFilterKey, DoubanFilterConfig, ActiveDoubanFilters } from "@/services/dataTypes";
+import { Category, DoubanFilterKey, DoubanFilterConfig, DoubanFilterGroup, ActiveDoubanFilters, DoubanRecommendationFilters } from "@/types";
 import { initialCategories, initializeFilterableCategory, buildDefaultFilters, DOUBAN_FILTERS_METADATA, ALL_MEDIA_KIND_SELECTOR_GROUP } from "@/services/homeConfig";
 import useAuthStore from "./authStore";
 import { useSettingsStore } from "./settingsStore";
@@ -87,8 +87,8 @@ export const useHomeUIStore = create<HomeUIState>((set, get) => ({
         const currentFilters = targetCategory.activeFilters ?? buildDefaultFilters(targetCategory.filterConfig);
         if (currentFilters[key] === value) return;
 
-        const group = targetCategory.filterConfig.groups.find((g) => g.key === key);
-        if (!group?.options.some((o) => o.value === value)) return;
+        const group = targetCategory.filterConfig.groups.find((g: DoubanFilterGroup) => g.key === key);
+        if (!group?.options.some((o: { value: string }) => o.value === value)) return;
 
         let updatedCategory: Category;
 
@@ -96,7 +96,7 @@ export const useHomeUIStore = create<HomeUIState>((set, get) => ({
             const newKind = value as "movie" | "tv";
             const newKindGroups = DOUBAN_FILTERS_METADATA[newKind];
 
-            const newStaticFilters: Partial<ActiveDoubanFilters> = { label: "all" };
+            const newStaticFilters: Partial<DoubanRecommendationFilters> = { label: "all" };
             if (newKind === 'tv') {
                 newStaticFilters.format = '电视剧';
             }

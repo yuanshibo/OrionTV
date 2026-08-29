@@ -35,4 +35,8 @@ export interface VideoCardMobileProps extends VideoCardBaseProps {
     onLongPress?: (event: GestureResponderEvent) => void;
 }
 
-export type VideoCardProps = VideoCardTVProps | VideoCardMobileProps;
+export interface VideoCardTabletProps extends VideoCardBaseProps {
+    onLongPress?: (event: GestureResponderEvent) => void;
+}
+
+export type VideoCardProps = VideoCardTVProps | VideoCardMobileProps | VideoCardTabletProps;

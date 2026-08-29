@@ -1,36 +1,16 @@
 import React, { useState, useEffect, useCallback, useRef, forwardRef, useMemo } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Alert, Animated, useColorScheme } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Animated, useColorScheme } from "react-native";
 import { Image } from "expo-image";
-import { useRouter } from "expo-router";
 import { Star, Play } from "lucide-react-native";
-import { PlayRecordManager } from "@/services/storage";
-import { API } from "@/services/api";
 import { ThemedText } from "@/components/ThemedText";
 import { Colors } from "@/constants/Colors";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { useImageSource } from "@/hooks/useImageSource";
+import { useVideoCardInteractions } from "@/hooks/useVideoCardInteractions";
+import { formatProgressText } from "@/utils/formatUtils";
 import { DeviceUtils } from "@/utils/DeviceUtils";
-import Logger from '@/utils/Logger';
-import useAuthStore from "@/stores/authStore";
 
-const logger = Logger.withTag('VideoCardTablet');
-
-interface VideoCardTabletProps extends React.ComponentProps<typeof TouchableOpacity> {
-  id: string;
-  source: string;
-  title: string;
-  poster: string;
-  year?: string;
-  rate?: string;
-  sourceName?: string;
-  progress?: number;
-  playTime?: number;
-  episodeIndex?: number;
-  totalEpisodes?: number;
-  onFocus?: () => void;
-  onRecordDeleted?: () => void;
-  api: API;
-  deviceType?: 'mobile' | 'tablet' | 'tv';
-}
+import { VideoCardTabletProps } from "./VideoCard.types";
 
 const VideoCardTablet = forwardRef<View, VideoCardTabletProps>(
   (
@@ -44,48 +24,47 @@ const VideoCardTablet = forwardRef<View, VideoCardTabletProps>(
       sourceName,
       progress,
       episodeIndex,
+      totalEpisodes,
       onFocus,
       onRecordDeleted,
+      onFavoriteDeleted,
       api,
       playTime = 0,
+      type = "record",
+      style,
+      ...rest
     }: VideoCardTabletProps,
     ref
   ) => {
-    const router = useRouter();
     const colorScheme = useColorScheme() === 'light' ? 'light' : 'dark';
     const colors = Colors[colorScheme];
     const { cardWidth, cardHeight, spacing } = useResponsiveLayout();
     const [fadeAnim] = useState(new Animated.Value(0));
     const [isPressed, setIsPressed] = useState(false);
 
-    const longPressTriggered = useRef(false);
-    const lastPressTime = useRef(0);
     const scale = useRef(new Animated.Value(1)).current;
     const fadeInAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
     const scaleAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
 
-    const handlePress = () => {
-      const now = Date.now();
-      if (now - lastPressTime.current < 500) return;
-      lastPressTime.current = now;
+    const isCompleted = rest.isCompleted ?? (progress !== undefined && progress >= 0.95);
+    const isEpisodeFinished = rest.isEpisodeFinished;
 
-      if (longPressTriggered.current) {
-        longPressTriggered.current = false;
-        return;
-      }
-
-      if (progress !== undefined && episodeIndex !== undefined) {
-        router.push({
-          pathname: "/play",
-          params: { source, id, episodeIndex: episodeIndex - 1, title, position: playTime * 1000 },
-        });
-      } else {
-        router.push({
-          pathname: "/detail",
-          params: { source, q: title },
-        });
-      }
-    };
+    const { handlePress, handleLongPress } = useVideoCardInteractions({
+      id,
+      source,
+      title,
+      poster,
+      type,
+      progress,
+      playTime,
+      episodeIndex,
+      totalEpisodes,
+      isCompleted,
+      isEpisodeFinished,
+      onRecordDeleted,
+      onFavoriteDeleted,
+      mediaType: rest.mediaType,
+    });
 
     const runScaleAnimation = useCallback(
       (toValue: number) => {
@@ -143,32 +122,6 @@ const VideoCardTablet = forwardRef<View, VideoCardTabletProps>(
       };
     }, []);
 
-    const handleLongPress = () => {
-      if (progress === undefined) return;
-
-      longPressTriggered.current = true;
-
-      Alert.alert("删除观看记录", `确定要删除"${title}"的观看记录吗？`, [
-        {
-          text: "取消",
-          style: "cancel",
-        },
-        {
-          text: "删除",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await PlayRecordManager.remove(source, id);
-              onRecordDeleted?.();
-            } catch (error) {
-              logger.info("Failed to delete play record:", error);
-              Alert.alert("错误", "删除观看记录失败，请重试");
-            }
-          },
-        },
-      ]);
-    };
-
     const isContinueWatching = progress !== undefined && progress > 0 && progress < 1;
 
     const animatedStyle = {
@@ -176,14 +129,7 @@ const VideoCardTablet = forwardRef<View, VideoCardTabletProps>(
     };
 
     const styles = useMemo(() => createTabletStyles(cardWidth, cardHeight, spacing, colors), [cardWidth, cardHeight, spacing, colors]);
-    const authCookie = useAuthStore((state) => state.authCookie);
-    const imageSource = useMemo(
-      () => ({
-        uri: api.getImageProxyUrl(poster),
-        headers: authCookie ? { Cookie: authCookie } : undefined,
-      }),
-      [poster, authCookie, api]
-    );
+    const imageSource = useImageSource(poster, { width: 200 });
 
     return (
       <Animated.View style={[styles.wrapper, animatedStyle, { opacity: fadeAnim }]} ref={ref}>
@@ -246,7 +192,7 @@ const VideoCardTablet = forwardRef<View, VideoCardTabletProps>(
             {isContinueWatching && (
               <View style={styles.infoRow}>
                 <ThemedText style={styles.continueLabel} numberOfLines={1}>
-                  第{episodeIndex! + 1}集 已观看 {Math.round((progress || 0) * 100)}%
+                  {formatProgressText({ progress, episodeIndex, totalEpisodes, isCompleted, isEpisodeFinished })}
                 </ThemedText>
               </View>
             )}

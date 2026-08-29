@@ -5,6 +5,8 @@ import { EpisodeButton } from '@/components/detail/EpisodeList';
 import { FlashListOptimizer } from '@/utils/FlashListOptimizer';
 import { useResponsiveLayout } from '@/hooks/useResponsiveLayout';
 
+import { getEpisodeProgressInfo } from '@/utils/episodeUtils';
+
 interface EpisodeHorizontalListProps {
     episodes: any[];
     itemWidth: number;
@@ -12,8 +14,11 @@ interface EpisodeHorizontalListProps {
     handleEpisodeFocus: (index: number) => void;
     firstRangeTag: number | null;
     firstSourceTag?: number | null;
+    nextFocusUpTag?: number | null;
     dynamicStyles: any;
     setTargetEpisodeTag: (tag: number | null) => void;
+    resumeRecord?: { title?: string; index?: number; play_time?: number; total_time?: number; duration?: number } | null;
+    detailTitle?: string;
 }
 
 export interface EpisodeHorizontalListRef {
@@ -28,8 +33,11 @@ export const EpisodeHorizontalList = memo(forwardRef<EpisodeHorizontalListRef, E
     handleEpisodeFocus,
     firstRangeTag,
     firstSourceTag,
+    nextFocusUpTag,
     dynamicStyles,
     setTargetEpisodeTag,
+    resumeRecord,
+    detailTitle,
 }, ref) => {
     const { deviceType } = useResponsiveLayout();
     const episodeListRef = useRef<React.ElementRef<typeof FlashList>>(null);
@@ -61,6 +69,9 @@ export const EpisodeHorizontalList = memo(forwardRef<EpisodeHorizontalListRef, E
     const textStyleOverride = useMemo(() => ({ fontSize: 16 }), []);
 
     const renderEpisodeItem = useCallback(({ item, index }: { item: any, index: number }) => {
+        const originalIndex = typeof item?.originalIndex === 'number' ? item.originalIndex : index;
+        const progressInfo = getEpisodeProgressInfo(originalIndex, resumeRecord || null, detailTitle);
+
         return (
             <View style={itemContainerStyle}>
                 <EpisodeButton
@@ -76,17 +87,21 @@ export const EpisodeHorizontalList = memo(forwardRef<EpisodeHorizontalListRef, E
                             episodeRefs.current.delete(index);
                         }
                     }}
-                    index={index}
+                    index={originalIndex}
+                    displayLabel={item?.title || `${originalIndex + 1}集`}
+                    isWatched={progressInfo.isWatched}
+                    isCurrent={progressInfo.isCurrent}
+                    progress={progressInfo.progress}
                     onPlay={handlePlay}
                     style={[dynamicStyles.episodeButton, buttonStyleOverride]}
                     textStyle={[dynamicStyles.episodeButtonText, textStyleOverride]}
-                    onFocus={handleEpisodeFocus}
-                    nextFocusUp={firstSourceTag || undefined}
+                    onFocus={() => handleEpisodeFocus(index)}
+                    nextFocusUp={(nextFocusUpTag !== undefined ? nextFocusUpTag : firstSourceTag) || undefined}
                     nextFocusDown={index < 10 ? (firstRangeTag || undefined) : undefined}
                 />
             </View>
         );
-    }, [handlePlay, dynamicStyles, handleEpisodeFocus, itemContainerStyle, buttonStyleOverride, textStyleOverride, firstRangeTag, firstSourceTag, setTargetEpisodeTag]);
+    }, [handlePlay, dynamicStyles, handleEpisodeFocus, itemContainerStyle, buttonStyleOverride, textStyleOverride, firstRangeTag, firstSourceTag, nextFocusUpTag, setTargetEpisodeTag, resumeRecord, detailTitle]);
 
     const flashListConfig = useMemo(() => 
         FlashListOptimizer.getHorizontalListConfig(deviceType, itemWidth),
@@ -103,7 +118,7 @@ export const EpisodeHorizontalList = memo(forwardRef<EpisodeHorizontalListRef, E
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 renderItem={renderEpisodeItem}
-                keyExtractor={(item: any, index: number) => index.toString()}
+                keyExtractor={(item: any, index: number) => (item?.originalIndex !== undefined ? `ep-${item.originalIndex}` : index.toString())}
                 contentContainerStyle={{ paddingHorizontal: 0 }}
                 overrideItemLayout={(layout: { size?: number; span?: number }, item: any, index: number, maxColumns: number, extraData: any) => {
                     layout.size = itemWidth;

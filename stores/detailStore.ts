@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import { SearchResult, api, isNetworkStatusZeroError, SearchResultWithResolution, PlayRecord } from "@/services/api";
+import { SearchResult, SearchResultWithResolution, PlayRecord, ApiSite } from "@/types";
+import { api, isNetworkStatusZeroError } from "@/services/api";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { FavoriteManager, PlayRecordManager } from "@/services/storage";
 import Logger from "@/utils/Logger";
@@ -132,7 +133,8 @@ const useDetailStore = create<DetailState>((set, get) => ({
         // Refresh resume record just in case (silent update)
         if (currentState.detail?.title) {
           PlayRecordManager.getLatestByTitle(currentState.detail.title, currentState.detail.year, currentState.detail.type)
-            .then(r => set({ resumeRecord: r }));
+            .then(r => set({ resumeRecord: r }))
+            .catch(e => logger.debug("Failed to get latest record:", e));
         }
         return;
       }
@@ -197,10 +199,10 @@ const useDetailStore = create<DetailState>((set, get) => ({
       let matchedRecord: any = null;
 
       if (playRecords) {
+        const records = Object.values((playRecords as Record<string, PlayRecord>) || {});
         // Precise matching using metadata if available
         if (year || type) {
-          const records = Object.values(playRecords || {});
-          matchedRecord = records.find(r =>
+          matchedRecord = records.find((r: PlayRecord) =>
             r.title === q &&
             (!year || r.year === year) &&
             (!type || r.type === type)
@@ -209,12 +211,11 @@ const useDetailStore = create<DetailState>((set, get) => ({
 
         // Fallback to title-only match if no metadata or no strict match found
         if (!matchedRecord) {
-          const records = Object.values(playRecords || {});
-          matchedRecord = records.find(r => r.title === q);
+          matchedRecord = records.find((r: PlayRecord) => r.title === q);
         }
 
         if (matchedRecord) {
-          const res = resources.find(r => r.name === matchedRecord.source_name);
+          const res = (resources as ApiSite[]).find((r: ApiSite) => r.name === matchedRecord.source_name);
           if (res) historySourceKey = res.key;
         }
       }
@@ -340,6 +341,8 @@ const useDetailStore = create<DetailState>((set, get) => ({
               PlayRecordManager.getLatestByTitle(firstDetail.title, firstDetail.year, firstDetail.type)
             ]).then(([isFav, resumeRec]) => {
               set({ isFavorited: isFav, resumeRecord: resumeRec });
+            }).catch(e => {
+              logger.debug("[DetailStore] Failed to fetch aux data for first source:", e);
             });
           }
         } else {
@@ -379,6 +382,8 @@ const useDetailStore = create<DetailState>((set, get) => ({
                   PlayRecordManager.getLatestByTitle(newDetail.title, newDetail.year, newDetail.type)
                 ]).then(([isFav, resumeRec]) => {
                   set({ isFavorited: isFav, resumeRecord: resumeRec });
+                }).catch(e => {
+                  logger.debug("[DetailStore] Failed to fetch aux data for auto-switched source:", e);
                 });
               }
             } else if (newDetail.episodes.length > currentDetail.episodes.length) {
@@ -425,7 +430,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
       }
 
       // 6. Batch Parallel Load of Remaining Sources
-      const remainingResources = resources.filter(r => r.key !== targetSourceKey);
+      const remainingResources = (resources as ApiSite[]).filter((r: ApiSite) => r.key !== targetSourceKey);
       const BATCH_SIZE = APP_CONFIG.DETAIL.MAX_CONCURRENT_SOURCE_REQUESTS || 3;
 
       for (let i = 0; i < remainingResources.length; i += BATCH_SIZE) {
@@ -433,15 +438,26 @@ const useDetailStore = create<DetailState>((set, get) => ({
         if (validSourcesCount >= MAX_VALID_SOURCES) break;
 
         const batch = remainingResources.slice(i, i + BATCH_SIZE);
-        await Promise.all(batch.map(async (res) => {
+        await Promise.all(batch.map(async (res: ApiSite) => {
           if (signal.aborted || validSourcesCount >= MAX_VALID_SOURCES) return;
           try {
-            const { results } = await api.searchVideo(q, res.key, signal);
-            if (results.length > 0 && !signal.aborted) {
-              addResults(results, res.key);
+            // Per-source fast failover timeout (3800ms) to prevent slow sources blocking the queue
+            const sourceTimeoutController = new AbortController();
+            const timeoutTimer = setTimeout(() => sourceTimeoutController.abort(), 3800);
+            const onParentAbort = () => sourceTimeoutController.abort();
+            signal.addEventListener("abort", onParentAbort, { once: true });
+
+            try {
+              const { results } = await api.searchVideo(q, res.key, sourceTimeoutController.signal);
+              if (results.length > 0 && !signal.aborted) {
+                addResults(results, res.key);
+              }
+            } finally {
+              clearTimeout(timeoutTimer);
+              signal.removeEventListener("abort", onParentAbort);
             }
           } catch (e) {
-            logger.warn(`[WARN] Source "${res.key}" failed:`, e);
+            logger.warn(`[WARN] Source "${res.key}" failed or timed out:`, e);
           }
         }));
       }
@@ -456,8 +472,8 @@ const useDetailStore = create<DetailState>((set, get) => ({
       } else {
         set({ allSourcesLoaded: true });
         // Update cache
-        if (lastCacheKey) {
-          setDetailCacheEntry(lastCacheKey, finalState.detail, finalState.searchResults, finalState.sources, true);
+        if (cacheKey) {
+          setDetailCacheEntry(cacheKey, finalState.detail, finalState.searchResults, finalState.sources, true);
         }
       }
 
@@ -531,7 +547,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
       poster,
       source_name,
       total_episodes: episodes.length,
-      search_title: get().q!,
+      search_title: get().q || title || "",
       year: year || "",
       description: desc,
     };

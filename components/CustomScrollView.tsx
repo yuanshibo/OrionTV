@@ -195,6 +195,12 @@ const CustomScrollView = React.memo(forwardRef<React.ElementRef<typeof FlashList
     }
   }, [data.length, deviceType, estimatedItemSize, responsiveConfig.cardHeight, responsiveConfig.spacing]);
 
+  const renderEmptyComponent = useCallback(() => (
+    <View style={commonStyles.center}>
+      <ThemedText>{emptyMessage}</ThemedText>
+    </View>
+  ), [commonStyles.center, emptyMessage]);
+
   if (loading) {
     return (
       <View style={commonStyles.center}>
@@ -242,11 +248,7 @@ const CustomScrollView = React.memo(forwardRef<React.ElementRef<typeof FlashList
         onScroll={scrollHandler}
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={responsiveConfig.deviceType !== "tv"}
-        ListEmptyComponent={() => (
-          <View style={commonStyles.center}>
-            <ThemedText>{emptyMessage}</ThemedText>
-          </View>
-        )}
+        ListEmptyComponent={renderEmptyComponent}
         ListFooterComponent={renderFooter}
       />
       {deviceType !== 'tv' && (
@@ -254,6 +256,8 @@ const CustomScrollView = React.memo(forwardRef<React.ElementRef<typeof FlashList
           <TouchableOpacity
             onPress={scrollToTop}
             activeOpacity={0.8}
+            focusable={showScrollToTop}
+            accessible={showScrollToTop}
           >
             <ThemedText>⬆️</ThemedText>
           </TouchableOpacity>

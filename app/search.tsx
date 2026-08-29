@@ -2,8 +2,7 @@ import React, { useState, useRef, useEffect, useMemo, useCallback } from "react"
 import { View, TextInput, StyleSheet, Alert, TouchableOpacity, useColorScheme, ActivityIndicator, StyleProp, ViewStyle } from "react-native";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
-import VideoCardMobile from "@/components/VideoCard.mobile";
-import VideoCardTV from "@/components/VideoCard.tv";
+import VideoCard from "@/components/VideoCard";
 import VideoLoadingAnimation from "@/components/VideoLoadingAnimation";
 import { api } from "@/services/api";
 import { useSearchStore } from "@/stores/searchStore";
@@ -11,17 +10,20 @@ import { VideoCardViewModel } from "@/utils/searchUtils";
 import { Search, QrCode } from "lucide-react-native";
 import { StyledButton } from "@/components/StyledButton";
 import { useRemoteControlStore } from "@/stores/remoteControlStore";
+import { useRemoteMessage } from "@/hooks/useRemoteMessage";
 import { RemoteControlModal } from "@/components/RemoteControlModal";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Colors } from "@/constants/Colors";
 import CustomScrollView from "@/components/CustomScrollView";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { useTVBackHandler } from "@/hooks/useTVBackHandler";
 import { getCommonResponsiveStyles } from "@/utils/ResponsiveStyles";
 import ResponsiveNavigation from "@/components/navigation/ResponsiveNavigation";
 import ResponsiveHeader from "@/components/navigation/ResponsiveHeader";
 import { DeviceUtils } from "@/utils/DeviceUtils";
 import Logger from "@/utils/Logger";
+import { useShallow } from "zustand/react/shallow";
 import { DynamicBackground } from "@/components/DynamicBackground";
 
 const logger = Logger.withTag("SearchScreen");
@@ -33,11 +35,27 @@ export default function SearchScreen() {
   const {
     keyword, results, loading, error, discoverPage, loadingMore, hasMore,
     setKeyword, loadDiscoverData, doSearch, loadMoreSearchResults, handleSearch, resetSearch
-  } = useSearchStore();
+  } = useSearchStore(
+    useShallow((state) => ({
+      keyword: state.keyword,
+      results: state.results,
+      loading: state.loading,
+      error: state.error,
+      discoverPage: state.discoverPage,
+      loadingMore: state.loadingMore,
+      hasMore: state.hasMore,
+      setKeyword: state.setKeyword,
+      loadDiscoverData: state.loadDiscoverData,
+      doSearch: state.doSearch,
+      loadMoreSearchResults: state.loadMoreSearchResults,
+      handleSearch: state.handleSearch,
+      resetSearch: state.resetSearch,
+    }))
+  );
 
   const textInputRef = useRef<TextInput>(null);
   const [isInputFocused, setIsInputFocused] = useState(false);
-  const { showModal: showRemoteModal, lastMessage, targetPage, clearMessage } = useRemoteControlStore();
+  const { showModal: showRemoteModal } = useRemoteControlStore();
   const { remoteInputEnabled } = useSettingsStore();
   const router = useRouter();
   const colorScheme = useColorScheme() === 'light' ? 'light' : 'dark';
@@ -49,16 +67,15 @@ export default function SearchScreen() {
   const commonStyles = getCommonResponsiveStyles(responsiveConfig);
   const { deviceType, spacing } = responsiveConfig;
 
+  const handleRemoteMessage = useCallback((message: string) => {
+    logger.debug("Received remote input:", message);
+    setKeyword(message);
+    doSearch(message);
+  }, [setKeyword, doSearch]);
 
-  useEffect(() => {
-    if (lastMessage && targetPage === 'search') {
-      logger.debug("Received remote input:", lastMessage);
-      const realMessage = lastMessage.split("_")[0];
-      setKeyword(realMessage);
-      doSearch(realMessage);
-      clearMessage(); // Clear the message after processing
-    }
-  }, [lastMessage, targetPage, clearMessage, doSearch, setKeyword]);
+  useTVBackHandler({ fallbackRoute: "/" });
+
+  useRemoteMessage(handleRemoteMessage, 'search');
 
   useEffect(() => {
     if (params.q) {
@@ -97,10 +114,10 @@ export default function SearchScreen() {
     }
   };
 
-  const renderItem = useCallback(({ item, style }: { item: VideoCardViewModel; index: number; style?: StyleProp<ViewStyle> }) => {
-    if (deviceType === 'mobile') {
+  const renderItem = useCallback(
+    ({ item, style }: { item: VideoCardViewModel; index: number; style?: StyleProp<ViewStyle> }) => {
       return (
-        <VideoCardMobile
+        <VideoCard
           id={item.id}
           source={item.source}
           title={item.title}
@@ -110,25 +127,12 @@ export default function SearchScreen() {
           rate={item.rate}
           api={api}
           style={style}
+          onFocus={(focusedItem: any) => setFocusedPoster(focusedItem?.poster || null)}
         />
       );
-    } else {
-      return (
-        <VideoCardTV
-          id={item.id}
-          source={item.source}
-          title={item.title}
-          poster={item.poster}
-          year={item.year}
-          sourceName={item.sourceName}
-          rate={item.rate}
-          api={api}
-          style={style}
-          onFocus={(item: any) => setFocusedPoster(item?.poster || null)}
-        />
-      );
-    }
-  }, [deviceType]);
+    },
+    []
+  );
 
   // 动态样式
   const dynamicStyles = useMemo(() => createResponsiveStyles(deviceType, spacing, colors), [deviceType, spacing, colors]);
@@ -166,6 +170,8 @@ export default function SearchScreen() {
               onFocus={() => setIsInputFocused(true)}
               onBlur={() => setIsInputFocused(false)}
               returnKeyType="search"
+              blurOnSubmit={true}
+              autoComplete="off"
             />
           </TouchableOpacity>
           <StyledButton style={dynamicStyles.searchButton} onPress={onSearchPress}>

@@ -1,7 +1,9 @@
-import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, Modal, FlatList, ScrollView } from "react-native";
+import React, { useEffect, useState, useMemo } from "react";
+import { View, StyleSheet, FlatList, ScrollView } from "react-native";
 import { StyledButton } from "./StyledButton";
+import { PlayerModalBase } from "./player/PlayerModalBase";
 import usePlayerStore from "@/stores/playerStore";
+import { chunkEpisodes } from "@/utils/episodeUtils";
 
 const EPISODE_GROUP_SIZE = 30;
 
@@ -10,6 +12,8 @@ export const EpisodeSelectionModal: React.FC = () => {
 
   const initialGroup = currentEpisodeIndex >= 0 ? Math.floor(currentEpisodeIndex / EPISODE_GROUP_SIZE) : 0;
   const [selectedEpisodeGroup, setSelectedEpisodeGroup] = useState(initialGroup);
+
+  const chunks = useMemo(() => chunkEpisodes(episodes, EPISODE_GROUP_SIZE), [episodes]);
 
   useEffect(() => {
     if (currentEpisodeIndex < 0) {
@@ -25,15 +29,16 @@ export const EpisodeSelectionModal: React.FC = () => {
       return;
     }
 
-    const maxGroup = Math.max(0, Math.floor((episodes.length - 1) / EPISODE_GROUP_SIZE));
+    const maxGroup = Math.max(0, chunks.length - 1);
     setSelectedEpisodeGroup((prev) => {
       const clamped = Math.min(Math.max(prev, 0), maxGroup);
       return clamped === prev ? prev : clamped;
     });
-  }, [episodes.length]);
+  }, [episodes.length, chunks.length]);
 
-  const startIndex = selectedEpisodeGroup * EPISODE_GROUP_SIZE;
-  const visibleEpisodes = episodes.slice(startIndex, startIndex + EPISODE_GROUP_SIZE);
+  const selectedChunk = chunks[selectedEpisodeGroup] || { items: [], index: 0, label: '' };
+  const visibleEpisodes = selectedChunk.items;
+  const startIndex = selectedChunk.index * EPISODE_GROUP_SIZE;
 
   const onSelectEpisode = (index: number) => {
     playEpisode(index);
@@ -45,82 +50,64 @@ export const EpisodeSelectionModal: React.FC = () => {
   };
 
   return (
-    <Modal visible={showEpisodeModal} transparent={true} animationType="slide" onRequestClose={onClose}>
-      <View style={styles.modalContainer}>
-        <View style={styles.modalContent}>
-          <Text style={styles.modalTitle}>选择剧集</Text>
-
-          {episodes.length > EPISODE_GROUP_SIZE && (
-            <View style={styles.rangeContainer}>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.episodeGroupContainer}
-              >
-                {Array.from({ length: Math.ceil(episodes.length / EPISODE_GROUP_SIZE) }, (_, groupIndex) => (
-                  <StyledButton
-                    key={groupIndex}
-                    text={`${groupIndex * EPISODE_GROUP_SIZE + 1}-${Math.min((groupIndex + 1) * EPISODE_GROUP_SIZE, episodes.length)}`}
-                    onPress={() => setSelectedEpisodeGroup(groupIndex)}
-                    onFocus={() => setSelectedEpisodeGroup(groupIndex)}
-                    isSelected={selectedEpisodeGroup === groupIndex}
-                    variant="ghost"
-                    style={styles.episodeGroupButton}
-                    textStyle={[
-                      styles.episodeGroupButtonText,
-                      selectedEpisodeGroup === groupIndex && styles.selectedGroupText
-                    ]}
-                  />
-                ))}
-              </ScrollView>
-            </View>
-          )}
-          <FlatList
-            data={visibleEpisodes}
-            numColumns={5}
-            contentContainerStyle={styles.episodeList}
-            keyExtractor={(_, index) => `episode-${startIndex + index}`}
-            renderItem={({ item, index }) => {
-              const absoluteIndex = startIndex + index;
-              return (
+    <PlayerModalBase
+      visible={showEpisodeModal}
+      onClose={onClose}
+      title="选择剧集"
+      width={500}
+      headerExtra={
+        chunks.length > 1 ? (
+          <View style={styles.rangeContainer}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.episodeGroupContainer}
+            >
+              {chunks.map((chunk) => (
                 <StyledButton
-                  text={item.title || `第 {absoluteIndex + 1} 集`}
-                  onPress={() => onSelectEpisode(absoluteIndex)}
-                  isSelected={currentEpisodeIndex === absoluteIndex}
-                  hasTVPreferredFocus={currentEpisodeIndex === absoluteIndex}
-                  style={styles.episodeItem}
-                  textStyle={styles.episodeItemText}
-                  textProps={{ numberOfLines: 1, adjustsFontSizeToFit: true, minimumFontScale: 0.6 }}
+                  key={chunk.index}
+                  text={chunk.label}
+                  onPress={() => setSelectedEpisodeGroup(chunk.index)}
+                  onFocus={() => setSelectedEpisodeGroup(chunk.index)}
+                  isSelected={selectedEpisodeGroup === chunk.index}
+                  variant="ghost"
+                  style={styles.episodeGroupButton}
+                  textStyle={[
+                    styles.episodeGroupButtonText,
+                    selectedEpisodeGroup === chunk.index && styles.selectedGroupText
+                  ]}
                 />
-              );
-            }}
-          />
-        </View>
-      </View>
-    </Modal>
+              ))}
+            </ScrollView>
+          </View>
+        ) : undefined
+      }
+    >
+      <FlatList
+        data={visibleEpisodes}
+        numColumns={5}
+        contentContainerStyle={styles.episodeList}
+        keyExtractor={(_, index) => `episode-${startIndex + index}`}
+        renderItem={({ item, index }) => {
+          const absoluteIndex = startIndex + index;
+          return (
+            <StyledButton
+              text={item.title || `第 ${absoluteIndex + 1} 集`}
+              onPress={() => onSelectEpisode(absoluteIndex)}
+              isSelected={currentEpisodeIndex === absoluteIndex}
+              hasTVPreferredFocus={currentEpisodeIndex === absoluteIndex}
+              style={styles.episodeItem}
+              textStyle={styles.episodeItemText}
+              textProps={{ numberOfLines: 1, adjustsFontSizeToFit: true, minimumFontScale: 0.6 }}
+            />
+          );
+        }}
+      />
+    </PlayerModalBase>
   );
 };
 
 const styles = StyleSheet.create({
-  modalContainer: {
-    flex: 1,
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    backgroundColor: "transparent",
-  },
-  modalContent: {
-    width: 500,
-    height: "100%",
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    padding: 20,
-  },
-  modalTitle: {
-    color: "white",
-    marginBottom: 12,
-    textAlign: "center",
-    fontSize: 18,
-    fontWeight: "bold",
-  },
   rangeContainer: {
     marginBottom: 0, // Removed margin
     height: 50, // Reduced height slightly

@@ -1,31 +1,45 @@
-import React, { useEffect, useCallback } from "react";
+import React, { useEffect, useCallback, useMemo } from "react";
 import { View, StyleSheet } from "react-native";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
 import useFavoritesStore from "@/stores/favoritesStore";
+import { useShallow } from "zustand/react/shallow";
 import { Favorite } from "@/services/storage";
 import VideoCard from "@/components/VideoCard";
 import { api } from "@/services/api";
 import CustomScrollView from "@/components/CustomScrollView";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { useTVBackHandler } from "@/hooks/useTVBackHandler";
 import { getCommonResponsiveStyles } from "@/utils/ResponsiveStyles";
 import ResponsiveNavigation from "@/components/navigation/ResponsiveNavigation";
 import ResponsiveHeader from "@/components/navigation/ResponsiveHeader";
 
 export default function FavoritesScreen() {
-  const { favorites, loading, error, fetchFavorites } = useFavoritesStore();
+  const { favorites, loading, error, fetchFavorites } = useFavoritesStore(
+    useShallow((state) => ({
+      favorites: state.favorites,
+      loading: state.loading,
+      error: state.error,
+      fetchFavorites: state.fetchFavorites,
+    }))
+  );
 
   // 响应式布局配置
   const responsiveConfig = useResponsiveLayout();
   const commonStyles = getCommonResponsiveStyles(responsiveConfig);
   const { deviceType, spacing } = responsiveConfig;
 
+  // TV遥控器返回键处理
+  useTVBackHandler({ fallbackRoute: "/" });
+
   useEffect(() => {
     fetchFavorites();
   }, [fetchFavorites]);
 
   const renderItem = useCallback(({ item }: { item: Favorite & { key: string }; index: number }) => {
-    const [source, id] = item.key.split("+");
+    const firstPlusIndex = item.key.indexOf("+");
+    const source = firstPlusIndex !== -1 ? item.key.slice(0, firstPlusIndex) : "";
+    const id = firstPlusIndex !== -1 ? item.key.slice(firstPlusIndex + 1) : item.key;
     return (
       <VideoCard
         type="favorite"
@@ -44,7 +58,7 @@ export default function FavoritesScreen() {
   }, [fetchFavorites]);
 
   // 动态样式
-  const dynamicStyles = createResponsiveStyles(deviceType, spacing);
+  const dynamicStyles = useMemo(() => createResponsiveStyles(deviceType, spacing), [deviceType, spacing]);
 
   const renderFavoritesContent = () => (
     <>

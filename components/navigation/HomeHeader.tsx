@@ -1,5 +1,5 @@
 import React, { useCallback, useRef } from 'react';
-import { View, useColorScheme } from 'react-native';
+import { View, useColorScheme, findNodeHandle, TVFocusGuideView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ThemedText } from '@/components/ThemedText';
 import { StyledButton } from '@/components/StyledButton';
@@ -31,49 +31,63 @@ export const HomeHeader = React.memo(({ styles, searchButtonRef, selectedCategor
     setCurrentFocusArea('header');
   }, [setCurrentFocusArea]);
 
+  const targetCategoryTag = selectedCategoryRef?.current
+    ? (findNodeHandle(selectedCategoryRef.current) ?? undefined)
+    : undefined;
+
   return (
-    <View style={styles.headerContainer}>
-      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-        <ThemedText style={styles.headerTitle}>首页</ThemedText>
-      </View>
-      <View style={styles.rightHeaderButtons}>
-        <StyledButton
-          ref={activeSearchRef}
-          style={styles.iconButton}
-          onPress={() => router.push({ pathname: '/search' })}
-          onFocus={handleHeaderFocus}
-          variant="ghost"
-        >
-          <Search color={Colors[colorScheme].tint} size={24} />
-        </StyledButton>
-        <StyledButton
-          style={styles.iconButton}
-          onPress={() => router.push('/favorites')}
-          onFocus={handleHeaderFocus}
-          variant="ghost"
-        >
-          <Heart color={Colors[colorScheme].tint} size={24} />
-        </StyledButton>
-        <StyledButton
-          style={styles.iconButton}
-          onPress={() => router.push('/settings')}
-          onFocus={handleHeaderFocus}
-          variant="ghost"
-        >
-          <Settings color={Colors[colorScheme].tint} size={24} />
-        </StyledButton>
-        {isLoggedIn && (
+    <TVFocusGuideView
+      trapFocusUp={false}
+      trapFocusDown={false}
+      destinations={selectedCategoryRef?.current ? [selectedCategoryRef.current] : []}
+    >
+      <View style={styles.headerContainer}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <ThemedText style={styles.headerTitle}>首页</ThemedText>
+        </View>
+        <View style={styles.rightHeaderButtons}>
           <StyledButton
+            ref={activeSearchRef}
             style={styles.iconButton}
-            onPress={logout}
+            onPress={() => router.push({ pathname: '/search' })}
             onFocus={handleHeaderFocus}
+            nextFocusDown={targetCategoryTag}
             variant="ghost"
           >
-            <LogOut color={Colors[colorScheme].tint} size={24} />
+            <Search color={Colors[colorScheme].tint} size={24} />
           </StyledButton>
-        )}
+          <StyledButton
+            style={styles.iconButton}
+            onPress={() => router.push('/favorites')}
+            onFocus={handleHeaderFocus}
+            nextFocusDown={targetCategoryTag}
+            variant="ghost"
+          >
+            <Heart color={Colors[colorScheme].tint} size={24} />
+          </StyledButton>
+          <StyledButton
+            style={styles.iconButton}
+            onPress={() => router.push('/settings')}
+            onFocus={handleHeaderFocus}
+            nextFocusDown={targetCategoryTag}
+            variant="ghost"
+          >
+            <Settings color={Colors[colorScheme].tint} size={24} />
+          </StyledButton>
+          {isLoggedIn && (
+            <StyledButton
+              style={styles.iconButton}
+              onPress={logout}
+              onFocus={handleHeaderFocus}
+              nextFocusDown={targetCategoryTag}
+              variant="ghost"
+            >
+              <LogOut color={Colors[colorScheme].tint} size={24} />
+            </StyledButton>
+          )}
+        </View>
       </View>
-    </View>
+    </TVFocusGuideView>
   );
 });
 

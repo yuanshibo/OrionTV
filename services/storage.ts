@@ -1,6 +1,16 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { api, PlayRecord as ApiPlayRecord, Favorite as ApiFavorite } from "./api";
+import {
+  PlayRecord,
+  Favorite,
+  PlayerSettings,
+  AppSettings,
+  LoginCredentials,
+} from "@/types";
+import { api } from "./api";
 import { storageConfig } from "./storageConfig";
+import { AsyncStorageDriver } from "./storage/AsyncStorageDriver";
+import { SyncQueue } from "./storage/SyncQueue";
+import { DEFAULT_API_BASE_URL } from "@/constants/AppConfig";
 import Logger from '@/utils/Logger';
 
 const logger = Logger.withTag('Storage');
@@ -15,65 +25,21 @@ const STORAGE_KEYS = {
   LOGIN_CREDENTIALS: "mytv_login_credentials",
 } as const;
 
-// --- Type Definitions (aligned with api.ts) ---
-// Re-exporting for consistency, though they are now primarily API types
-export type PlayRecord = ApiPlayRecord & {
-  description?: string;
-  introEndTime?: number;
-  outroStartTime?: number;
-  playbackRate?: number;
-};
-export type Favorite = ApiFavorite;
-
-export interface PlayerSettings {
-  introEndTime?: number;
-  outroStartTime?: number;
-  playbackRate?: number;
-}
-
-export interface AppSettings {
-  apiBaseUrl: string;
-  remoteInputEnabled: boolean;
-  videoSource: {
-    enabledAll: boolean;
-    sources: {
-      [key: string]: boolean;
-    };
-  };
-  m3uUrl: string;
-}
-
-export interface LoginCredentials {
-  username: string;
-  password: string;
-}
+export type { PlayRecord, Favorite, PlayerSettings, AppSettings, LoginCredentials };
 
 // --- Helper ---
 const generateKey = (source: string, id: string) => `${source}+${id}`;
 
 // --- PlayerSettingsManager (Uses AsyncStorage) ---
 export class PlayerSettingsManager {
+  private static localDriver = new AsyncStorageDriver<PlayerSettings>(STORAGE_KEYS.PLAYER_SETTINGS);
+
   static async getAll(): Promise<Record<string, PlayerSettings>> {
-    try {
-      const data = await AsyncStorage.getItem(STORAGE_KEYS.PLAYER_SETTINGS);
-      return data ? JSON.parse(data) : {};
-    } catch (error) {
-      logger.debug("Failed to get all player settings:", error);
-      return {};
-    }
+    return this.localDriver.getAll();
   }
 
   static async get(source: string, id: string): Promise<PlayerSettings | null> {
-    const perfStart = performance.now();
-    // logger.debug(`[PERF] PlayerSettingsManager.get START - source: ${source}, id: ${id}`);
-
-    const allSettings = await this.getAll();
-    const result = allSettings[generateKey(source, id)] || null;
-
-    const perfEnd = performance.now();
-    // logger.debug(`[PERF] PlayerSettingsManager.get END - took ${(perfEnd - perfStart).toFixed(2)}ms, found: ${!!result}`);
-
-    return result;
+    return this.localDriver.get(generateKey(source, id));
   }
 
   static async save(source: string, id: string, settings: PlayerSettings): Promise<void> {
@@ -82,21 +48,19 @@ export class PlayerSettingsManager {
     // Only save if there are actual values to save
     if (settings.introEndTime !== undefined || settings.outroStartTime !== undefined || settings.playbackRate !== undefined) {
       allSettings[key] = { ...allSettings[key], ...settings };
+      await this.localDriver.save(key, allSettings[key]);
     } else {
       // If all are undefined, remove the key
-      delete allSettings[key];
+      await this.localDriver.remove(key);
     }
-    await AsyncStorage.setItem(STORAGE_KEYS.PLAYER_SETTINGS, JSON.stringify(allSettings));
   }
 
   static async remove(source: string, id: string): Promise<void> {
-    const allSettings = await this.getAll();
-    delete allSettings[generateKey(source, id)];
-    await AsyncStorage.setItem(STORAGE_KEYS.PLAYER_SETTINGS, JSON.stringify(allSettings));
+    await this.localDriver.remove(generateKey(source, id));
   }
 
   static async clearAll(): Promise<void> {
-    await AsyncStorage.removeItem(STORAGE_KEYS.PLAYER_SETTINGS);
+    await this.localDriver.clearAll();
   }
 }
 
@@ -106,49 +70,60 @@ export class FavoriteManager {
     return storageConfig.getStorageType();
   }
 
+  private static localDriver = new AsyncStorageDriver<Favorite>(STORAGE_KEYS.FAVORITES);
+
   static async getAll(): Promise<Record<string, Favorite>> {
     if (this.getStorageType() === "localstorage") {
-      try {
-        const data = await AsyncStorage.getItem(STORAGE_KEYS.FAVORITES);
-        return data ? JSON.parse(data) : {};
-      } catch (error) {
-        logger.debug("Failed to get all local favorites:", error);
-        return {};
-      }
+      return this.localDriver.getAll();
     }
-    return (await api.getFavorites()) as Record<string, Favorite>;
+    try {
+      const result = await api.getFavorites();
+      return (result as Record<string, Favorite>) || {};
+    } catch {
+      // Fallback to local storage if remote API is unreachable
+      return this.localDriver.getAll();
+    }
   }
 
   static async save(source: string, id: string, item: Favorite): Promise<void> {
     const key = generateKey(source, id);
-    if (this.getStorageType() === "localstorage") {
-      const allFavorites = await this.getAll();
-      allFavorites[key] = { ...item, save_time: Date.now() };
-      await AsyncStorage.setItem(STORAGE_KEYS.FAVORITES, JSON.stringify(allFavorites));
-      return;
+    const enrichedItem = { ...item, save_time: Date.now() };
+
+    // Always persist to local driver immediately for 0ms UI response and offline durability
+    await this.localDriver.save(key, enrichedItem);
+
+    // If using remote storage, sync asynchronously in background
+    if (this.getStorageType() !== "localstorage") {
+      api.addFavorite(key, item).catch(() => {
+        void SyncQueue.enqueue({ type: "save_favorite", key, payload: item });
+      });
     }
-    await api.addFavorite(key, item);
   }
 
   static async remove(source: string, id: string): Promise<void> {
     const key = generateKey(source, id);
-    if (this.getStorageType() === "localstorage") {
-      const allFavorites = await this.getAll();
-      delete allFavorites[key];
-      await AsyncStorage.setItem(STORAGE_KEYS.FAVORITES, JSON.stringify(allFavorites));
-      return;
+
+    // Always remove from local driver immediately
+    await this.localDriver.remove(key);
+
+    // If using remote storage, sync deletion asynchronously
+    if (this.getStorageType() !== "localstorage") {
+      api.deleteFavorite(key).catch(() => {
+        void SyncQueue.enqueue({ type: "delete_favorite", key });
+      });
     }
-    await api.deleteFavorite(key);
   }
 
   static async isFavorited(source: string, id: string): Promise<boolean> {
     const key = generateKey(source, id);
-    if (this.getStorageType() === "localstorage") {
-      const allFavorites = await this.getAll();
-      return !!allFavorites[key];
+    const item = await this.localDriver.get(key);
+    if (item !== null) return true;
+
+    if (this.getStorageType() !== "localstorage") {
+      const favorite = await api.getFavorites(key);
+      return favorite !== null;
     }
-    const favorite = await api.getFavorites(key);
-    return favorite !== null;
+    return false;
   }
 
   static async toggle(source: string, id: string, item: Favorite): Promise<boolean> {
@@ -163,11 +138,12 @@ export class FavoriteManager {
   }
 
   static async clearAll(): Promise<void> {
-    if (this.getStorageType() === "localstorage") {
-      await AsyncStorage.removeItem(STORAGE_KEYS.FAVORITES);
-      return;
+    await this.localDriver.clearAll();
+    if (this.getStorageType() !== "localstorage") {
+      api.deleteFavorite().catch(() => {
+        logger.warn("[Storage] Failed to clear remote favorites.");
+      });
     }
-    await api.deleteFavorite();
   }
 }
 
@@ -177,6 +153,7 @@ export class PlayRecordManager {
     return storageConfig.getStorageType();
   }
 
+  private static localDriver = new AsyncStorageDriver<PlayRecord>(STORAGE_KEYS.PLAY_RECORDS);
   private static cache: Record<string, PlayRecord> | null = null;
   private static cacheTimestamp: number = 0;
   private static CACHE_TTL = 60000; // 1 minute auto-expire just in case
@@ -192,24 +169,15 @@ export class PlayRecordManager {
 
     let apiRecords: Record<string, PlayRecord> = {};
     if (storageType === "localstorage") {
-      try {
-        const data = await AsyncStorage.getItem(STORAGE_KEYS.PLAY_RECORDS);
-        apiRecords = data ? JSON.parse(data) : {};
-      } catch (error) {
-        logger.debug("Failed to get all local play records:", error);
-        return {};
-      }
+      apiRecords = await this.localDriver.getAll();
     } else {
-      const apiStart = performance.now();
-      // logger.debug(`[PERF] API getPlayRecords START`);
-
-      const result = await api.getPlayRecords();
-      // When called without args, it returns the full map.
-      // We default to {} if null/undefined to satisfy the type.
-      apiRecords = (result as Record<string, PlayRecord>) || {};
-
-      const apiEnd = performance.now();
-      // logger.debug(`[PERF] API getPlayRecords END - took ${(apiEnd - apiStart).toFixed(2)}ms, records: ${Object.keys(apiRecords).length}`);
+      try {
+        const result = await api.getPlayRecords();
+        apiRecords = (result as Record<string, PlayRecord>) || {};
+      } catch {
+        // Fallback to local storage if remote API fails/offline
+        apiRecords = await this.localDriver.getAll();
+      }
     }
 
     const localSettings = await PlayerSettingsManager.getAll();
@@ -298,42 +266,41 @@ export class PlayRecordManager {
     // Player settings are always saved locally
     await PlayerSettingsManager.save(source, id, { introEndTime, outroStartTime });
 
-    if (this.getStorageType() === "localstorage") {
-      const data = await AsyncStorage.getItem(STORAGE_KEYS.PLAY_RECORDS);
-      const allRecords = data ? JSON.parse(data) : {};
-      const existingRecord = allRecords[key] || {};
+    // 1. Always persist locally with LRU purge for 0ms UI response & offline safety
+    const data = await AsyncStorage.getItem(STORAGE_KEYS.PLAY_RECORDS);
+    const allRecords = data ? JSON.parse(data) : {};
+    const existingRecord = allRecords[key] || {};
 
-      const fullRecord = { ...apiRecord, save_time: Date.now() };
-      const newRecord = { ...existingRecord, ...fullRecord };
+    const fullRecord = { ...apiRecord, save_time: Date.now() };
+    const newRecord = { ...existingRecord, ...fullRecord };
 
-      // Only add description if it's provided and doesn't already exist
-      if (description && !existingRecord.description) {
-        newRecord.description = description;
+    // Only add description if it's provided and doesn't already exist
+    if (description && !existingRecord.description) {
+      newRecord.description = description;
+    }
+    allRecords[key] = newRecord;
+
+    // --- LRU Purge ---
+    const recordKeys = Object.keys(allRecords);
+    const MAX_RECORDS = 200;
+    if (recordKeys.length > MAX_RECORDS) {
+      const sorted = recordKeys.sort((a, b) => (allRecords[a].save_time || 0) - (allRecords[b].save_time || 0));
+      const toDelete = sorted.slice(0, recordKeys.length - MAX_RECORDS);
+      toDelete.forEach(k => delete allRecords[k]);
+      logger.info(`[Storage] Purged ${toDelete.length} old play records.`);
+    }
+
+    await AsyncStorage.setItem(STORAGE_KEYS.PLAY_RECORDS, JSON.stringify(allRecords));
+
+    // 2. If using remote storage, sync asynchronously in background
+    if (this.getStorageType() !== "localstorage") {
+      const recordToSave = { ...apiRecord } as Omit<PlayRecord, "save_time"> & { description?: string };
+      if (newRecord.description) {
+        recordToSave.description = newRecord.description;
       }
-      allRecords[key] = newRecord;
-
-      // --- LRU Purge ---
-      const recordKeys = Object.keys(allRecords);
-      const MAX_RECORDS = 200;
-      if (recordKeys.length > MAX_RECORDS) {
-        const sorted = recordKeys.sort((a, b) => (allRecords[a].save_time || 0) - (allRecords[b].save_time || 0));
-        const toDelete = sorted.slice(0, recordKeys.length - MAX_RECORDS);
-        toDelete.forEach(k => delete allRecords[k]);
-        logger.info(`[Storage] Purged ${toDelete.length} old play records.`);
-      }
-
-      await AsyncStorage.setItem(STORAGE_KEYS.PLAY_RECORDS, JSON.stringify(allRecords));
-    } else {
-      const recordToSave = { ...apiRecord } as Omit<ApiPlayRecord, "save_time"> & { description?: string };
-      const existingRecord = await this.get(source, id);
-      // Preserve existing description if available, otherwise use the new one.
-      // This matches the local storage behavior and prevents overwriting with empty/undefined.
-      if (existingRecord?.description) {
-        recordToSave.description = existingRecord.description;
-      } else if (description) {
-        recordToSave.description = description;
-      }
-      await api.savePlayRecord(key, recordToSave);
+      api.savePlayRecord(key, recordToSave).catch(() => {
+        void SyncQueue.enqueue({ type: "save_play_record", key, payload: recordToSave });
+      });
     }
   }
 
@@ -377,13 +344,13 @@ export class PlayRecordManager {
     this.cache = null;
 
     await PlayerSettingsManager.remove(source, id); // Always remove local settings
+    await this.localDriver.remove(key); // Always remove from local storage
 
-    if (this.getStorageType() === "localstorage") {
-      const allRecords = await this.getAll();
-      delete allRecords[key];
-      await AsyncStorage.setItem(STORAGE_KEYS.PLAY_RECORDS, JSON.stringify(allRecords));
-    } else {
-      await api.deletePlayRecord(key);
+    // If using remote storage, sync asynchronously
+    if (this.getStorageType() !== "localstorage") {
+      api.deletePlayRecord(key).catch(() => {
+        void SyncQueue.enqueue({ type: "delete_play_record", key });
+      });
     }
   }
 
@@ -393,7 +360,7 @@ export class PlayRecordManager {
     await PlayerSettingsManager.clearAll(); // Always clear local settings
 
     if (this.getStorageType() === "localstorage") {
-      await AsyncStorage.removeItem(STORAGE_KEYS.PLAY_RECORDS);
+      await this.localDriver.clearAll();
     } else {
       await api.deletePlayRecord();
     }
@@ -445,7 +412,7 @@ export class SearchHistoryManager {
 export class SettingsManager {
   static async get(): Promise<AppSettings> {
     const defaultSettings: AppSettings = {
-      apiBaseUrl: "",
+      apiBaseUrl: DEFAULT_API_BASE_URL,
       remoteInputEnabled: true,
       videoSource: {
         enabledAll: true,
@@ -455,7 +422,13 @@ export class SettingsManager {
     };
     try {
       const data = await AsyncStorage.getItem(STORAGE_KEYS.SETTINGS);
-      return data ? { ...defaultSettings, ...JSON.parse(data) } : defaultSettings;
+      if (!data) return defaultSettings;
+      const parsed = JSON.parse(data);
+      return {
+        ...defaultSettings,
+        ...parsed,
+        apiBaseUrl: parsed.apiBaseUrl || DEFAULT_API_BASE_URL,
+      };
     } catch (error) {
       logger.debug("Failed to get settings:", error);
       return defaultSettings;

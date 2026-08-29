@@ -4,6 +4,7 @@ import { useShallow } from "zustand/react/shallow";
 import usePlayerStore from "@/stores/playerStore";
 import { ThemedText } from "@/components/ThemedText";
 import { Colors } from "@/constants/Colors";
+import { formatTime } from "@/utils/formatUtils";
 
 export const PlayerTimeDisplay = () => {
   const colorScheme = useColorScheme() === 'light' ? 'light' : 'dark';
@@ -18,21 +19,6 @@ export const PlayerTimeDisplay = () => {
       seekPosition: state.seekPosition,
     }))
   );
-
-  const formatTime = (milliseconds: number) => {
-    if (!milliseconds || isNaN(milliseconds)) return "00:00";
-    const totalSeconds = Math.floor(milliseconds / 1000);
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const seconds = totalSeconds % 60;
-
-    if (hours > 0) {
-      return `${hours.toString().padStart(2, "0")}:${minutes
-        .toString()
-        .padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
-    }
-    return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
-  };
 
   const currentDuration = durationMillis || 0;
   const displayPosition = isSeeking ? (seekPosition * currentDuration) : positionMillis;

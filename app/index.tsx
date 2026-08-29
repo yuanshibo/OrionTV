@@ -1,18 +1,19 @@
 import React, { useEffect, useCallback, useMemo, useRef, useState } from "react";
-import { StyleSheet, StatusBar, Platform, BackHandler, View } from "react-native";
+import { StyleSheet, StatusBar, View } from "react-native";
 import { FlashListRef } from "@shopify/flash-list";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSharedValue, withTiming } from "react-native-reanimated";
-import Toast from "react-native-toast-message";
 import { ThemedView } from "@/components/ThemedView";
 import { useFocusEffect } from "expo-router";
 import { useHomeUIStore } from "@/stores/homeUIStore";
 import { useHomeDataStore } from "@/stores/homeDataStore";
-import { RowItem, Category, DoubanFilterKey } from "@/services/dataTypes";
+import { RowItem, Category, DoubanFilterKey } from "@/types";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { useTVBackHandler } from "@/hooks/useTVBackHandler";
 import { getCommonResponsiveStyles } from "@/utils/ResponsiveStyles";
 import ResponsiveNavigation from "@/components/navigation/ResponsiveNavigation";
 import { useApiConfig } from "@/hooks/useApiConfig";
+import { SyncQueue } from "@/services/storage/SyncQueue";
 import { HomeHeader } from "@/components/navigation/HomeHeader";
 import { CategoryNavigation } from "@/components/navigation/CategoryNavigation";
 import { ContentDisplay } from "@/components/home/ContentDisplay";
@@ -104,83 +105,59 @@ export default function HomeScreen() {
 
   useEffect(() => {
     void hydrateFromStorage();
+    void SyncQueue.flush();
   }, [hydrateFromStorage]);
 
   useFocusEffect(
     useCallback(() => {
       if (selectedCategoryType === "record") {
-        refreshPlayRecords().then(() => setCategoryFocusTrigger(p => p + 1));
+        refreshPlayRecords()
+          .then(() => setCategoryFocusTrigger(p => p + 1))
+          .catch(() => {});
       } else if (!hasRecordCategory) {
         const now = Date.now();
         if (now - lastCheckedPlayRecords.current > 5000) {
-          refreshPlayRecords();
+          refreshPlayRecords().catch(() => {});
           lastCheckedPlayRecords.current = now;
         }
       }
     }, [refreshPlayRecords, selectedCategoryType, hasRecordCategory])
   );
 
-  const backPressTimeRef = useRef<number | null>(null);
-
-  useFocusEffect(
-    useCallback(() => {
-      const handleBackPress = () => {
-        // Level 1: If filter panel is visible, close it and refocus category
-        if (isFilterPanelVisible) {
-          setFilterPanelVisible(false);
-          setCategoryFocusTrigger(p => p + 1);
-          return true;
-        }
-
-        const currentArea = useHomeUIStore.getState().currentFocusArea;
-        const lastIndex = useHomeUIStore.getState().lastFocusedCardIndex;
-        const columns = responsiveConfig.columns || 4;
-
-        // Level 2: If focus is deep in content (beyond row 1), scroll to top & focus first card
-        if (currentArea === 'content' && lastIndex >= columns) {
-          listRef.current?.scrollToOffset({ offset: 0, animated: true });
-          setTimeout(() => {
-            requestTVFocus(firstItemRef, { priority: FocusPriority.CONTENT, duration: 300 });
-          }, 250);
-          return true;
-        }
-
-        // Level 3: If focus is in row 1 of content, retreat focus back to category navigation
-        if (currentArea === 'content') {
-          setCategoryFocusTrigger(p => p + 1);
-          return true;
-        }
-
-        // Level 3b: If focus is on tags, retreat back to categories
-        if (currentArea === 'tags') {
-          setCategoryFocusTrigger(p => p + 1);
-          return true;
-        }
-
-        // Level 4: If focus is already in category navigation or header, double-tap back to exit with Toast
-        const now = Date.now();
-        if (!backPressTimeRef.current || now - backPressTimeRef.current > 2000) {
-          backPressTimeRef.current = now;
-          Toast.show({
-            type: 'info',
-            text1: '再按一次退出',
-            visibilityTime: 2000,
-          });
-          return true;
-        }
-        BackHandler.exitApp();
+  useTVBackHandler({
+    doublePressToExit: true,
+    exitToastMessage: "再按一次退出",
+    onBackPress: useCallback(() => {
+      // Level 1: If filter panel is visible, close it and refocus category
+      if (isFilterPanelVisible) {
+        setFilterPanelVisible(false);
+        setCategoryFocusTrigger(p => p + 1);
         return true;
-      };
-
-      if (Platform.OS === "android") {
-        const backHandler = BackHandler.addEventListener("hardwareBackPress", handleBackPress);
-        return () => {
-          backHandler.remove();
-          backPressTimeRef.current = null;
-        };
       }
-    }, [isFilterPanelVisible, responsiveConfig.columns])
-  );
+
+      const currentArea = useHomeUIStore.getState().currentFocusArea;
+      const lastIndex = useHomeUIStore.getState().lastFocusedCardIndex;
+      const columns = responsiveConfig.columns || 4;
+
+      // Level 2: If focus is deep in content (beyond row 1), scroll to top & focus first card
+      if (currentArea === "content" && lastIndex >= columns) {
+        listRef.current?.scrollToOffset({ offset: 0, animated: true });
+        setTimeout(() => {
+          requestTVFocus(firstItemRef, { priority: FocusPriority.CONTENT, duration: 300 });
+        }, 250);
+        return true;
+      }
+
+      // Level 3: If focus is in row 1 of content or on tags, retreat back to categories
+      if (currentArea === "content" || currentArea === "tags") {
+        setCategoryFocusTrigger(p => p + 1);
+        return true;
+      }
+
+      // Return false so doublePressToExit can handle the exit prompt
+      return false;
+    }, [isFilterPanelVisible, responsiveConfig.columns]),
+  });
 
   // 数据获取逻辑
   useEffect(() => {
@@ -324,6 +301,8 @@ export default function HomeScreen() {
         spacing={spacing}
         focusTrigger={categoryFocusTrigger}
         selectedCategoryRef={selectedCategoryRef}
+        searchButtonRef={searchButtonRef}
+        firstItemRef={firstItemRef}
       />
       <ContentDisplay
         apiConfigStatus={apiConfigStatus}
@@ -341,6 +320,7 @@ export default function HomeScreen() {
         onShowFilterPanel={showFilterPanel}
         onRecordDeleted={deletePlayRecord}
         firstItemRef={firstItemRef}
+        selectedCategoryRef={selectedCategoryRef}
         onFocus={handleItemFocus}
       />
       {selectedCategory && (

@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useMemo, useState } from 'react';
-import { View, Image } from 'react-native';
+import { View, Image, Pressable } from 'react-native';
 import { FlashList } from "@shopify/flash-list";
 import { EpisodeButton } from '@/components/detail/EpisodeList';
 import { ThemedText } from '@/components/ThemedText';
@@ -7,11 +7,16 @@ import { StyledButton } from '@/components/StyledButton';
 import { SourceList } from '@/components/detail/SourceList';
 import RelatedSeries from '@/components/RelatedSeries';
 import { EpisodeRangeSelector } from '@/components/detail/EpisodeRangeSelector';
-import { Heart } from 'lucide-react-native';
+import { DetailInfoModal } from '@/components/detail/DetailInfoModal';
+import { Heart, ArrowUpDown } from 'lucide-react-native';
+import { buildDisplayEpisodes, chunkDisplayEpisodes, EpisodeItem, getEpisodeProgressInfo } from '@/utils/episodeUtils';
+
+import { SearchResultWithResolution, PlayRecord } from '@/types';
+import { Colors } from '@/constants/Colors';
 
 interface DetailMobileViewProps {
-  detail: any;
-  searchResults: any[];
+  detail: SearchResultWithResolution;
+  searchResults: SearchResultWithResolution[];
   allSourcesLoaded: boolean;
   isFavorited: boolean;
   toggleFavorite: () => void;
@@ -19,10 +24,23 @@ interface DetailMobileViewProps {
   handlePlay: (episodeIndex: number, position?: number) => void;
   playButtonLabel: string;
   isPlayDisabled: boolean;
-  setDetail: (detail: any) => void;
+  setDetail: (detail: SearchResultWithResolution) => void;
   dynamicStyles: any;
-  colors: any;
+  colors: (typeof Colors.dark) | (typeof Colors.light);
   deviceType: 'mobile' | 'tablet' | 'tv';
+  resumeRecord?: PlayRecord | null;
+}
+
+interface MobileTopInfoProps {
+  detail: SearchResultWithResolution;
+  isFavorited: boolean;
+  toggleFavorite: () => void;
+  handlePrimaryPlay: () => void;
+  playButtonLabel: string;
+  isPlayDisabled: boolean;
+  dynamicStyles: any;
+  colors: (typeof Colors.dark) | (typeof Colors.light);
+  onOpenDetailModal?: () => void;
 }
 
 const MobileTopInfo = memo(({
@@ -33,8 +51,9 @@ const MobileTopInfo = memo(({
   playButtonLabel,
   isPlayDisabled,
   dynamicStyles,
-  colors
-}: any) => {
+  colors,
+  onOpenDetailModal,
+}: MobileTopInfoProps) => {
   return (
     <View>
       <View style={dynamicStyles.mobileTopContainer}>
@@ -71,9 +90,14 @@ const MobileTopInfo = memo(({
         </View>
       </View>
 
-      <View style={dynamicStyles.descriptionContainer}>
-        <ThemedText style={dynamicStyles.description}>{detail.desc}</ThemedText>
-      </View>
+      <Pressable onPress={onOpenDetailModal} style={dynamicStyles.descriptionContainer}>
+        <ThemedText style={dynamicStyles.description} numberOfLines={3}>
+          {detail.desc && detail.desc.trim().length > 0 ? detail.desc.trim() : "暂无简介信息"}
+        </ThemedText>
+        <ThemedText style={dynamicStyles.mobileMoreText}>
+          查看完整简介与演职员 &gt;
+        </ThemedText>
+      </Pressable>
     </View>
   );
 });
@@ -94,18 +118,29 @@ export const DetailMobileView: React.FC<DetailMobileViewProps> = memo(({
   dynamicStyles,
   colors,
   deviceType,
+  resumeRecord,
 }) => {
   const [currentRange, setCurrentRange] = useState(0);
+  const [isReversed, setIsReversed] = useState(false);
+  const [showInfoModal, setShowInfoModal] = useState(false);
   const chunkSize = 50;
 
-  const visibleEpisodes = useMemo(() => {
-    if (!detail.episodes) return [];
-    if (detail.episodes.length <= chunkSize) return detail.episodes;
+  const displayEpisodes = useMemo(() => {
+    return buildDisplayEpisodes(detail.episodes || [], isReversed);
+  }, [detail.episodes, isReversed]);
 
-    const start = currentRange * chunkSize;
-    const end = Math.min((currentRange + 1) * chunkSize, detail.episodes.length);
-    return detail.episodes.slice(start, end);
-  }, [detail.episodes, currentRange]);
+  const chunks = useMemo(() => {
+    return chunkDisplayEpisodes(displayEpisodes, chunkSize);
+  }, [displayEpisodes, chunkSize]);
+
+  const visibleEpisodes = useMemo(() => {
+    return chunks[currentRange]?.items || [];
+  }, [chunks, currentRange]);
+
+  const toggleSortOrder = useCallback(() => {
+    setIsReversed(prev => !prev);
+    setCurrentRange(0);
+  }, []);
 
   const handleRangeSelect = useCallback((index: number) => {
     setCurrentRange(index);
@@ -123,6 +158,7 @@ export const DetailMobileView: React.FC<DetailMobileViewProps> = memo(({
           isPlayDisabled={isPlayDisabled}
           dynamicStyles={dynamicStyles}
           colors={colors}
+          onOpenDetailModal={() => setShowInfoModal(true)}
         />
         <SourceList
           searchResults={searchResults}
@@ -133,11 +169,27 @@ export const DetailMobileView: React.FC<DetailMobileViewProps> = memo(({
           styles={dynamicStyles}
           colors={colors}
         />
-        {detail.episodes && detail.episodes.length > 0 && (
+        {displayEpisodes.length > 0 && (
           <View style={dynamicStyles.episodesContainer}>
-            <ThemedText style={dynamicStyles.episodesTitle}>播放列表</ThemedText>
+            <View style={dynamicStyles.episodesHeaderContainer}>
+              <View style={dynamicStyles.episodesTitleGroup}>
+                <ThemedText style={dynamicStyles.episodesTitle}>播放列表</ThemedText>
+                {displayEpisodes.length > 1 && (
+                  <StyledButton
+                    variant="ghost"
+                    onPress={toggleSortOrder}
+                    style={dynamicStyles.sortOrderButton}
+                  >
+                    <ArrowUpDown size={12} color={colors.text} />
+                    <ThemedText style={dynamicStyles.sortOrderButtonText}>
+                      {isReversed ? "倒序" : "正序"}
+                    </ThemedText>
+                  </StyledButton>
+                )}
+              </View>
+            </View>
             <EpisodeRangeSelector
-              totalEpisodes={detail.episodes.length}
+              chunks={chunks}
               currentRange={currentRange}
               onRangeSelect={handleRangeSelect}
               chunkSize={chunkSize}
@@ -148,38 +200,71 @@ export const DetailMobileView: React.FC<DetailMobileViewProps> = memo(({
         )}
       </View>
     );
-  }, [detail, isFavorited, toggleFavorite, handlePrimaryPlay, playButtonLabel, isPlayDisabled, dynamicStyles, colors, searchResults, allSourcesLoaded, deviceType, setDetail, currentRange, handleRangeSelect]);
+  }, [
+    detail,
+    isFavorited,
+    toggleFavorite,
+    handlePrimaryPlay,
+    playButtonLabel,
+    isPlayDisabled,
+    dynamicStyles,
+    colors,
+    searchResults,
+    allSourcesLoaded,
+    deviceType,
+    setDetail,
+    displayEpisodes.length,
+    isReversed,
+    toggleSortOrder,
+    chunks,
+    currentRange,
+    handleRangeSelect,
+  ]);
 
   const renderFooter = useCallback(() => (
     <RelatedSeries title={detail.title} />
   ), [detail.title]);
 
-  const renderItem = useCallback(({ index }: { index: number }) => {
-    const actualIndex = currentRange * chunkSize + index;
+  const renderItem = useCallback(({ item }: { item: EpisodeItem }) => {
+    const originalIndex = item.originalIndex;
+    const progressInfo = getEpisodeProgressInfo(originalIndex, resumeRecord || null, detail.title);
+
     return (
       <View style={{ flex: 1, padding: 4 }}>
         <EpisodeButton
-          index={actualIndex}
+          index={originalIndex}
+          displayLabel={item?.title || `${originalIndex + 1}集`}
+          isWatched={progressInfo.isWatched}
+          isCurrent={progressInfo.isCurrent}
+          progress={progressInfo.progress}
           onPlay={handlePlay}
           style={dynamicStyles.episodeButton}
           textStyle={dynamicStyles.episodeButtonText}
         />
       </View>
     );
-  }, [handlePlay, dynamicStyles, currentRange]);
+  }, [handlePlay, dynamicStyles, resumeRecord, detail.title]);
 
   return (
-    <FlashList
-      data={visibleEpisodes}
-      renderItem={renderItem}
-      // @ts-ignore
-      estimatedItemSize={50}
-      numColumns={4}
-      ListHeaderComponent={ListHeaderComponent}
-      ListFooterComponent={renderFooter}
-      style={dynamicStyles.scrollContainer}
-      showsVerticalScrollIndicator={false}
-    />
+    <>
+      <FlashList
+        data={visibleEpisodes}
+        renderItem={renderItem}
+        // @ts-ignore
+        estimatedItemSize={50}
+        numColumns={4}
+        ListHeaderComponent={ListHeaderComponent}
+        ListFooterComponent={renderFooter}
+        style={dynamicStyles.scrollContainer}
+        showsVerticalScrollIndicator={false}
+      />
+      <DetailInfoModal
+        visible={showInfoModal}
+        onClose={() => setShowInfoModal(false)}
+        detail={detail}
+        colors={colors}
+      />
+    </>
   );
 });
 

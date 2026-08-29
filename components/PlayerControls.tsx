@@ -9,6 +9,7 @@ import useDetailStore from "@/stores/detailStore";
 import { useSources } from "@/stores/sourceStore";
 import { Colors } from "@/constants/Colors";
 import { PlayerBottomBar } from "@/components/player/PlayerBottomBar";
+import { formatTime } from "@/utils/formatUtils";
 
 interface PlayerControlsProps {
   showControls: boolean;
@@ -70,14 +71,6 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
   const currentSource = resources.find((r) => r.source === source);
   const currentSourceName = currentSource?.source_name;
   const hasNextEpisode = currentEpisodeIndex < (episodes.length || 0) - 1;
-
-  const formatTime = (milliseconds: number) => {
-    if (!milliseconds) return "00:00";
-    const totalSeconds = Math.floor(milliseconds / 1000);
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
-  };
 
   const onPlayNextEpisode = () => {
     if (hasNextEpisode) {

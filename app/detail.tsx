@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useCallback } from "react";
-import { BackHandler, useColorScheme } from "react-native";
+import { useColorScheme } from "react-native";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
 import useDetailStore from "@/stores/detailStore";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { useTVBackHandler } from "@/hooks/useTVBackHandler";
 import { getCommonResponsiveStyles } from "@/utils/ResponsiveStyles";
 import ResponsiveNavigation from "@/components/navigation/ResponsiveNavigation";
 import ResponsiveHeader from "@/components/navigation/ResponsiveHeader";
@@ -43,6 +44,7 @@ export default function DetailScreen() {
     abort,
     isFavorited,
     toggleFavorite,
+    resumeRecord,
   } = useDetailStore(useShallow((state) => ({
     detail: state.detail,
     searchResults: state.searchResults,
@@ -54,6 +56,7 @@ export default function DetailScreen() {
     abort: state.abort,
     isFavorited: state.isFavorited,
     toggleFavorite: state.toggleFavorite,
+    resumeRecord: state.resumeRecord,
   })));
 
   // Use the extracted hook for resume logic
@@ -82,28 +85,9 @@ export default function DetailScreen() {
     }, [refresh])
   );
 
-  useFocusEffect(
-    useCallback(() => {
-      if (!isTvExperience) {
-        return;
-      }
-      const handler = BackHandler.addEventListener("hardwareBackPress", () => {
-        const canGoBack = router.canGoBack();
+  useTVBackHandler({ enabled: isTvExperience });
 
-        if (canGoBack) {
-          router.back();
-          return true;
-        }
-        return false;
-      });
-
-      return () => {
-        handler.remove();
-      };
-    }, [isTvExperience, router])
-  );
-
-  const handlePlay = (episodeIndex: number, position?: number) => {
+  const handlePlay = useCallback((episodeIndex: number, position?: number) => {
     if (!detail) return;
     abort();
     const params: Record<string, string> = {
@@ -121,9 +105,9 @@ export default function DetailScreen() {
       pathname: "/play",
       params,
     });
-  };
+  }, [detail, abort, router]);
 
-  const handlePrimaryPlay = () => {
+  const handlePrimaryPlay = useCallback(() => {
     if (!detail || !detail.episodes || detail.episodes.length === 0) {
       return;
     }
@@ -132,6 +116,55 @@ export default function DetailScreen() {
     const resumePosition = resumeInfo.hasRecord ? resumeInfo.position : undefined;
 
     handlePlay(targetEpisodeIndex, resumePosition);
+  }, [detail, resumeInfo, handlePlay]);
+
+  const totalEpisodes = detail?.episodes?.length ?? 0;
+  const isPlayDisabled = totalEpisodes === 0;
+  const playButtonLabel = (resumeInfo.hasRecord ? `继续播放 · 第${resumeInfo.episodeIndex + 1}集` : "立即播放 · 第1集") + `/全${totalEpisodes}集`;
+
+  const detailViewProps = useMemo(() => ({
+    detail,
+    searchResults,
+    allSourcesLoaded,
+    isFavorited,
+    toggleFavorite,
+    handlePrimaryPlay,
+    handlePlay,
+    playButtonLabel,
+    isPlayDisabled,
+    setDetail,
+    dynamicStyles,
+    colors,
+    deviceType,
+    resumeRecord,
+  }), [
+    detail,
+    searchResults,
+    allSourcesLoaded,
+    isFavorited,
+    toggleFavorite,
+    handlePrimaryPlay,
+    handlePlay,
+    playButtonLabel,
+    isPlayDisabled,
+    setDetail,
+    dynamicStyles,
+    colors,
+    deviceType,
+    resumeRecord,
+  ]);
+
+  const renderDetailContent = () => {
+    if (!detail) return null;
+    const props = {
+      ...detailViewProps,
+      detail,
+    };
+    if (deviceType === 'mobile') {
+      return <DetailMobileView {...props} />;
+    } else {
+      return <DetailTVView {...props} />;
+    }
   };
 
   if (loading) {
@@ -222,33 +255,6 @@ export default function DetailScreen() {
     );
   }
 
-  const totalEpisodes = detail.episodes?.length ?? 0;
-  const isPlayDisabled = totalEpisodes === 0;
-  const playButtonLabel = (resumeInfo.hasRecord ? `继续播放 · 第${resumeInfo.episodeIndex + 1}集` : "立即播放 · 第1集") + `/全${totalEpisodes}集`;
-
-  const renderDetailContent = () => {
-    const props = {
-      detail,
-      searchResults,
-      allSourcesLoaded,
-      isFavorited,
-      toggleFavorite,
-      handlePrimaryPlay,
-      handlePlay,
-      playButtonLabel,
-      isPlayDisabled,
-      setDetail,
-      dynamicStyles,
-      colors,
-      deviceType
-    };
-
-    if (deviceType === 'mobile') {
-      return <DetailMobileView {...props} />;
-    } else {
-      return <DetailTVView {...props} />;
-    }
-  };
 
   const content = (
     <ThemedView style={[commonStyles.container, isTvExperience && { padding: 0, paddingHorizontal: 0, paddingVertical: 0, margin: 0 }]}>

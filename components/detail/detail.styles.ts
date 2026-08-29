@@ -151,6 +151,53 @@ export const createResponsiveStyles = (deviceType: string, spacing: number, colo
       marginTop: spacing,
       paddingBottom: spacing * 2,
     },
+    episodesHeaderContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: spacing / 4,
+    },
+    episodesTitleGroup: {
+      flexDirection: "row",
+      alignItems: "center",
+    },
+    sortOrderButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: isMobile ? 8 : 10,
+      paddingVertical: isMobile ? 3 : 5,
+      borderRadius: 6,
+      backgroundColor: "rgba(255, 255, 255, 0.08)",
+      marginLeft: 10,
+    },
+    sortOrderButtonText: {
+      fontSize: isMobile ? 12 : 13,
+      color: colors.text,
+      marginLeft: 4,
+      fontWeight: "500",
+    },
+    descButton: {
+      marginTop: spacing / 6,
+      padding: 6,
+      borderRadius: 8,
+      backgroundColor: "transparent",
+      alignSelf: "stretch",
+    },
+    descWrapper: {
+      width: "100%",
+    },
+    moreDetailText: {
+      fontSize: isMobile ? 12 : 13,
+      color: colors.primary,
+      marginTop: 4,
+      fontWeight: "600",
+    },
+    mobileMoreText: {
+      fontSize: 12,
+      color: colors.primary,
+      marginTop: 4,
+      fontWeight: "600",
+    },
     episodesTitle: {
       fontSize: isMobile ? 16 : isTablet ? 18 : 20,
       fontWeight: "bold",
