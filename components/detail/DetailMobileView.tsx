@@ -10,9 +10,12 @@ import { EpisodeRangeSelector } from '@/components/detail/EpisodeRangeSelector';
 import { Heart } from 'lucide-react-native';
 import { chunkEpisodes } from '@/utils/episodeUtils';
 
+import { SearchResultWithResolution } from '@/types';
+import { Colors } from '@/constants/Colors';
+
 interface DetailMobileViewProps {
-  detail: any;
-  searchResults: any[];
+  detail: SearchResultWithResolution;
+  searchResults: SearchResultWithResolution[];
   allSourcesLoaded: boolean;
   isFavorited: boolean;
   toggleFavorite: () => void;
@@ -20,10 +23,21 @@ interface DetailMobileViewProps {
   handlePlay: (episodeIndex: number, position?: number) => void;
   playButtonLabel: string;
   isPlayDisabled: boolean;
-  setDetail: (detail: any) => void;
+  setDetail: (detail: SearchResultWithResolution) => void;
   dynamicStyles: any;
-  colors: any;
+  colors: (typeof Colors.dark) | (typeof Colors.light);
   deviceType: 'mobile' | 'tablet' | 'tv';
+}
+
+interface MobileTopInfoProps {
+  detail: SearchResultWithResolution;
+  isFavorited: boolean;
+  toggleFavorite: () => void;
+  handlePrimaryPlay: () => void;
+  playButtonLabel: string;
+  isPlayDisabled: boolean;
+  dynamicStyles: any;
+  colors: (typeof Colors.dark) | (typeof Colors.light);
 }
 
 const MobileTopInfo = memo(({
@@ -35,7 +49,7 @@ const MobileTopInfo = memo(({
   isPlayDisabled,
   dynamicStyles,
   colors
-}: any) => {
+}: MobileTopInfoProps) => {
   return (
     <View>
       <View style={dynamicStyles.mobileTopContainer}>

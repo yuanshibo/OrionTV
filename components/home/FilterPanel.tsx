@@ -1,6 +1,6 @@
 import React, { useMemo, useEffect, useCallback } from "react";
 import { Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView } from "react-native";
-import { Category, DoubanFilterKey, DoubanFilterGroup } from "@/services/dataTypes";
+import { Category, DoubanFilterKey, DoubanFilterGroup } from "@/types";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StyledButton } from "@/components/StyledButton";
 import { Colors } from "@/constants/Colors";
@@ -182,11 +182,11 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ isVisible, onClose, category,
 
             {category.filterConfig && (
               <View style={styles.filterSection}>
-                {category.filterConfig.groups.map((group, index) => (
+                {category.filterConfig.groups.map((group: DoubanFilterGroup, index: number) => (
                   <FilterGroupList
                     key={group.key}
                     group={group}
-                    activeValue={category.activeFilters?.[group.key] ?? group.defaultValue}
+                    activeValue={(category.activeFilters as any)?.[group.key] ?? group.defaultValue}
                     onSelect={handleFilterSelect}
                     styles={styles}
                     isFirstGroup={index === 0}

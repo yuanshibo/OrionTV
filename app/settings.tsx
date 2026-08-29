@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { View, StyleSheet, Alert, Platform, ScrollView, BackHandler } from "react-native";
+import { View, StyleSheet, Alert, Platform, ScrollView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter, useFocusEffect } from "expo-router";
+import { useTVBackHandler } from "@/hooks/useTVBackHandler";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { StyledButton } from "@/components/StyledButton";
 import { useThemeColor } from "@/hooks/useThemeColor";
 import { useSettingsStore } from "@/stores/settingsStore";
-import { useRemoteControlStore } from "@/stores/remoteControlStore";
 import { useRemoteMessage } from "@/hooks/useRemoteMessage";
 import { APIConfigSection } from "@/components/settings/APIConfigSection";
 import { LiveStreamSection } from "@/components/settings/LiveStreamSection";
@@ -31,7 +30,6 @@ function isSectionItem(item: false | undefined | SectionItem): item is SectionIt
 }
 
 export default function SettingsScreen() {
-  const router = useRouter();
   const { loadSettings, saveSettings, setApiBaseUrl, setM3uUrl } = useSettingsStore();
   const backgroundColor = useThemeColor({}, "background");
   const insets = useSafeAreaInsets();
@@ -48,20 +46,7 @@ export default function SettingsScreen() {
   const liveStreamSectionRef = useRef<any>(null);
 
   // TV遥控器返回键处理
-  useFocusEffect(
-    useCallback(() => {
-      const handler = BackHandler.addEventListener("hardwareBackPress", () => {
-        if (router.canGoBack()) {
-          router.back();
-        } else {
-          router.replace("/");
-        }
-        return true;
-      });
-
-      return () => handler.remove();
-    }, [router])
-  );
+  useTVBackHandler({ fallbackRoute: "/" });
 
   useEffect(() => {
     loadSettings();

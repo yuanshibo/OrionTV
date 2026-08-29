@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import { SearchResult, api, isNetworkStatusZeroError, SearchResultWithResolution, PlayRecord } from "@/services/api";
+import { SearchResult, SearchResultWithResolution, PlayRecord, ApiSite } from "@/types";
+import { api, isNetworkStatusZeroError } from "@/services/api";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { FavoriteManager, PlayRecordManager } from "@/services/storage";
 import Logger from "@/utils/Logger";
@@ -197,10 +198,10 @@ const useDetailStore = create<DetailState>((set, get) => ({
       let matchedRecord: any = null;
 
       if (playRecords) {
+        const records = Object.values((playRecords as Record<string, PlayRecord>) || {});
         // Precise matching using metadata if available
         if (year || type) {
-          const records = Object.values(playRecords || {});
-          matchedRecord = records.find(r =>
+          matchedRecord = records.find((r: PlayRecord) =>
             r.title === q &&
             (!year || r.year === year) &&
             (!type || r.type === type)
@@ -209,12 +210,11 @@ const useDetailStore = create<DetailState>((set, get) => ({
 
         // Fallback to title-only match if no metadata or no strict match found
         if (!matchedRecord) {
-          const records = Object.values(playRecords || {});
-          matchedRecord = records.find(r => r.title === q);
+          matchedRecord = records.find((r: PlayRecord) => r.title === q);
         }
 
         if (matchedRecord) {
-          const res = resources.find(r => r.name === matchedRecord.source_name);
+          const res = (resources as ApiSite[]).find((r: ApiSite) => r.name === matchedRecord.source_name);
           if (res) historySourceKey = res.key;
         }
       }
@@ -425,7 +425,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
       }
 
       // 6. Batch Parallel Load of Remaining Sources
-      const remainingResources = resources.filter(r => r.key !== targetSourceKey);
+      const remainingResources = (resources as ApiSite[]).filter((r: ApiSite) => r.key !== targetSourceKey);
       const BATCH_SIZE = APP_CONFIG.DETAIL.MAX_CONCURRENT_SOURCE_REQUESTS || 3;
 
       for (let i = 0; i < remainingResources.length; i += BATCH_SIZE) {
@@ -433,7 +433,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
         if (validSourcesCount >= MAX_VALID_SOURCES) break;
 
         const batch = remainingResources.slice(i, i + BATCH_SIZE);
-        await Promise.all(batch.map(async (res) => {
+        await Promise.all(batch.map(async (res: ApiSite) => {
           if (signal.aborted || validSourcesCount >= MAX_VALID_SOURCES) return;
           try {
             const { results } = await api.searchVideo(q, res.key, signal);
@@ -456,8 +456,8 @@ const useDetailStore = create<DetailState>((set, get) => ({
       } else {
         set({ allSourcesLoaded: true });
         // Update cache
-        if (lastCacheKey) {
-          setDetailCacheEntry(lastCacheKey, finalState.detail, finalState.searchResults, finalState.sources, true);
+        if (cacheKey) {
+          setDetailCacheEntry(cacheKey, finalState.detail, finalState.searchResults, finalState.sources, true);
         }
       }
 
@@ -531,7 +531,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
       poster,
       source_name,
       total_episodes: episodes.length,
-      search_title: get().q!,
+      search_title: get().q || title || "",
       year: year || "",
       description: desc,
     };

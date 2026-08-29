@@ -1,4 +1,16 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import type {
+  DoubanResponse,
+  DoubanRecommendationResponse,
+  DoubanRecommendationFilters,
+  DiscoverResponse,
+  VideoDetail,
+  SearchResult,
+  Favorite,
+  PlayRecord,
+  ApiSite,
+  ServerConfig,
+} from "@/types";
 import { DEFAULT_API_BASE_URL } from "@/constants/AppConfig";
 import Logger from "@/utils/Logger";
 
@@ -35,126 +47,7 @@ const createNetworkStatusZeroError = (cause?: unknown): Error => {
   return networkError;
 };
 
-// region: --- Interface Definitions ---
-export interface DoubanItem {
-  title: string;
-  poster: string;
-  rate?: string;
-}
-
-export interface DoubanResponse {
-  code: number;
-  message: string;
-  list: DoubanItem[];
-}
-
-export interface DoubanRecommendationItem {
-  id?: string;
-  title: string;
-  poster: string;
-  rate?: string;
-  url?: string;
-  year?: string;
-  region?: string;
-  platform?: string;
-  type?: string;
-}
-
-export interface DiscoverResponse {
-  list: DoubanRecommendationItem[];
-}
-
-export interface DoubanRecommendationResponse {
-  code: number;
-  message?: string;
-  list: DoubanRecommendationItem[];
-}
-
-export interface DoubanRecommendationFilters {
-  kind?: "movie" | "tv";
-  category?: string;
-  format?: string;
-  region?: string;
-  year?: string;
-  platform?: string;
-  sort?: string;
-  label?: string;
-  start?: number;
-  limit?: number;
-}
-
-export interface VideoDetail {
-  id: string;
-  title: string;
-  poster: string;
-  source: string;
-  source_name: string;
-  desc?: string;
-  type?: string;
-  year?: string;
-  area?: string;
-  director?: string;
-  actor?: string;
-  remarks?: string;
-}
-
-export interface SearchResult {
-  id: number;
-  title: string;
-  poster: string;
-  episodes: string[];
-  source: string;
-  source_name: string;
-  class?: string;
-  year: string;
-  desc?: string;
-  type_name?: string;
-  type?: string;
-}
-
-export interface SearchResultWithResolution extends SearchResult {
-  resolution?: string | null;
-  dedupeKey?: string;
-}
-
-export interface Favorite {
-  cover: string;
-  title: string;
-  source_name: string;
-  total_episodes: number;
-  search_title: string;
-  year: string;
-  save_time?: number;
-  description?: string;
-}
-
-export interface PlayRecord {
-  title: string;
-  source_name: string;
-  cover: string;
-  index: number;
-  total_episodes: number;
-  play_time: number;
-  total_time: number;
-  save_time: number;
-  year: string;
-  type?: string;
-  duration?: number;
-  introEndTime?: number;
-  outroStartTime?: number;
-}
-
-export interface ApiSite {
-  key: string;
-  api: string;
-  name: string;
-  detail?: string;
-}
-
-export interface ServerConfig {
-  SiteName: string;
-  StorageType: "localstorage" | "redis" | string;
-}
+export * from "@/types";
 
 export class API {
   public baseURL: string = "";
@@ -365,7 +258,7 @@ export class API {
   }
 
   async deleteSearchHistory(keyword?: string): Promise<{ success: boolean }> {
-    const url = keyword ? `/api/searchhistory?keyword=${keyword}` : "/api/searchhistory";
+    const url = keyword ? `/api/searchhistory?keyword=${encodeURIComponent(keyword)}` : "/api/searchhistory";
     return this._fetchData(url, { method: "DELETE" });
   }
 
@@ -433,7 +326,7 @@ export class API {
   }
 
   async getVideoDetail(source: string, id: string): Promise<VideoDetail> {
-    return this._fetchData(`/api/detail?source=${source}&id=${id}`);
+    return this._fetchData(`/api/detail?source=${encodeURIComponent(source)}&id=${encodeURIComponent(id)}`);
   }
 }
 

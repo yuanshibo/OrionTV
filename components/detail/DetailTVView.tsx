@@ -8,9 +8,12 @@ import { PureDynamicBackground } from '@/components/DynamicBackground';
 import { TVTopInfo } from '@/components/detail/TVTopInfo';
 import { EpisodeHorizontalList, EpisodeHorizontalListRef } from '@/components/detail/EpisodeHorizontalList';
 
+import { SearchResultWithResolution } from '@/types';
+import { Colors } from '@/constants/Colors';
+
 interface DetailTVViewProps {
-  detail: any;
-  searchResults: any[];
+  detail: SearchResultWithResolution;
+  searchResults: SearchResultWithResolution[];
   allSourcesLoaded: boolean;
   isFavorited: boolean;
   toggleFavorite: () => void;
@@ -18,10 +21,29 @@ interface DetailTVViewProps {
   handlePlay: (episodeIndex: number, position?: number) => void;
   playButtonLabel: string;
   isPlayDisabled: boolean;
-  setDetail: (detail: any) => void;
+  setDetail: (detail: SearchResultWithResolution) => void;
   dynamicStyles: any;
-  colors: any;
+  colors: (typeof Colors.dark) | (typeof Colors.light);
   deviceType: 'mobile' | 'tablet' | 'tv';
+}
+
+interface DetailTVContentProps extends DetailTVViewProps {
+  firstSourceTag: number | null;
+  handleTVTopInfoFocus: () => void;
+  setFirstSourceRef: (node: any) => void;
+  targetEpisodeTag: number | null;
+  episodes: string[];
+  itemWidth: number;
+  handleEpisodeFocus: (index: number) => void;
+  firstRangeTag: number | null;
+  episodeListRef: React.RefObject<EpisodeHorizontalListRef | null>;
+  setTargetEpisodeTag: (tag: number | null) => void;
+  chunkSize: number;
+  currentRange: number;
+  handleRangeSelect: (index: number) => void;
+  focusOffset: number;
+  handleSetFirstRangeRef: (node: any) => void;
+  handleRelatedSeriesFocus: (item: any) => void;
 }
 
 // Extracted content component to prevent re-renders when background changes
@@ -55,7 +77,7 @@ const DetailTVContent = memo(({
   focusOffset,
   handleSetFirstRangeRef,
   handleRelatedSeriesFocus
-}: any) => {
+}: DetailTVContentProps) => {
   return (
     <ScrollView
       style={{ flex: 1 }}

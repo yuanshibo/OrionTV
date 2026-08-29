@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useCallback } from "react";
-import { BackHandler, useColorScheme } from "react-native";
+import { useColorScheme } from "react-native";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
 import useDetailStore from "@/stores/detailStore";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { useTVBackHandler } from "@/hooks/useTVBackHandler";
 import { getCommonResponsiveStyles } from "@/utils/ResponsiveStyles";
 import ResponsiveNavigation from "@/components/navigation/ResponsiveNavigation";
 import ResponsiveHeader from "@/components/navigation/ResponsiveHeader";
@@ -82,26 +83,7 @@ export default function DetailScreen() {
     }, [refresh])
   );
 
-  useFocusEffect(
-    useCallback(() => {
-      if (!isTvExperience) {
-        return;
-      }
-      const handler = BackHandler.addEventListener("hardwareBackPress", () => {
-        const canGoBack = router.canGoBack();
-
-        if (canGoBack) {
-          router.back();
-          return true;
-        }
-        return false;
-      });
-
-      return () => {
-        handler.remove();
-      };
-    }, [isTvExperience, router])
-  );
+  useTVBackHandler({ enabled: isTvExperience });
 
   const handlePlay = useCallback((episodeIndex: number, position?: number) => {
     if (!detail) return;
@@ -169,10 +151,15 @@ export default function DetailScreen() {
   ]);
 
   const renderDetailContent = () => {
+    if (!detail) return null;
+    const props = {
+      ...detailViewProps,
+      detail,
+    };
     if (deviceType === 'mobile') {
-      return <DetailMobileView {...detailViewProps} />;
+      return <DetailMobileView {...props} />;
     } else {
-      return <DetailTVView {...detailViewProps} />;
+      return <DetailTVView {...props} />;
     }
   };
 

@@ -18,6 +18,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { Colors } from "@/constants/Colors";
 import CustomScrollView from "@/components/CustomScrollView";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { useTVBackHandler } from "@/hooks/useTVBackHandler";
 import { getCommonResponsiveStyles } from "@/utils/ResponsiveStyles";
 import ResponsiveNavigation from "@/components/navigation/ResponsiveNavigation";
 import ResponsiveHeader from "@/components/navigation/ResponsiveHeader";
@@ -72,6 +73,8 @@ export default function SearchScreen() {
     setKeyword(message);
     doSearch(message);
   }, [setKeyword, doSearch]);
+
+  useTVBackHandler({ fallbackRoute: "/" });
 
   useRemoteMessage(handleRemoteMessage, 'search');
 

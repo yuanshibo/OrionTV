@@ -9,6 +9,7 @@ import VideoCard from "@/components/VideoCard";
 import { api } from "@/services/api";
 import CustomScrollView from "@/components/CustomScrollView";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { useTVBackHandler } from "@/hooks/useTVBackHandler";
 import { getCommonResponsiveStyles } from "@/utils/ResponsiveStyles";
 import ResponsiveNavigation from "@/components/navigation/ResponsiveNavigation";
 import ResponsiveHeader from "@/components/navigation/ResponsiveHeader";
@@ -28,12 +29,17 @@ export default function FavoritesScreen() {
   const commonStyles = getCommonResponsiveStyles(responsiveConfig);
   const { deviceType, spacing } = responsiveConfig;
 
+  // TV遥控器返回键处理
+  useTVBackHandler({ fallbackRoute: "/" });
+
   useEffect(() => {
     fetchFavorites();
   }, [fetchFavorites]);
 
   const renderItem = useCallback(({ item }: { item: Favorite & { key: string }; index: number }) => {
-    const [source, id] = item.key.split("+");
+    const firstPlusIndex = item.key.indexOf("+");
+    const source = firstPlusIndex !== -1 ? item.key.slice(0, firstPlusIndex) : "";
+    const id = firstPlusIndex !== -1 ? item.key.slice(firstPlusIndex + 1) : item.key;
     return (
       <VideoCard
         type="favorite"

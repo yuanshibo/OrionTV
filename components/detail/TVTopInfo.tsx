@@ -5,15 +5,18 @@ import { StyledButton } from '@/components/StyledButton';
 import { Heart } from 'lucide-react-native';
 import { FadeInImage } from '@/components/FadeInImage';
 
+import { SearchResultWithResolution } from '@/types';
+import { Colors } from '@/constants/Colors';
+
 interface TVTopInfoProps {
-    detail: any;
+    detail: SearchResultWithResolution;
     isFavorited: boolean;
     toggleFavorite: () => void;
     handlePrimaryPlay: () => void;
     playButtonLabel: string;
     isPlayDisabled: boolean;
     dynamicStyles: any;
-    colors: any;
+    colors: (typeof Colors.dark) | (typeof Colors.light);
     nextFocusDown?: number | null;
     onFocus?: () => void;
 }
