@@ -8,6 +8,7 @@ import { Colors } from "@/constants/Colors";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { useImageSource } from "@/hooks/useImageSource";
 import { useVideoCardInteractions } from "@/hooks/useVideoCardInteractions";
+import { formatProgressText } from "@/utils/formatUtils";
 
 import { VideoCardMobileProps } from './VideoCard.types';
 
@@ -122,7 +123,7 @@ const VideoCardMobile = forwardRef<View, VideoCardMobileProps>(
             <ThemedText numberOfLines={2} style={styles.title}>{title}</ThemedText>
             {isContinueWatching && (
               <ThemedText style={styles.continueLabel} numberOfLines={1}>
-                {episodeIndex ? `第${episodeIndex}集 · ` : ""}已看{Math.round((progress || 0) * 100)}%
+                {formatProgressText({ progress, episodeIndex, totalEpisodes, isCompleted, isEpisodeFinished })}
               </ThemedText>
             )}
           </View>

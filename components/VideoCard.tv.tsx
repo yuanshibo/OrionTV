@@ -14,26 +14,11 @@ import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { useImageSource } from "@/hooks/useImageSource";
 import { useVideoCardInteractions } from "@/hooks/useVideoCardInteractions";
 import { createShallowEqualComparator } from "@/utils/MemoHelper";
+import { formatRelativeTime, formatProgressText } from "@/utils/formatUtils";
 
 import { VideoCardTVProps } from './VideoCard.types';
 
 type VideoCardProps = VideoCardTVProps & { index?: number };
-
-function formatRelativeTime(timestamp?: number): string | null {
-  if (!timestamp) return null;
-  const now = Date.now();
-  const diff = now - timestamp;
-  if (diff < 60 * 1000) return '刚刚';
-  const minutes = Math.floor(diff / (60 * 1000));
-  if (minutes < 60) return `${minutes}分钟前`;
-  const hours = Math.floor(diff / (60 * 60 * 1000));
-  if (hours < 24) return `${hours}小时前`;
-  const days = Math.floor(diff / (24 * 60 * 60 * 1000));
-  if (days === 1) return '昨天';
-  if (days < 7) return `${days}天前`;
-  const date = new Date(timestamp);
-  return `${date.getMonth() + 1}月${date.getDate()}日`;
-}
 
 const VideoCard = forwardRef<View, VideoCardProps>(
   (
@@ -137,19 +122,13 @@ const VideoCard = forwardRef<View, VideoCardProps>(
     // Use handleLongPress from hook directly if no custom prop
     const onLongPressHandler = onLongPress || handleLongPress;
 
-    let progressText = '';
-    if (isCompleted) {
-      progressText = '已看完';
-    } else if (isEpisodeFinished && totalEpisodes && episodeIndex && episodeIndex < totalEpisodes) {
-      progressText = `续播第 ${episodeIndex + 1} 集`;
-    } else if (progress !== undefined) {
-      const percent = `${Math.round(progress * 100)}%`;
-      if (episodeIndex && (totalEpisodes === undefined || totalEpisodes > 1)) {
-        progressText = `第${episodeIndex}集 · 已看${percent}`;
-      } else {
-        progressText = `已看${percent}`;
-      }
-    }
+    const progressText = formatProgressText({
+      progress,
+      episodeIndex,
+      totalEpisodes,
+      isCompleted,
+      isEpisodeFinished,
+    });
 
     // Use the module-level cached styles instead of recreating on every render
     const styles = stylesCache[colorScheme];
