@@ -22,6 +22,7 @@ import ResponsiveNavigation from "@/components/navigation/ResponsiveNavigation";
 import ResponsiveHeader from "@/components/navigation/ResponsiveHeader";
 import { DeviceUtils } from "@/utils/DeviceUtils";
 import Logger from "@/utils/Logger";
+import { useShallow } from "zustand/react/shallow";
 import { DynamicBackground } from "@/components/DynamicBackground";
 
 const logger = Logger.withTag("SearchScreen");
@@ -33,7 +34,23 @@ export default function SearchScreen() {
   const {
     keyword, results, loading, error, discoverPage, loadingMore, hasMore,
     setKeyword, loadDiscoverData, doSearch, loadMoreSearchResults, handleSearch, resetSearch
-  } = useSearchStore();
+  } = useSearchStore(
+    useShallow((state) => ({
+      keyword: state.keyword,
+      results: state.results,
+      loading: state.loading,
+      error: state.error,
+      discoverPage: state.discoverPage,
+      loadingMore: state.loadingMore,
+      hasMore: state.hasMore,
+      setKeyword: state.setKeyword,
+      loadDiscoverData: state.loadDiscoverData,
+      doSearch: state.doSearch,
+      loadMoreSearchResults: state.loadMoreSearchResults,
+      handleSearch: state.handleSearch,
+      resetSearch: state.resetSearch,
+    }))
+  );
 
   const textInputRef = useRef<TextInput>(null);
   const [isInputFocused, setIsInputFocused] = useState(false);

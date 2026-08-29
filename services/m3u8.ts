@@ -79,11 +79,13 @@ export const probeM3U8 = async (
     }
 
     const playlist = await response.text();
-    const lines = playlist.split('\n');
+    const lines = playlist.split(/\r?\n/);
     let highestResolution = 0;
     let resolutionString: string | null = null;
+    const maxScanLines = Math.min(lines.length, 100);
 
-    for (const line of lines) {
+    for (let i = 0; i < maxScanLines; i++) {
+      const line = lines[i];
       if (line.startsWith('#EXT-X-STREAM-INF')) {
         const resolutionMatch = line.match(/RESOLUTION=(\d+)x(\d+)/i);
         if (resolutionMatch) {

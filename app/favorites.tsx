@@ -3,6 +3,7 @@ import { View, StyleSheet } from "react-native";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
 import useFavoritesStore from "@/stores/favoritesStore";
+import { useShallow } from "zustand/react/shallow";
 import { Favorite } from "@/services/storage";
 import VideoCard from "@/components/VideoCard";
 import { api } from "@/services/api";
@@ -13,7 +14,14 @@ import ResponsiveNavigation from "@/components/navigation/ResponsiveNavigation";
 import ResponsiveHeader from "@/components/navigation/ResponsiveHeader";
 
 export default function FavoritesScreen() {
-  const { favorites, loading, error, fetchFavorites } = useFavoritesStore();
+  const { favorites, loading, error, fetchFavorites } = useFavoritesStore(
+    useShallow((state) => ({
+      favorites: state.favorites,
+      loading: state.loading,
+      error: state.error,
+      fetchFavorites: state.fetchFavorites,
+    }))
+  );
 
   // 响应式布局配置
   const responsiveConfig = useResponsiveLayout();

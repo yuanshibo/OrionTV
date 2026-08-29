@@ -184,6 +184,7 @@ const VideoCard = forwardRef<View, VideoCardProps>(
               recyclingKey={poster}
               cachePolicy="memory-disk"
               priority={index < 8 ? "high" : "normal"}
+              allowDownscaling={true}
             />
 
             {/* Overlay is always mounted, opacity controlled by SharedValue */}
