@@ -1,4 +1,4 @@
-import React, { useCallback, forwardRef, useMemo, useEffect, useRef } from "react";
+import React, { useCallback, forwardRef, useEffect, useRef } from "react";
 import { View, Text, StyleSheet, Pressable, Platform, useColorScheme } from "react-native";
 import { Image } from "expo-image";
 import { Star, Play, RotateCcw } from "lucide-react-native";
@@ -8,11 +8,10 @@ import Reanimated, {
   withTiming,
   withDelay
 } from "react-native-reanimated";
-import { api } from "@/services/api";
 import { ThemedText } from "@/components/ThemedText";
 import { Colors } from "@/constants/Colors";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
-import useAuthStore from "@/stores/authStore";
+import { useImageSource } from "@/hooks/useImageSource";
 import { useVideoCardInteractions } from "@/hooks/useVideoCardInteractions";
 import { createShallowEqualComparator } from "@/utils/MemoHelper";
 
@@ -154,14 +153,7 @@ const VideoCard = forwardRef<View, VideoCardProps>(
 
     // Use the module-level cached styles instead of recreating on every render
     const styles = stylesCache[colorScheme];
-    const imageSource = useMemo(() => {
-      const authCookie = useAuthStore.getState().authCookie;
-      return {
-        uri: api.getImageProxyUrl(poster),
-        headers: authCookie ? { Cookie: authCookie } : undefined,
-        width: 200,
-      };
-    }, [poster]);
+    const imageSource = useImageSource(poster, { width: 200 });
 
     return (
       <Reanimated.View style={[styles.wrapper, animatedStyle, style]}>
@@ -412,7 +404,10 @@ const areEqual = createShallowEqualComparator<VideoCardProps>([
   'episodeIndex',
   'totalEpisodes',
   'lastPlayed',
-  'playTime'
+  'playTime',
+  'isCompleted',
+  'isEpisodeFinished',
+  'index',
 ]);
 
 export default React.memo(VideoCard, areEqual);

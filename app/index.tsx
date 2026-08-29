@@ -13,6 +13,7 @@ import { useTVBackHandler } from "@/hooks/useTVBackHandler";
 import { getCommonResponsiveStyles } from "@/utils/ResponsiveStyles";
 import ResponsiveNavigation from "@/components/navigation/ResponsiveNavigation";
 import { useApiConfig } from "@/hooks/useApiConfig";
+import { SyncQueue } from "@/services/storage/SyncQueue";
 import { HomeHeader } from "@/components/navigation/HomeHeader";
 import { CategoryNavigation } from "@/components/navigation/CategoryNavigation";
 import { ContentDisplay } from "@/components/home/ContentDisplay";
@@ -104,16 +105,19 @@ export default function HomeScreen() {
 
   useEffect(() => {
     void hydrateFromStorage();
+    void SyncQueue.flush();
   }, [hydrateFromStorage]);
 
   useFocusEffect(
     useCallback(() => {
       if (selectedCategoryType === "record") {
-        refreshPlayRecords().then(() => setCategoryFocusTrigger(p => p + 1));
+        refreshPlayRecords()
+          .then(() => setCategoryFocusTrigger(p => p + 1))
+          .catch(() => {});
       } else if (!hasRecordCategory) {
         const now = Date.now();
         if (now - lastCheckedPlayRecords.current > 5000) {
-          refreshPlayRecords();
+          refreshPlayRecords().catch(() => {});
           lastCheckedPlayRecords.current = now;
         }
       }

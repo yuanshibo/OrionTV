@@ -6,7 +6,7 @@ import Reanimated from "react-native-reanimated";
 import { ThemedText } from "@/components/ThemedText";
 import { Colors } from "@/constants/Colors";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
-import useAuthStore from "@/stores/authStore";
+import { useImageSource } from "@/hooks/useImageSource";
 import { useVideoCardInteractions } from "@/hooks/useVideoCardInteractions";
 
 import { VideoCardMobileProps } from './VideoCard.types';
@@ -23,6 +23,7 @@ const VideoCardMobile = forwardRef<View, VideoCardMobileProps>(
       sourceName,
       progress,
       episodeIndex,
+      totalEpisodes,
       onFocus,
       onRecordDeleted,
       onFavoriteDeleted,
@@ -38,6 +39,9 @@ const VideoCardMobile = forwardRef<View, VideoCardMobileProps>(
     const colors = Colors[colorScheme];
     const { cardWidth, cardHeight, spacing } = useResponsiveLayout();
 
+    const isCompleted = rest.isCompleted ?? (progress !== undefined && progress >= 0.95);
+    const isEpisodeFinished = rest.isEpisodeFinished;
+
     const { handlePress, handleLongPress } = useVideoCardInteractions({
       id,
       source,
@@ -47,6 +51,9 @@ const VideoCardMobile = forwardRef<View, VideoCardMobileProps>(
       progress,
       playTime,
       episodeIndex,
+      totalEpisodes,
+      isCompleted,
+      isEpisodeFinished,
       onRecordDeleted,
       onFavoriteDeleted,
       mediaType: rest.mediaType,
@@ -55,15 +62,7 @@ const VideoCardMobile = forwardRef<View, VideoCardMobileProps>(
     const isContinueWatching = progress !== undefined && progress > 0 && progress < 1;
 
     const styles = useMemo(() => createMobileStyles(cardWidth, cardHeight, spacing, colors), [cardWidth, cardHeight, spacing, colors]);
-    const authCookie = useAuthStore((state) => state.authCookie);
-    const imageSource = useMemo(
-      () => ({
-        uri: api.getImageProxyUrl(poster),
-        headers: authCookie ? { Cookie: authCookie } : undefined,
-        width: 200,
-      }),
-      [poster, authCookie, api]
-    );
+    const imageSource = useImageSource(poster, { width: 200 });
 
     return (
       <Reanimated.View style={[styles.wrapper, style]} ref={ref}>
@@ -123,7 +122,7 @@ const VideoCardMobile = forwardRef<View, VideoCardMobileProps>(
             <ThemedText numberOfLines={2} style={styles.title}>{title}</ThemedText>
             {isContinueWatching && (
               <ThemedText style={styles.continueLabel} numberOfLines={1}>
-                第{episodeIndex! + 1}集 {Math.round((progress || 0) * 100)}%
+                {episodeIndex ? `第${episodeIndex}集 · ` : ""}已看{Math.round((progress || 0) * 100)}%
               </ThemedText>
             )}
           </View>

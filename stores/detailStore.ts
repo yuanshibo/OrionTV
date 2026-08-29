@@ -133,7 +133,8 @@ const useDetailStore = create<DetailState>((set, get) => ({
         // Refresh resume record just in case (silent update)
         if (currentState.detail?.title) {
           PlayRecordManager.getLatestByTitle(currentState.detail.title, currentState.detail.year, currentState.detail.type)
-            .then(r => set({ resumeRecord: r }));
+            .then(r => set({ resumeRecord: r }))
+            .catch(e => logger.debug("Failed to get latest record:", e));
         }
         return;
       }
@@ -340,6 +341,8 @@ const useDetailStore = create<DetailState>((set, get) => ({
               PlayRecordManager.getLatestByTitle(firstDetail.title, firstDetail.year, firstDetail.type)
             ]).then(([isFav, resumeRec]) => {
               set({ isFavorited: isFav, resumeRecord: resumeRec });
+            }).catch(e => {
+              logger.debug("[DetailStore] Failed to fetch aux data for first source:", e);
             });
           }
         } else {
@@ -379,6 +382,8 @@ const useDetailStore = create<DetailState>((set, get) => ({
                   PlayRecordManager.getLatestByTitle(newDetail.title, newDetail.year, newDetail.type)
                 ]).then(([isFav, resumeRec]) => {
                   set({ isFavorited: isFav, resumeRecord: resumeRec });
+                }).catch(e => {
+                  logger.debug("[DetailStore] Failed to fetch aux data for auto-switched source:", e);
                 });
               }
             } else if (newDetail.episodes.length > currentDetail.episodes.length) {
@@ -436,12 +441,23 @@ const useDetailStore = create<DetailState>((set, get) => ({
         await Promise.all(batch.map(async (res: ApiSite) => {
           if (signal.aborted || validSourcesCount >= MAX_VALID_SOURCES) return;
           try {
-            const { results } = await api.searchVideo(q, res.key, signal);
-            if (results.length > 0 && !signal.aborted) {
-              addResults(results, res.key);
+            // Per-source fast failover timeout (3800ms) to prevent slow sources blocking the queue
+            const sourceTimeoutController = new AbortController();
+            const timeoutTimer = setTimeout(() => sourceTimeoutController.abort(), 3800);
+            const onParentAbort = () => sourceTimeoutController.abort();
+            signal.addEventListener("abort", onParentAbort, { once: true });
+
+            try {
+              const { results } = await api.searchVideo(q, res.key, sourceTimeoutController.signal);
+              if (results.length > 0 && !signal.aborted) {
+                addResults(results, res.key);
+              }
+            } finally {
+              clearTimeout(timeoutTimer);
+              signal.removeEventListener("abort", onParentAbort);
             }
           } catch (e) {
-            logger.warn(`[WARN] Source "${res.key}" failed:`, e);
+            logger.warn(`[WARN] Source "${res.key}" failed or timed out:`, e);
           }
         }));
       }

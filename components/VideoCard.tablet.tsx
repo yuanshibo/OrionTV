@@ -8,9 +8,9 @@ import { API } from "@/services/api";
 import { ThemedText } from "@/components/ThemedText";
 import { Colors } from "@/constants/Colors";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { useImageSource } from "@/hooks/useImageSource";
 import { DeviceUtils } from "@/utils/DeviceUtils";
 import Logger from '@/utils/Logger';
-import useAuthStore from "@/stores/authStore";
 
 const logger = Logger.withTag('VideoCardTablet');
 
@@ -176,14 +176,7 @@ const VideoCardTablet = forwardRef<View, VideoCardTabletProps>(
     };
 
     const styles = useMemo(() => createTabletStyles(cardWidth, cardHeight, spacing, colors), [cardWidth, cardHeight, spacing, colors]);
-    const authCookie = useAuthStore((state) => state.authCookie);
-    const imageSource = useMemo(
-      () => ({
-        uri: api.getImageProxyUrl(poster),
-        headers: authCookie ? { Cookie: authCookie } : undefined,
-      }),
-      [poster, authCookie, api]
-    );
+    const imageSource = useImageSource(poster, { width: 200 });
 
     return (
       <Animated.View style={[styles.wrapper, animatedStyle, { opacity: fadeAnim }]} ref={ref}>
@@ -246,7 +239,7 @@ const VideoCardTablet = forwardRef<View, VideoCardTabletProps>(
             {isContinueWatching && (
               <View style={styles.infoRow}>
                 <ThemedText style={styles.continueLabel} numberOfLines={1}>
-                  第{episodeIndex! + 1}集 已观看 {Math.round((progress || 0) * 100)}%
+                  {episodeIndex ? `第${episodeIndex}集 · ` : ""}已看{Math.round((progress || 0) * 100)}%
                 </ThemedText>
               </View>
             )}

@@ -9,6 +9,7 @@ import {
 import { api } from "./api";
 import { storageConfig } from "./storageConfig";
 import { AsyncStorageDriver } from "./storage/AsyncStorageDriver";
+import { SyncQueue } from "./storage/SyncQueue";
 import { DEFAULT_API_BASE_URL } from "@/constants/AppConfig";
 import Logger from '@/utils/Logger';
 
@@ -75,33 +76,54 @@ export class FavoriteManager {
     if (this.getStorageType() === "localstorage") {
       return this.localDriver.getAll();
     }
-    return (await api.getFavorites()) as Record<string, Favorite>;
+    try {
+      const result = await api.getFavorites();
+      return (result as Record<string, Favorite>) || {};
+    } catch {
+      // Fallback to local storage if remote API is unreachable
+      return this.localDriver.getAll();
+    }
   }
 
   static async save(source: string, id: string, item: Favorite): Promise<void> {
     const key = generateKey(source, id);
-    if (this.getStorageType() === "localstorage") {
-      return this.localDriver.save(key, { ...item, save_time: Date.now() });
+    const enrichedItem = { ...item, save_time: Date.now() };
+
+    // Always persist to local driver immediately for 0ms UI response and offline durability
+    await this.localDriver.save(key, enrichedItem);
+
+    // If using remote storage, sync asynchronously in background
+    if (this.getStorageType() !== "localstorage") {
+      api.addFavorite(key, item).catch(() => {
+        void SyncQueue.enqueue({ type: "save_favorite", key, payload: item });
+      });
     }
-    await api.addFavorite(key, item);
   }
 
   static async remove(source: string, id: string): Promise<void> {
     const key = generateKey(source, id);
-    if (this.getStorageType() === "localstorage") {
-      return this.localDriver.remove(key);
+
+    // Always remove from local driver immediately
+    await this.localDriver.remove(key);
+
+    // If using remote storage, sync deletion asynchronously
+    if (this.getStorageType() !== "localstorage") {
+      api.deleteFavorite(key).catch(() => {
+        void SyncQueue.enqueue({ type: "delete_favorite", key });
+      });
     }
-    await api.deleteFavorite(key);
   }
 
   static async isFavorited(source: string, id: string): Promise<boolean> {
     const key = generateKey(source, id);
-    if (this.getStorageType() === "localstorage") {
-      const item = await this.localDriver.get(key);
-      return item !== null;
+    const item = await this.localDriver.get(key);
+    if (item !== null) return true;
+
+    if (this.getStorageType() !== "localstorage") {
+      const favorite = await api.getFavorites(key);
+      return favorite !== null;
     }
-    const favorite = await api.getFavorites(key);
-    return favorite !== null;
+    return false;
   }
 
   static async toggle(source: string, id: string, item: Favorite): Promise<boolean> {
@@ -116,10 +138,12 @@ export class FavoriteManager {
   }
 
   static async clearAll(): Promise<void> {
-    if (this.getStorageType() === "localstorage") {
-      return this.localDriver.clearAll();
+    await this.localDriver.clearAll();
+    if (this.getStorageType() !== "localstorage") {
+      api.deleteFavorite().catch(() => {
+        logger.warn("[Storage] Failed to clear remote favorites.");
+      });
     }
-    await api.deleteFavorite();
   }
 }
 
@@ -147,16 +171,13 @@ export class PlayRecordManager {
     if (storageType === "localstorage") {
       apiRecords = await this.localDriver.getAll();
     } else {
-      const apiStart = performance.now();
-      // logger.debug(`[PERF] API getPlayRecords START`);
-
-      const result = await api.getPlayRecords();
-      // When called without args, it returns the full map.
-      // We default to {} if null/undefined to satisfy the type.
-      apiRecords = (result as Record<string, PlayRecord>) || {};
-
-      const apiEnd = performance.now();
-      // logger.debug(`[PERF] API getPlayRecords END - took ${(apiEnd - apiStart).toFixed(2)}ms, records: ${Object.keys(apiRecords).length}`);
+      try {
+        const result = await api.getPlayRecords();
+        apiRecords = (result as Record<string, PlayRecord>) || {};
+      } catch {
+        // Fallback to local storage if remote API fails/offline
+        apiRecords = await this.localDriver.getAll();
+      }
     }
 
     const localSettings = await PlayerSettingsManager.getAll();
@@ -245,42 +266,41 @@ export class PlayRecordManager {
     // Player settings are always saved locally
     await PlayerSettingsManager.save(source, id, { introEndTime, outroStartTime });
 
-    if (this.getStorageType() === "localstorage") {
-      const data = await AsyncStorage.getItem(STORAGE_KEYS.PLAY_RECORDS);
-      const allRecords = data ? JSON.parse(data) : {};
-      const existingRecord = allRecords[key] || {};
+    // 1. Always persist locally with LRU purge for 0ms UI response & offline safety
+    const data = await AsyncStorage.getItem(STORAGE_KEYS.PLAY_RECORDS);
+    const allRecords = data ? JSON.parse(data) : {};
+    const existingRecord = allRecords[key] || {};
 
-      const fullRecord = { ...apiRecord, save_time: Date.now() };
-      const newRecord = { ...existingRecord, ...fullRecord };
+    const fullRecord = { ...apiRecord, save_time: Date.now() };
+    const newRecord = { ...existingRecord, ...fullRecord };
 
-      // Only add description if it's provided and doesn't already exist
-      if (description && !existingRecord.description) {
-        newRecord.description = description;
-      }
-      allRecords[key] = newRecord;
+    // Only add description if it's provided and doesn't already exist
+    if (description && !existingRecord.description) {
+      newRecord.description = description;
+    }
+    allRecords[key] = newRecord;
 
-      // --- LRU Purge ---
-      const recordKeys = Object.keys(allRecords);
-      const MAX_RECORDS = 200;
-      if (recordKeys.length > MAX_RECORDS) {
-        const sorted = recordKeys.sort((a, b) => (allRecords[a].save_time || 0) - (allRecords[b].save_time || 0));
-        const toDelete = sorted.slice(0, recordKeys.length - MAX_RECORDS);
-        toDelete.forEach(k => delete allRecords[k]);
-        logger.info(`[Storage] Purged ${toDelete.length} old play records.`);
-      }
+    // --- LRU Purge ---
+    const recordKeys = Object.keys(allRecords);
+    const MAX_RECORDS = 200;
+    if (recordKeys.length > MAX_RECORDS) {
+      const sorted = recordKeys.sort((a, b) => (allRecords[a].save_time || 0) - (allRecords[b].save_time || 0));
+      const toDelete = sorted.slice(0, recordKeys.length - MAX_RECORDS);
+      toDelete.forEach(k => delete allRecords[k]);
+      logger.info(`[Storage] Purged ${toDelete.length} old play records.`);
+    }
 
-      await AsyncStorage.setItem(STORAGE_KEYS.PLAY_RECORDS, JSON.stringify(allRecords));
-    } else {
+    await AsyncStorage.setItem(STORAGE_KEYS.PLAY_RECORDS, JSON.stringify(allRecords));
+
+    // 2. If using remote storage, sync asynchronously in background
+    if (this.getStorageType() !== "localstorage") {
       const recordToSave = { ...apiRecord } as Omit<PlayRecord, "save_time"> & { description?: string };
-      const existingRecord = await this.get(source, id);
-      // Preserve existing description if available, otherwise use the new one.
-      // This matches the local storage behavior and prevents overwriting with empty/undefined.
-      if (existingRecord?.description) {
-        recordToSave.description = existingRecord.description;
-      } else if (description) {
-        recordToSave.description = description;
+      if (newRecord.description) {
+        recordToSave.description = newRecord.description;
       }
-      await api.savePlayRecord(key, recordToSave);
+      api.savePlayRecord(key, recordToSave).catch(() => {
+        void SyncQueue.enqueue({ type: "save_play_record", key, payload: recordToSave });
+      });
     }
   }
 
@@ -324,11 +344,13 @@ export class PlayRecordManager {
     this.cache = null;
 
     await PlayerSettingsManager.remove(source, id); // Always remove local settings
+    await this.localDriver.remove(key); // Always remove from local storage
 
-    if (this.getStorageType() === "localstorage") {
-      await this.localDriver.remove(key);
-    } else {
-      await api.deletePlayRecord(key);
+    // If using remote storage, sync asynchronously
+    if (this.getStorageType() !== "localstorage") {
+      api.deletePlayRecord(key).catch(() => {
+        void SyncQueue.enqueue({ type: "delete_play_record", key });
+      });
     }
   }
 
