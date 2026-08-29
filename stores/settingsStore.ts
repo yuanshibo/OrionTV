@@ -3,6 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SettingsManager } from "@/services/storage";
 import { api, ServerConfig } from "@/services/api";
 import { storageConfig } from "@/services/storageConfig";
+import { DEFAULT_API_BASE_URL } from "@/constants/AppConfig";
 import Logger from "@/utils/Logger";
 
 const logger = Logger.withTag('SettingsStore');
@@ -80,7 +81,7 @@ interface SettingsState {
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
-  apiBaseUrl: "",
+  apiBaseUrl: DEFAULT_API_BASE_URL,
   m3uUrl: "",
   remoteInputEnabled: false,
   isModalVisible: false,
@@ -97,8 +98,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
   loadSettings: async () => {
     const settings = await SettingsManager.get();
+    const effectiveApiBaseUrl = settings.apiBaseUrl || DEFAULT_API_BASE_URL;
     set({
-      apiBaseUrl: settings.apiBaseUrl,
+      apiBaseUrl: effectiveApiBaseUrl,
       m3uUrl: settings.m3uUrl,
       remoteInputEnabled: settings.remoteInputEnabled || false,
       videoSource: settings.videoSource || {
@@ -106,8 +108,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         sources: {},
       },
     });
-    if (settings.apiBaseUrl) {
-      api.setBaseUrl(settings.apiBaseUrl);
+    if (effectiveApiBaseUrl) {
+      api.setBaseUrl(effectiveApiBaseUrl);
       const authToken = await AsyncStorage.getItem('authCookies');
       if (authToken) {
         api.setCookie(authToken);

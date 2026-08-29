@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api, PlayRecord as ApiPlayRecord, Favorite as ApiFavorite } from "./api";
 import { storageConfig } from "./storageConfig";
+import { DEFAULT_API_BASE_URL } from "@/constants/AppConfig";
 import Logger from '@/utils/Logger';
 
 const logger = Logger.withTag('Storage');
@@ -445,7 +446,7 @@ export class SearchHistoryManager {
 export class SettingsManager {
   static async get(): Promise<AppSettings> {
     const defaultSettings: AppSettings = {
-      apiBaseUrl: "",
+      apiBaseUrl: DEFAULT_API_BASE_URL,
       remoteInputEnabled: true,
       videoSource: {
         enabledAll: true,
@@ -455,7 +456,13 @@ export class SettingsManager {
     };
     try {
       const data = await AsyncStorage.getItem(STORAGE_KEYS.SETTINGS);
-      return data ? { ...defaultSettings, ...JSON.parse(data) } : defaultSettings;
+      if (!data) return defaultSettings;
+      const parsed = JSON.parse(data);
+      return {
+        ...defaultSettings,
+        ...parsed,
+        apiBaseUrl: parsed.apiBaseUrl || DEFAULT_API_BASE_URL,
+      };
     } catch (error) {
       logger.debug("Failed to get settings:", error);
       return defaultSettings;

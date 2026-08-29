@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { DEFAULT_API_BASE_URL } from "@/constants/AppConfig";
 import Logger from "@/utils/Logger";
 
 export const NETWORK_STATUS_ZERO_MESSAGE = "Network request failed (status 0)";
@@ -437,4 +438,4 @@ export class API {
 }
 
 // 默认实例
-export let api = new API();
+export let api = new API(DEFAULT_API_BASE_URL);
