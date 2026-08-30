@@ -13,6 +13,7 @@ export const useTVRemoteHandler = () => {
   const showControls = usePlayerStore((state) => state.showControls);
   const setShowControls = usePlayerStore((state) => state.setShowControls);
   const showEpisodeModal = usePlayerStore((state) => state.showEpisodeModal);
+  const setShowEpisodeModal = usePlayerStore((state) => state.setShowEpisodeModal);
   const showRelatedVideos = usePlayerStore((state) => state.showRelatedVideos);
   const togglePlayPause = usePlayerStore((state) => state.togglePlayPause);
   const seek = usePlayerStore((state) => state.seek);
@@ -81,8 +82,16 @@ export const useTVRemoteHandler = () => {
           return;
         }
 
-        // When controls are visible, `up` and `down` should not trigger other overlays.
-        if (event.eventType === 'up' || event.eventType === 'down') {
+        // When controls are visible, pressing UP directly switches to episode selection modal
+        if (event.eventType === 'up') {
+          setShowControls(false);
+          setShowEpisodeModal(true);
+          return;
+        }
+
+        // When controls are visible, pressing DOWN dismisses the controls overlay
+        if (event.eventType === 'down') {
+          setShowControls(false);
           return;
         }
 
@@ -95,7 +104,8 @@ export const useTVRemoteHandler = () => {
       } else {
         switch (event.eventType) {
           case 'up':
-            setShowControls(true);
+            // UP: Directly open episode selection modal
+            setShowEpisodeModal(true);
             break;
           case 'left':
           case 'longLeft':
@@ -146,12 +156,13 @@ export const useTVRemoteHandler = () => {
             togglePlayPause();
             break;
           case 'down':
+            // DOWN: Show player controls
             setShowControls(true);
             break;
         }
       }
     },
-    [showControls, showEpisodeModal, showRelatedVideos, setShowControls, resetTimer, togglePlayPause, seek]
+    [showControls, showEpisodeModal, showRelatedVideos, setShowControls, setShowEpisodeModal, resetTimer, togglePlayPause, seek]
   );
 
   useTVEventHandler(handleTVEvent);

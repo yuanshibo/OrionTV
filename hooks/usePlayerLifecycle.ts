@@ -9,7 +9,7 @@ const logger = Logger.withTag('PlayerLifecycle');
 
 interface PlayerLifecycleProps {
   player: VideoPlayer | null;
-  status: PlaybackState | null;
+  status?: PlaybackState | null;
   showControls: boolean;
   showRelatedVideos: boolean;
   flushPlaybackRecord: () => void;
@@ -50,7 +50,7 @@ export function usePlayerLifecycle({
       const { isUserPaused, videoPlayer } = usePlayerStore.getState();
 
       if (nextAppState === 'background' || nextAppState === 'inactive') {
-        const currentStatus = statusRef.current;
+        const currentStatus = statusRef.current || usePlayerStore.getState().status;
         const didFinish = currentStatus?.didJustFinish ?? false;
 
         // If the user did not manually pause the playback, mark to resume on returning

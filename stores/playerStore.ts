@@ -96,6 +96,9 @@ interface PlayerState {
   setPlaybackRate: (rate: number) => void;
   setIntroEndTime: () => void;
   setOutroStartTime: () => void;
+  contentFit: 'contain' | 'cover' | 'fill';
+  setContentFit: (fit: 'contain' | 'cover' | 'fill') => void;
+  toggleContentFit: () => void;
   reset: () => void;
   _isRecordSaveThrottled: boolean;
   _savePlayRecord: (updates?: Partial<PlayRecord>, options?: { immediate?: boolean }) => void;
@@ -180,6 +183,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
     progressPosition: 0,
     initialPosition: 0,
     playbackRate: 1.0,
+    contentFit: 'contain',
     introEndTime: undefined,
     outroStartTime: undefined,
     _isRecordSaveThrottled: false,
@@ -248,8 +252,9 @@ const usePlayerStore = create<PlayerState>((set, get) => {
     },
 
     playEpisode: (index) => {
-      const { episodes, introEndTime } = get();
+      const { episodes, introEndTime, videoPlayer } = get();
       if (index >= 0 && index < episodes.length) {
+        const targetEpisode = episodes[index];
         set({
           status: null,
           isLoading: true,
@@ -267,6 +272,19 @@ const usePlayerStore = create<PlayerState>((set, get) => {
         bufferedPositionSV.value = 0;
         isSeekingSV.value = false;
         seekPositionSV.value = 0;
+
+        // Reuse videoPlayer instance if available to avoid destroying/recreating ExoPlayer
+        if (videoPlayer && targetEpisode?.url) {
+          try {
+            if (typeof (videoPlayer as any).replaceAsync === 'function') {
+              (videoPlayer as any).replaceAsync(targetEpisode.url);
+            } else if (typeof (videoPlayer as any).replace === 'function') {
+              (videoPlayer as any).replace(targetEpisode.url);
+            }
+          } catch (e) {
+            logger.debug("Failed to replace videoPlayer source on episode change:", e);
+          }
+        }
       }
     },
 
@@ -542,12 +560,21 @@ const usePlayerStore = create<PlayerState>((set, get) => {
       }
     },
 
+    setContentFit: (fit) => set({ contentFit: fit }),
+    toggleContentFit: () => {
+      const { contentFit } = get();
+      const nextFit = contentFit === 'contain' ? 'cover' : contentFit === 'cover' ? 'fill' : 'contain';
+      set({ contentFit: nextFit });
+      const labelMap = { contain: '默认比例 (等比)', cover: '撑满裁剪 (全屏)', fill: '拉伸铺满' };
+      Toast.show({ type: 'info', text1: '画面比例', text2: labelMap[nextFit] });
+    },
+
     reset: () => {
       if (seekTimeoutId) clearTimeout(seekTimeoutId);
       set({
         videoPlayer: null, episodes: [], currentEpisodeIndex: 0, status: null, isLoading: true, isUserPaused: false, showControls: false,
         showEpisodeModal: false, showSourceModal: false, showSpeedModal: false, showNextEpisodeOverlay: false,
-        initialPosition: 0, playbackRate: 1.0, introEndTime: undefined, outroStartTime: undefined, error: undefined,
+        initialPosition: 0, playbackRate: 1.0, contentFit: 'contain', introEndTime: undefined, outroStartTime: undefined, error: undefined,
         isSeeking: false, isSeekBuffering: false,
       });
       // Reset SharedValues so stale progress doesn't bleed into the next video

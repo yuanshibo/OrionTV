@@ -48,6 +48,16 @@ export const useVideoHandlers = ({
   const lastErrorUrlRef = useRef<string | null>(null);
   const audioRecoveryCountRef = useRef<number>(0);
   const lastAudioRecoveryTimeRef = useRef<number>(0);
+  const playbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const contentFit = usePlayerStore((state) => state.contentFit);
+
+  const clearPlaybackTimeout = useCallback(() => {
+    if (playbackTimeoutRef.current) {
+      clearTimeout(playbackTimeoutRef.current);
+      playbackTimeoutRef.current = null;
+    }
+  }, []);
 
   const emitStatusUpdate = useCallback(
     (updates: Partial<PlaybackState>) => {
@@ -66,7 +76,23 @@ export const useVideoHandlers = ({
     lastValidPositionRef.current = 0;
     audioRecoveryCountRef.current = 0;
     lastAudioRecoveryTimeRef.current = 0;
-  }, [currentEpisode?.url, handlePlaybackStatusUpdate]);
+
+    clearPlaybackTimeout();
+    if (currentEpisode?.url) {
+      // Setup 15-second load timeout protection to prevent infinite buffering on dead sources
+      playbackTimeoutRef.current = setTimeout(() => {
+        if (!statusRef.current.isLoaded && !statusRef.current.error && currentEpisode?.url) {
+          console.warn('[VIDEO] Playback loading timed out after 15s, triggering source fallback...');
+          errorService.showToast('加载超时，正在自动切换播放源...', 'error');
+          usePlayerStore.getState().handleVideoError('network', currentEpisode.url);
+        }
+      }, 15000);
+    }
+
+    return () => {
+      clearPlaybackTimeout();
+    };
+  }, [currentEpisode?.url, handlePlaybackStatusUpdate, clearPlaybackTimeout]);
 
   useEffect(() => {
     pendingSeekRef.current = initialPosition || introEndTime || 0;
@@ -111,6 +137,7 @@ export const useVideoHandlers = ({
             emitStatusUpdate({ isLoaded: false, isBuffering: true, error: undefined, didJustFinish: false });
             break;
           case 'readyToPlay':
+            clearPlaybackTimeout();
             emitStatusUpdate({ isLoaded: true, isBuffering: false, error: undefined });
             updateDuration();
             applyPendingSeek();
@@ -126,6 +153,7 @@ export const useVideoHandlers = ({
             emitStatusUpdate({ isLoaded: false, isPlaying: false, isBuffering: false });
             break;
           case 'error': {
+            clearPlaybackTimeout();
             const message = error?.message ?? 'Unknown playback error';
             const errorType = errorService.detectErrorType(message);
 
@@ -180,12 +208,16 @@ export const useVideoHandlers = ({
         }
       }),
       eventedPlayer.addListener('playingChange', ({ isPlaying }: PlayingChangeEventPayload) => {
+        if (isPlaying) {
+          clearPlaybackTimeout();
+        }
         emitStatusUpdate({ isPlaying });
       }),
       eventedPlayer.addListener('timeUpdate', ({ currentTime, bufferedPosition }: TimeUpdateEventPayload) => {
         const posMillis = currentTime * 1000;
         if (posMillis > 0) {
           lastValidPositionRef.current = posMillis;
+          clearPlaybackTimeout();
         }
         emitStatusUpdate({
           positionMillis: posMillis,
@@ -210,7 +242,7 @@ export const useVideoHandlers = ({
     return () => {
       subscriptions.forEach((subscription) => subscription.remove());
     };
-  }, [player, currentEpisode?.url, applyPendingSeek, updateDuration, emitStatusUpdate]);
+  }, [player, currentEpisode?.url, applyPendingSeek, updateDuration, emitStatusUpdate, clearPlaybackTimeout]);
 
   useEffect(() => {
     if (!player) return;
@@ -222,8 +254,8 @@ export const useVideoHandlers = ({
   }, [player, playbackRate]);
 
   const videoViewProps = useMemo<VideoViewPropsSubset>(
-    () => ({ nativeControls: deviceType !== 'tv', contentFit: 'contain' }),
-    [deviceType],
+    () => ({ nativeControls: deviceType !== 'tv', contentFit }),
+    [deviceType, contentFit],
   );
 
   return { player, videoViewProps };

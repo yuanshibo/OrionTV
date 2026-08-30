@@ -41,13 +41,9 @@ export default function PlayScreen() {
   const detail = useDetailStore((state) => state.detail);
   const initDetail = useDetailStore((state) => state.init);
 
-  const { isLoaded, isBuffering } = usePlayerStore(useShallow(state => ({
-    isLoaded: state.status?.isLoaded ?? false,
-    isBuffering: state.status?.isBuffering ?? false,
-  })));
-
   const {
-    status,
+    isLoaded,
+    isBuffering,
     isLoading,
     isSeeking,
     isSeekBuffering,
@@ -58,19 +54,22 @@ export default function PlayScreen() {
     introEndTime,
     playbackRate,
     error,
-  } = usePlayerStore(useShallow((state) => ({
-    status: state.status,
-    isLoading: state.isLoading,
-    isSeeking: state.isSeeking,
-    isSeekBuffering: state.isSeekBuffering,
-    seekPosition: state.seekPosition,
-    showControls: state.showControls,
-    showRelatedVideos: state.showRelatedVideos,
-    initialPosition: state.initialPosition,
-    introEndTime: state.introEndTime,
-    playbackRate: state.playbackRate,
-    error: state.error,
-  })));
+  } = usePlayerStore(
+    useShallow((state) => ({
+      isLoaded: state.status?.isLoaded ?? false,
+      isBuffering: state.status?.isBuffering ?? false,
+      isLoading: state.isLoading,
+      isSeeking: state.isSeeking,
+      isSeekBuffering: state.isSeekBuffering,
+      seekPosition: state.seekPosition,
+      showControls: state.showControls,
+      showRelatedVideos: state.showRelatedVideos,
+      initialPosition: state.initialPosition,
+      introEndTime: state.introEndTime,
+      playbackRate: state.playbackRate,
+      error: state.error,
+    }))
+  );
   const currentEpisode = usePlayerStore(selectCurrentEpisode);
 
   // Get non-reactive actions from the store
@@ -109,7 +108,6 @@ export default function PlayScreen() {
 
   usePlayerLifecycle({
     player,
-    status,
     showControls,
     showRelatedVideos,
     flushPlaybackRecord,

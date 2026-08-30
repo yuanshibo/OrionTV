@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { View, Text, StyleSheet, useColorScheme } from "react-native";
-import { Pause, Play, SkipForward, List, Tv, ArrowDownToDot, ArrowUpFromDot, Gauge } from "lucide-react-native";
+import { Pause, Play, SkipForward, List, Tv, ArrowDownToDot, ArrowUpFromDot, Gauge, Ratio } from "lucide-react-native";
 import { MediaButton } from "@/components/MediaButton";
 import { useShallow } from "zustand/react/shallow";
 
@@ -26,10 +26,12 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
     isLoaded,
     isPlaying,
     playbackRate,
+    contentFit,
     introEndTime,
     outroStartTime,
     togglePlayPause,
     playEpisode,
+    toggleContentFit,
     setShowEpisodeModal,
     setShowSourceModal,
     setShowSpeedModal,
@@ -42,10 +44,12 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
       isLoaded: state.status?.isLoaded,
       isPlaying: state.status?.isPlaying,
       playbackRate: state.playbackRate,
+      contentFit: state.contentFit,
       introEndTime: state.introEndTime,
       outroStartTime: state.outroStartTime,
       togglePlayPause: state.togglePlayPause,
       playEpisode: state.playEpisode,
+      toggleContentFit: state.toggleContentFit,
       setShowEpisodeModal: state.setShowEpisodeModal,
       setShowSourceModal: state.setShowSourceModal,
       setShowSpeedModal: state.setShowSpeedModal,
@@ -183,6 +187,13 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
 
           <MediaButton onPress={() => setShowSourceModal(true)}>
             <Tv color={colors.text} size={24} />
+          </MediaButton>
+
+          <MediaButton
+            onPress={toggleContentFit}
+            timeLabel={contentFit === 'cover' ? '全屏' : contentFit === 'fill' ? '拉伸' : '16:9'}
+          >
+            <Ratio color={colors.text} size={24} />
           </MediaButton>
         </View>
 

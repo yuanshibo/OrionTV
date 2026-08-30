@@ -103,4 +103,38 @@ describe('playerStore - Playback Recovery and togglePlayPause', () => {
     expect(mockPlayer.currentTime).toBe(60);
     expect(mockPlay).toHaveBeenCalled();
   });
+
+  it('cycles contentFit when toggleContentFit is called', () => {
+    expect(usePlayerStore.getState().contentFit).toBe('contain');
+
+    usePlayerStore.getState().toggleContentFit();
+    expect(usePlayerStore.getState().contentFit).toBe('cover');
+
+    usePlayerStore.getState().toggleContentFit();
+    expect(usePlayerStore.getState().contentFit).toBe('fill');
+
+    usePlayerStore.getState().toggleContentFit();
+    expect(usePlayerStore.getState().contentFit).toBe('contain');
+  });
+
+  it('reuses videoPlayer replaceAsync/replace when switching episodes via playEpisode', () => {
+    const mockReplaceAsync = jest.fn().mockResolvedValue(undefined);
+    const mockPlayer = {
+      replaceAsync: mockReplaceAsync,
+    } as any;
+
+    usePlayerStore.setState({
+      videoPlayer: mockPlayer,
+      episodes: [
+        { url: 'http://example.com/ep1.m3u8', title: '第 1 集' },
+        { url: 'http://example.com/ep2.m3u8', title: '第 2 集' },
+      ],
+      currentEpisodeIndex: 0,
+    });
+
+    usePlayerStore.getState().playEpisode(1);
+
+    expect(usePlayerStore.getState().currentEpisodeIndex).toBe(1);
+    expect(mockReplaceAsync).toHaveBeenCalledWith('http://example.com/ep2.m3u8');
+  });
 });
