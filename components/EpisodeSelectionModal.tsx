@@ -54,14 +54,12 @@ const EpisodeSelectionModalContent: React.FC = () => {
   const [focusedArea, setFocusedArea] = useState<"episodes" | "range">("episodes");
   const [groupFocusGeneration, setGroupFocusGeneration] = useState(0);
 
-  // focusedEpisodeIndex 仅用于切换分组后通过 hasTVPreferredFocus 指定初始焦点，
-  // 导航中不再通过它触发重渲染，避免 keyExtractor 变化引起所有 item 重新挂载
   const [focusedEpisodeIndex, setFocusedEpisodeIndex] = useState<number>(initialLocal);
 
   const groupFlatListRef = useRef<FlatList>(null);
   const chunks = useMemo(() => chunkEpisodes(episodes, EPISODE_GROUP_SIZE), [episodes]);
 
-  // Synchronous refs for TV remote event handling (不触发重渲染)
+  // Synchronous refs for TV remote event handling
   const selectedEpisodeGroupRef = useRef(selectedEpisodeGroup);
   selectedEpisodeGroupRef.current = selectedEpisodeGroup;
 
@@ -120,7 +118,7 @@ const EpisodeSelectionModalContent: React.FC = () => {
     }
   }, []);
 
-  // 强制聚焦到某个 episode ref 节点（用于导航时精准移焦，不触发重渲染）
+  // 强制聚焦到某个 episode ref 节点
   const focusEpisodeRef = useCallback((localIndex: number) => {
     const node = episodeRefs.current.get(localIndex);
     if (node && typeof node.setNativeProps === "function") {
@@ -133,6 +131,20 @@ const EpisodeSelectionModalContent: React.FC = () => {
     const node = groupRefs.current.get(groupIndex);
     if (node && typeof node.setNativeProps === "function") {
       node.setNativeProps({ hasTVPreferredFocus: true });
+    }
+  }, []);
+
+  // 安全滚动分组栏
+  const scrollToGroup = useCallback((groupIndex: number) => {
+    if (groupIndex < 0 || groupIndex >= chunksRef.current.length) return;
+    try {
+      groupFlatListRef.current?.scrollToIndex({
+        index: groupIndex,
+        animated: true,
+        viewPosition: 0.3,
+      });
+    } catch {
+      // Ignore initial layout measurement errors
     }
   }, []);
 
@@ -152,8 +164,8 @@ const EpisodeSelectionModalContent: React.FC = () => {
 
       // 顶部分组栏平滑滚动到当前组
       const scrollTimer = setTimeout(() => {
-        groupFlatListRef.current?.scrollToIndex({ index: targetGroup, animated: true, viewPosition: 0.3 });
-      }, 60);
+        scrollToGroup(targetGroup);
+      }, 100);
 
       // 等 FlatList 渲染完成后，通过 setNativeProps 精准聚焦当前播放集
       const focusTimer = setTimeout(() => {
@@ -165,7 +177,7 @@ const EpisodeSelectionModalContent: React.FC = () => {
         clearTimeout(focusTimer);
       };
     }
-  }, [showEpisodeModal, currentEpisodeIndex, focusEpisodeRef]);
+  }, [showEpisodeModal, currentEpisodeIndex, focusEpisodeRef, scrollToGroup]);
 
   useEffect(() => {
     episodeRefs.current.clear();
@@ -193,33 +205,6 @@ const EpisodeSelectionModalContent: React.FC = () => {
     setShowEpisodeModal(false);
   }, [setShowEpisodeModal]);
 
-  // 跨分组切换：切换 selectedEpisodeGroup 触发 FlatList 重挂载，再延迟聚焦目标 item
-  const switchGroup = useCallback((targetGroup: number, targetLocalIndex: number) => {
-    if (targetGroup < 0 || targetGroup >= chunksRef.current.length) return;
-
-    selectedEpisodeGroupRef.current = targetGroup;
-    focusedEpisodeIndexRef.current = targetLocalIndex;
-    focusedAreaRef.current = "episodes";
-
-    setSelectedEpisodeGroup(targetGroup);
-    setFocusedEpisodeIndex(targetLocalIndex);
-    setFocusedArea("episodes");
-
-    groupFlatListRef.current?.scrollToIndex({
-      index: targetGroup,
-      animated: true,
-      viewPosition: 0.3,
-    });
-
-    // 等新分组的 FlatList 渲染完成后聚焦
-    setTimeout(() => {
-      const node = episodeRefs.current.get(targetLocalIndex);
-      if (node && typeof node.setNativeProps === "function") {
-        node.setNativeProps({ hasTVPreferredFocus: true });
-      }
-    }, 200);
-  }, []);
-
   const handleTVEvent = useCallback(
     (event: HWEvent) => {
       if (!showEpisodeModal) return;
@@ -239,6 +224,7 @@ const EpisodeSelectionModalContent: React.FC = () => {
           // 规则 7: 焦点从分组栏按下键，直接移动到当前分组第一行最左侧（第 1 集）
           focusedEpisodeIndexRef.current = 0;
           focusedAreaRef.current = "episodes";
+          setFocusedEpisodeIndex(0);
           setFocusedArea("episodes");
           focusEpisodeRef(0);
           return;
@@ -248,7 +234,7 @@ const EpisodeSelectionModalContent: React.FC = () => {
           selectedEpisodeGroupRef.current = prevGroup;
           setSelectedEpisodeGroup(prevGroup);
           setGroupFocusGeneration((prev) => prev + 1);
-          groupFlatListRef.current?.scrollToIndex({ index: prevGroup, animated: true, viewPosition: 0.3 });
+          scrollToGroup(prevGroup);
           return;
         }
         if (eventType === "right" && currentGroup < allChunks.length - 1) {
@@ -256,19 +242,16 @@ const EpisodeSelectionModalContent: React.FC = () => {
           selectedEpisodeGroupRef.current = nextGroup;
           setSelectedEpisodeGroup(nextGroup);
           setGroupFocusGeneration((prev) => prev + 1);
-          groupFlatListRef.current?.scrollToIndex({ index: nextGroup, animated: true, viewPosition: 0.3 });
+          scrollToGroup(nextGroup);
           return;
         }
       }
 
       if (currentArea === "episodes") {
         if (total === 0) return;
-        const isLastInRow = currentEpIdx % 5 === 4;
-        const isFirstInRow = currentEpIdx % 5 === 0;
         const isFirstRow = currentEpIdx < 5;
         const isLastRow = currentEpIdx + 5 >= total;
         const isLastItem = currentEpIdx === total - 1;
-        const isFirstItem = currentEpIdx === 0;
 
         if (eventType === "up") {
           if (isFirstRow && allChunks.length > 1) {
@@ -286,25 +269,18 @@ const EpisodeSelectionModalContent: React.FC = () => {
           }
         }
 
-        // 规则 3 & 规则 6: 下键移动
         if (eventType === "down") {
           if (isLastRow) {
-            // 规则 6: 末尾行按下键，自动切换到下一组，焦点垂直移动到下一组第一行对应列
-            if (currentGroup < allChunks.length - 1) {
-              const col = currentEpIdx % 5;
-              const nextChunk = allChunks[currentGroup + 1];
-              const nextTotal = nextChunk?.items?.length || 1;
-              const targetLocalIndex = Math.min(col, nextTotal - 1);
-              switchGroup(currentGroup + 1, targetLocalIndex);
-              return;
-            }
-            // 已是最后一组末尾行，回到顶部分组栏
-            if (allChunks.length > 1) {
-              focusedAreaRef.current = "range";
-              setFocusedArea("range");
-              focusGroupRef(currentGroup);
-              return;
-            }
+            // 规则 6: 末尾行按下键，焦点移动到下一组的分组栏标签
+            const nextGroup = currentGroup < allChunks.length - 1 ? currentGroup + 1 : currentGroup;
+            selectedEpisodeGroupRef.current = nextGroup;
+            focusedAreaRef.current = "range";
+            setSelectedEpisodeGroup(nextGroup);
+            setFocusedArea("range");
+            setGroupFocusGeneration((prev) => prev + 1);
+            scrollToGroup(nextGroup);
+            focusGroupRef(nextGroup);
+            return;
           } else {
             // 规则 3: 严格垂直向下
             const targetIdx = currentEpIdx + 5;
@@ -314,14 +290,18 @@ const EpisodeSelectionModalContent: React.FC = () => {
           }
         }
 
-        // 规则 4 & 规则 5: 右键移动
         if (eventType === "right") {
           if (isLastItem) {
-            // 规则 5: 组末最右按右键，切换到下一组第 1 集
-            if (currentGroup < allChunks.length - 1) {
-              switchGroup(currentGroup + 1, 0);
-              return;
-            }
+            // 规则 5: 组末最右按右键，焦点移动到下一组的分组栏标签
+            const nextGroup = currentGroup < allChunks.length - 1 ? currentGroup + 1 : currentGroup;
+            selectedEpisodeGroupRef.current = nextGroup;
+            focusedAreaRef.current = "range";
+            setSelectedEpisodeGroup(nextGroup);
+            setFocusedArea("range");
+            setGroupFocusGeneration((prev) => prev + 1);
+            scrollToGroup(nextGroup);
+            focusGroupRef(nextGroup);
+            return;
           } else {
             const targetIdx = currentEpIdx + 1;
             focusedEpisodeIndexRef.current = targetIdx;
@@ -331,14 +311,7 @@ const EpisodeSelectionModalContent: React.FC = () => {
         }
 
         if (eventType === "left") {
-          if (isFirstItem) {
-            if (currentGroup > 0) {
-              const prevChunk = allChunks[currentGroup - 1];
-              const prevTotal = prevChunk?.items?.length || 1;
-              switchGroup(currentGroup - 1, prevTotal - 1);
-              return;
-            }
-          } else {
+          if (currentEpIdx > 0) {
             const targetIdx = currentEpIdx - 1;
             focusedEpisodeIndexRef.current = targetIdx;
             focusEpisodeRef(targetIdx);
@@ -347,10 +320,15 @@ const EpisodeSelectionModalContent: React.FC = () => {
         }
       }
     },
-    [showEpisodeModal, switchGroup, onClose, focusEpisodeRef, focusGroupRef]
+    [showEpisodeModal, onClose, focusEpisodeRef, focusGroupRef, scrollToGroup]
   );
 
   useTVEventHandler(handleTVEvent);
+
+  // 计算当前分组及下一组的分组栏焦点 tag
+  const currentGroupTag = groupTags.get(selectedEpisodeGroup);
+  const nextGroupIndex = selectedEpisodeGroup < chunks.length - 1 ? selectedEpisodeGroup + 1 : selectedEpisodeGroup;
+  const nextGroupTag = chunks.length > 1 ? groupTags.get(nextGroupIndex) : undefined;
 
   return (
     <PlayerModalBase
@@ -369,6 +347,15 @@ const EpisodeSelectionModalContent: React.FC = () => {
               keyExtractor={(item) => `chunk-${item.index}`}
               contentContainerStyle={styles.episodeGroupContainer}
               initialScrollIndex={selectedEpisodeGroup >= 0 && selectedEpisodeGroup < chunks.length ? selectedEpisodeGroup : 0}
+              removeClippedSubviews={false}
+              windowSize={21}
+              initialNumToRender={15}
+              maxToRenderPerBatch={10}
+              onScrollToIndexFailed={(info) => {
+                setTimeout(() => {
+                  scrollToGroup(info.index);
+                }, 100);
+              }}
               renderItem={({ item: chunk }) => (
                 <StyledButton
                   ref={(node) => setGroupRef(chunk.index, node)}
@@ -380,6 +367,7 @@ const EpisodeSelectionModalContent: React.FC = () => {
                     selectedEpisodeGroupRef.current = chunk.index;
                     setFocusedArea("range");
                     setSelectedEpisodeGroup(chunk.index);
+                    scrollToGroup(chunk.index);
                   }}
                   hasTVPreferredFocus={focusedArea === "range" && selectedEpisodeGroup === chunk.index}
                   nextFocusDown={episodeTags.get(0)}
@@ -398,7 +386,6 @@ const EpisodeSelectionModalContent: React.FC = () => {
         data={visibleEpisodes}
         numColumns={5}
         contentContainerStyle={styles.episodeList}
-        // keyExtractor 只用 selectedEpisodeGroup + index，切换分组才 remount，按键导航不 remount
         keyExtractor={(_, index) => `episode-${selectedEpisodeGroup}-${startIndex + index}`}
         initialNumToRender={30}
         maxToRenderPerBatch={30}
@@ -410,16 +397,27 @@ const EpisodeSelectionModalContent: React.FC = () => {
           const isLastRow = index + 5 >= visibleEpisodes.length;
           const isLastInRow = index % 5 === 4;
           const isFirstInRow = index % 5 === 0;
+          const isLastItem = index === visibleEpisodes.length - 1;
 
-          // 跨行换行连接 (规则 4)
-          const nextRightTag = isLastInRow && index + 1 < visibleEpisodes.length ? episodeTags.get(index + 1) : undefined;
-          const nextLeftTag = isFirstInRow && index > 0 ? episodeTags.get(index - 1) : undefined;
+          // 跨行换行连接 (规则 4) & 组末最右移动到下一组分组栏 (规则 5)
+          let nextRightTag: number | undefined;
+          if (isLastItem) {
+            nextRightTag = nextGroupTag; // 规则 5: 组末最右按右键，移动到下一组分组栏
+          } else if (isLastInRow && index + 1 < visibleEpisodes.length) {
+            nextRightTag = episodeTags.get(index + 1); // 规则 4: 行末跨行到下一行首
+          } else if (index + 1 < visibleEpisodes.length) {
+            nextRightTag = episodeTags.get(index + 1);
+          }
+
+          // 行首向左回到上一行末尾 (规则 4)
+          const nextLeftTag = isFirstInRow && index > 0 ? episodeTags.get(index - 1) : (index > 0 ? episodeTags.get(index - 1) : undefined);
+
           // 第一行向上直达分组栏 (规则 2)
-          const nextUpTag = isFirstRow ? groupTags.get(selectedEpisodeGroup) : episodeTags.get(index - 5);
-          // 规则 6: 末尾行不设 nextFocusDown，由 handleTVEvent 控制跨组跳转
-          const nextDownTag = isLastRow ? undefined : episodeTags.get(index + 5);
+          const nextUpTag = isFirstRow ? currentGroupTag : episodeTags.get(index - 5);
 
-          // 切换分组后，通过 hasTVPreferredFocus 指定初始焦点位置
+          // 规则 6: 末尾行按下键，移动到下一组分组栏；非末尾行严格垂直向下 (规则 3)
+          const nextDownTag = isLastRow ? nextGroupTag : episodeTags.get(index + 5);
+
           const isTargetFocused = focusedArea === "episodes" && focusedEpisodeIndex === index;
 
           return (
