@@ -1,5 +1,49 @@
 import { Category, DoubanFilterConfig, DoubanFilterGroup, ActiveDoubanFilters } from "@/types";
 
+export const generateYearOptions = (): { label: string; value: string }[] => {
+  const currentYear = new Date().getFullYear();
+  const currentDecadeStart = Math.floor(currentYear / 10) * 10;
+
+  const options: { label: string; value: string }[] = [
+    { label: "全部", value: "all" },
+    { label: `${currentDecadeStart}年代`, value: `${currentDecadeStart}年代` },
+  ];
+
+  // 最近年代内：每一年都生成按钮（从当前年份倒序到年代初）
+  for (let y = currentYear; y >= currentDecadeStart; y--) {
+    options.push({ label: `${y}`, value: `${y}` });
+  }
+
+  // 上一个年代开始，10年一个单位
+  const historicalDecades = [
+    { label: "2010年代", value: "2010年代" },
+    { label: "2000年代", value: "2000年代" },
+    { label: "90年代", value: "90年代" },
+    { label: "80年代", value: "80年代" },
+    { label: "70年代", value: "70年代" },
+    { label: "60年代", value: "60年代" },
+    { label: "更早", value: "更早" },
+  ];
+
+  // 若未来在 2030 年代及以后，动态补充中间的年代
+  for (let d = currentDecadeStart - 10; d >= 2020; d -= 10) {
+    const decadeStr = `${d}年代`;
+    if (!historicalDecades.some((h) => h.value === decadeStr)) {
+      options.push({ label: decadeStr, value: decadeStr });
+    }
+  }
+
+  // 补入历史年代
+  for (const h of historicalDecades) {
+    const num = parseInt(h.value, 10);
+    if (isNaN(num) || num < currentDecadeStart) {
+      options.push(h);
+    }
+  }
+
+  return options;
+};
+
 export const SHARED_FILTER_GROUPS: DoubanFilterGroup[] = [
   {
     key: "region",
@@ -11,10 +55,10 @@ export const SHARED_FILTER_GROUPS: DoubanFilterGroup[] = [
       { label: '欧美', value: '欧美' },
       { label: '韩国', value: '韩国' },
       { label: '日本', value: '日本' },
-      { label: '中国大陆', value: '中国大陆' },
+      { label: '中国', value: '中国大陆' },
       { label: '美国', value: '美国' },
-      { label: '中国香港', value: '中国香港' },
-      { label: '中国台湾', value: '中国台湾' },
+      { label: '香港', value: '中国香港' },
+      { label: '台湾', value: '中国台湾' },
       { label: '英国', value: '英国' },
       { label: '法国', value: '法国' },
       { label: '德国', value: '德国' },
@@ -35,24 +79,7 @@ export const SHARED_FILTER_GROUPS: DoubanFilterGroup[] = [
     key: "year",
     label: "年代",
     defaultValue: "all",
-    options: [
-      { label: "全部", value: "all" },
-      { label: '2020年代', value: '2020年代' },
-      { label: '2025', value: '2025' },
-      { label: '2024', value: '2024' },
-      { label: '2023', value: '2023' },
-      { label: '2022', value: '2022' },
-      { label: '2021', value: '2021' },
-      { label: '2020', value: '2020' },
-      { label: '2019', value: '2019' },
-      { label: '2010年代', value: '2010年代' },
-      { label: '2000年代', value: '2000年代' },
-      { label: '90年代', value: '90年代' },
-      { label: '80年代', value: '80年代' },
-      { label: '70年代', value: '70年代' },
-      { label: '60年代', value: '60年代' },
-      { label: '更早', value: '更早' },
-    ],
+    options: generateYearOptions(),
   },
 ];
 
