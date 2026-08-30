@@ -29,6 +29,8 @@ export const PlayerModalBase: React.FC<PlayerModalBaseProps> = ({
 }) => {
   const isDrawer = variant === "drawer";
 
+  if (!visible) return null;
+
   return (
     <Modal
       visible={visible}
