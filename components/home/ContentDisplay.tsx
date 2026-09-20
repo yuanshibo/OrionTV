@@ -4,7 +4,7 @@ import Reanimated, { SharedValue, useAnimatedStyle } from 'react-native-reanimat
 import { ThemedText } from '@/components/ThemedText';
 import CustomScrollView from '@/components/CustomScrollView';
 import { getApiConfigErrorMessage } from '@/hooks/useApiConfig';
-import { Category, RowItem } from '@/services/dataTypes';
+import { Category, RowItem } from '@/types';
 import VideoCard from '@/components/VideoCard';
 import { api } from '@/services/api';
 

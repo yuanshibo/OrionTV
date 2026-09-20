@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useCallback, memo, useMemo } from "react";
 import { View, ViewStyle, TextStyle, findNodeHandle, TVFocusGuideView } from "react-native";
 import { FlashList, FlashListRef } from "@shopify/flash-list";
 import { StyledButton } from "@/components/StyledButton";
-import { Category } from "@/services/dataTypes";
+import { Category } from "@/types";
 import { requestTVFocus } from "@/utils/tvUtils";
 import { useFocusStore } from "@/stores/focusStore";
 import { useHomeUIStore } from "@/stores/homeUIStore";

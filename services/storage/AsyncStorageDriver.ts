@@ -32,6 +32,14 @@ export class AsyncStorageDriver<T> implements IStorageDriver<T> {
     }
   }
 
+  async saveAll(items: Record<string, T>): Promise<void> {
+    try {
+      await AsyncStorage.setItem(this.storageKey, JSON.stringify(items));
+    } catch (error) {
+      logger.error(`Failed to save all items to ${this.storageKey}:`, error);
+    }
+  }
+
   async remove(key: string): Promise<void> {
     try {
       const all = await this.getAll();

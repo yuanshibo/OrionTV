@@ -8,30 +8,6 @@ export interface M3U8ProbeResult {
   error?: string;
 }
 
-interface CacheEntry {
-  available: boolean;
-  resolution: string | null;
-  timestamp: number;
-}
-
-const probeCache: { [url: string]: CacheEntry } = {};
-const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes
-const MAX_CACHE_SIZE = 100;
-
-function setProbeCache(url: string, entry: CacheEntry) {
-  probeCache[url] = entry;
-  const keys = Object.keys(probeCache);
-  if (keys.length > MAX_CACHE_SIZE) {
-    let oldest = keys[0];
-    for (let i = 1; i < keys.length; i++) {
-      if (probeCache[keys[i]].timestamp < probeCache[oldest].timestamp) {
-        oldest = keys[i];
-      }
-    }
-    delete probeCache[oldest];
-  }
-}
-
 export const probeM3U8 = async (
   url: string,
   externalSignal?: AbortSignal,
@@ -39,15 +15,6 @@ export const probeM3U8 = async (
 ): Promise<M3U8ProbeResult> => {
   if (!url || typeof url !== 'string') {
     return { available: false, resolution: null, error: 'Empty URL' };
-  }
-
-  // 1. Check cache first
-  const cached = probeCache[url];
-  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-    return {
-      available: cached.available,
-      resolution: cached.resolution,
-    };
   }
 
   // Set up 3.5s timeout controller with external signal support
@@ -89,7 +56,6 @@ export const probeM3U8 = async (
         resolution: null,
         error: `HTTP ${response.status}`,
       };
-      setProbeCache(url, { available: false, resolution: null, timestamp: Date.now() });
       return result;
     }
 
@@ -138,12 +104,6 @@ export const probeM3U8 = async (
       `[PROBE] M3U8 probe success: took ${(perfEnd - perfStart).toFixed(1)}ms, resolution: ${resolutionString || 'unknown'}`
     );
 
-    setProbeCache(url, {
-      available: true,
-      resolution: resolutionString,
-      timestamp: Date.now(),
-    });
-
     return {
       available: true,
       resolution: resolutionString,
@@ -165,7 +125,6 @@ export const probeM3U8 = async (
       error: errorMsg,
     };
 
-    probeCache[url] = { available: false, resolution: null, timestamp: Date.now() };
     return result;
   }
 };

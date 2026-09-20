@@ -21,6 +21,33 @@ let seekTimeoutId: ReturnType<typeof setTimeout> | undefined = undefined;
 const SEEK_UI_TIMEOUT = 5000;
 let isEpisodeSwitching = false;
 
+type ExtendableVideoPlayer = VideoPlayer & {
+  replaceAsync?: (url: string) => Promise<void>;
+  replace?: (url: string) => void;
+  status?: string;
+};
+
+const safeReplacePlayerSource = (player: VideoPlayer | null, url: string): Promise<void> | void => {
+  if (!player || !url) return;
+  const extPlayer = player as ExtendableVideoPlayer;
+  try {
+    if (typeof extPlayer.replaceAsync === "function") {
+      return extPlayer.replaceAsync(url);
+    } else if (typeof extPlayer.replace === "function") {
+      extPlayer.replace(url);
+    } else if (typeof player.replay === "function") {
+      player.replay();
+    }
+  } catch (e) {
+    logger.debug("[PlayerStore] safeReplacePlayerSource failed:", e);
+  }
+};
+
+const isPlayerNativeError = (player: VideoPlayer | null): boolean => {
+  if (!player) return false;
+  return (player as ExtendableVideoPlayer).status === "error";
+};
+
 interface Episode {
   url: string;
   title: string;
@@ -101,6 +128,8 @@ interface PlayerState {
   toggleContentFit: () => void;
   reset: () => void;
   _isRecordSaveThrottled: boolean;
+  savePlayRecord: (updates?: Partial<PlayRecord>, options?: { immediate?: boolean }) => void;
+  /** @deprecated Use savePlayRecord instead */
   _savePlayRecord: (updates?: Partial<PlayRecord>, options?: { immediate?: boolean }) => void;
   handleVideoError: (errorType: 'ssl' | 'network' | 'other', failedUrl: string) => Promise<void>;
 }
@@ -127,24 +156,8 @@ const usePlayerStore = create<PlayerState>((set, get) => {
       const playbackRate = playerSettings?.playbackRate || latestRecord?.playbackRate || 1.0;
 
       // Position Sync Logic:
-      // 1. Prefer current source's record if it exists.
-      // 2. If current source has no record, check if we are playing the episode that corresponds to the latest record.
-      //    (latestRecord.index is 1-based, currentEpisodeIndex in store isn't available here but passed to loadVideo's caller.
-      //     Wait, _loadPlaybackData is called inside loadVideo. We need to know the target episode index to sync position correctly.)
-
-      // We return the raw data here. The consumer (loadVideo) needs to decide on initialPosition based on the target episode.
-      // Let's refine the return type or logic. 
-
-      // Actually, _loadPlaybackData is called *inside* loadVideo, but it doesn't take episodeIndex as arg currently.
-      // However, we can return the latestRecord and let loadVideo handle the position logic, OR we can pass episodeIndex to _loadPlaybackData.
-      // Let's update _loadPlaybackData signature to take episodeIndex? 
-      // No, looking at loadVideo: `const playbackDataResult = await _loadPlaybackData(detail);`
-      // It sets `initialPosition` from `playbackDataResult.data.initialPosition`.
-
-      // Let's change _loadPlaybackData to return the potential sync position.
-      // We can't know if it matches the *target* episode inside here without the argument. 
-      // But wait, `loadVideo` has `episodeIndex`.
-
+      // Return current source's playback position if available; otherwise return undefined so
+      // loadVideo can fall back to cross-source latestRecord matching the target episode index.
       return {
         data: {
           // Return the current source's position if its record exists (even if 0).
@@ -275,15 +288,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
 
         // Reuse videoPlayer instance if available to avoid destroying/recreating ExoPlayer
         if (videoPlayer && targetEpisode?.url) {
-          try {
-            if (typeof (videoPlayer as any).replaceAsync === 'function') {
-              (videoPlayer as any).replaceAsync(targetEpisode.url);
-            } else if (typeof (videoPlayer as any).replace === 'function') {
-              (videoPlayer as any).replace(targetEpisode.url);
-            }
-          } catch (e) {
-            logger.debug("Failed to replace videoPlayer source on episode change:", e);
-          }
+          void safeReplacePlayerSource(videoPlayer, targetEpisode.url);
         }
       }
     },
@@ -301,12 +306,9 @@ const usePlayerStore = create<PlayerState>((set, get) => {
 
       if (videoPlayer && currentEpisode?.url) {
         try {
-          if (typeof (videoPlayer as any).replaceAsync === 'function') {
-            await (videoPlayer as any).replaceAsync(currentEpisode.url);
-          } else if (typeof (videoPlayer as any).replace === 'function') {
-            (videoPlayer as any).replace(currentEpisode.url);
-          } else {
-            videoPlayer.replay();
+          const replaceResult = safeReplacePlayerSource(videoPlayer, currentEpisode.url);
+          if (replaceResult instanceof Promise) {
+            await replaceResult;
           }
           if (resumePosition > 0) {
             videoPlayer.currentTime = resumePosition / 1000;
@@ -340,8 +342,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
 
       if (videoPlayer) {
         try {
-          const isNativeError = (videoPlayer as any).status === 'error';
-          if (isNativeError) {
+          if (isPlayerNativeError(videoPlayer)) {
             get().retryCurrentPlayback();
             return;
           }
@@ -507,7 +508,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
       }
     },
 
-    _savePlayRecord: (updates = {}, options = {}) => {
+    savePlayRecord: (updates = {}, options = {}) => {
       const { immediate = false } = options;
       if (!immediate) {
         if (get()._isRecordSaveThrottled) return;
@@ -539,6 +540,10 @@ const usePlayerStore = create<PlayerState>((set, get) => {
           logger.debug("Failed to persist play record:", err);
         });
       }
+    },
+
+    _savePlayRecord: (updates = {}, options = {}) => {
+      get().savePlayRecord(updates, options);
     },
 
     setLoading: (loading) => set({ isLoading: loading }),

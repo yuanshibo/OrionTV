@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { RowItem, Category } from "@/services/dataTypes";
+import { RowItem, Category } from "@/types";
 import { homeService } from "@/services/HomeService";
 import { contentCacheService } from "@/services/ContentCacheService";
 import { ImagePreloader } from "@/services/ImagePreloader";

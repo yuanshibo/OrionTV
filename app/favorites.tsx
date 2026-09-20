@@ -4,7 +4,7 @@ import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
 import useFavoritesStore from "@/stores/favoritesStore";
 import { useShallow } from "zustand/react/shallow";
-import { Favorite } from "@/services/storage";
+import { Favorite, parseStorageKey } from "@/services/storage";
 import VideoCard from "@/components/VideoCard";
 import { api } from "@/services/api";
 import CustomScrollView from "@/components/CustomScrollView";
@@ -37,9 +37,7 @@ export default function FavoritesScreen() {
   }, [fetchFavorites]);
 
   const renderItem = useCallback(({ item }: { item: Favorite & { key: string }; index: number }) => {
-    const firstPlusIndex = item.key.indexOf("+");
-    const source = firstPlusIndex !== -1 ? item.key.slice(0, firstPlusIndex) : "";
-    const id = firstPlusIndex !== -1 ? item.key.slice(firstPlusIndex + 1) : item.key;
+    const { source, id } = parseStorageKey(item.key);
     return (
       <VideoCard
         type="favorite"

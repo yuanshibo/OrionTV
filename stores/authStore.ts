@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "@/services/api";
-import { useSettingsStore } from "./settingsStore";
+import { useSettingsStore, setAuthSyncHandler, setAuthLogoutHandler } from "./settingsStore";
 import Toast from "react-native-toast-message";
 import Logger from "@/utils/Logger";
 
@@ -102,6 +102,19 @@ const useAuthStore = create<AuthState>((set) => {
       }
     },
   };
+});
+
+// Automatically synchronize auth status when settings/serverConfig loads
+setAuthSyncHandler(async (apiBaseUrl) => {
+  if (!apiBaseUrl) {
+    useAuthStore.setState({ isAuthChecked: true });
+    return;
+  }
+  await useAuthStore.getState().checkLoginStatus(apiBaseUrl);
+});
+
+setAuthLogoutHandler(async () => {
+  await useAuthStore.getState().logout();
 });
 
 export default useAuthStore;

@@ -42,8 +42,60 @@ const mapNetworkErrorMessage = (error: unknown, fallback: string): string => {
 
 let lastCacheKey: string | null = null;
 
+const fetchDetailAuxData = async (detail: SearchResultWithResolution) => {
+  try {
+    const [isFavorited, resumeRecord] = await Promise.all([
+      FavoriteManager.isFavorited(detail.source, detail.id.toString()),
+      PlayRecordManager.getLatestByTitle(detail.title, detail.year, detail.type),
+    ]);
+    return { isFavorited, resumeRecord };
+  } catch (e) {
+    logger.debug("[DetailStore] Failed to fetch aux data for source:", e);
+    return { isFavorited: false, resumeRecord: null };
+  }
+};
 
+const shouldSwitchToNewSource = (
+  currentDetail: SearchResultWithResolution,
+  newDetail: SearchResultWithResolution,
+  preferredSource?: string,
+  historySourceKey?: string | null
+): boolean => {
+  const isSameYear = !currentDetail.year || !newDetail.year || currentDetail.year === newDetail.year;
+  const isSameType = !currentDetail.type || !newDetail.type || currentDetail.type === newDetail.type;
 
+  if (!isSameYear || !isSameType || newDetail.episodes.length === 0) {
+    return false;
+  }
+
+  const currentLen = currentDetail.episodes.length;
+  const newLen = newDetail.episodes.length;
+  const threshold = Math.max(Math.ceil(currentLen * 1.2), currentLen + 3);
+  const isTargetSource = currentDetail.source === preferredSource || currentDetail.source === historySourceKey;
+
+  if (isTargetSource) {
+    return newLen >= threshold;
+  }
+  return newLen > currentLen;
+};
+
+const sortAvailableSources = (sources: SearchResultWithResolution[]): SearchResultWithResolution[] => {
+  return [...sources].sort((a, b) => {
+    const bResScore = resolutionPriority(b.resolution);
+    const aResScore = resolutionPriority(a.resolution);
+    if (bResScore !== aResScore) {
+      return bResScore - aResScore;
+    }
+
+    const bLabelScore = labelPriority(b.source_name);
+    const aLabelScore = labelPriority(a.source_name);
+    if (bLabelScore !== aLabelScore) {
+      return bLabelScore - aLabelScore;
+    }
+
+    return (b.episodes?.length || 0) - (a.episodes?.length || 0);
+  });
+};
 
 interface DetailState {
   q: string | null;
@@ -335,59 +387,22 @@ const useDetailStore = create<DetailState>((set, get) => ({
             updates.loading = false;
             logger.info(`[INFO] First valid source loaded: ${sourceKey}. UI displayed.`);
 
-            // Trigger parallel fetch for aux data (favorite & precise resume)
-            Promise.all([
-              FavoriteManager.isFavorited(firstDetail.source, firstDetail.id.toString()),
-              PlayRecordManager.getLatestByTitle(firstDetail.title, firstDetail.year, firstDetail.type)
-            ]).then(([isFav, resumeRec]) => {
-              set({ isFavorited: isFav, resumeRecord: resumeRec });
-            }).catch(e => {
-              logger.debug("[DetailStore] Failed to fetch aux data for first source:", e);
+            fetchDetailAuxData(firstDetail).then(({ isFavorited, resumeRecord }) => {
+              set({ isFavorited, resumeRecord });
             });
           }
         } else {
           const newDetail = newSearchResults.find(r => r.source === sourceKey);
           if (newDetail && snapshot.detail) {
-            // If already loaded, check if the new result has MORE episodes (e.g., Weekly update)
-            // Plus a guard: Never switch to a source with 0 episodes
             const currentDetail = snapshot.detail;
-            const isSameYear = !currentDetail.year || !newDetail.year || currentDetail.year === newDetail.year;
-            const isSameType = !currentDetail.type || !newDetail.type || currentDetail.type === newDetail.type;
-
-            if (isSameYear && isSameType && newDetail.episodes.length > 0) {
-              let shouldSwitch = false;
-              const currentLen = currentDetail.episodes.length;
-              const newLen = newDetail.episodes.length;
-
-              // Priority: Preferred/History Source. Switch only if the new source has a significant advantage (+20% or +3 episodes)
-              const threshold = Math.max(Math.ceil(currentLen * 1.2), currentLen + 3);
-              const isTargetSource = currentDetail.source === preferredSource || currentDetail.source === historySourceKey;
-
-              if (isTargetSource) {
-                if (newLen >= threshold) {
-                  shouldSwitch = true;
-                  logger.info(`[AUTO-SWITCH] Priority source "${currentDetail.source}" is incomplete (${currentLen} eps). Switching to "${newDetail.source}" (${newLen} eps).`);
-                }
-              } else if (newLen > currentLen) {
-                // For non-target sources, we switch if any more episodes are found
-                shouldSwitch = true;
-                logger.info(`[AUTO-SWITCH] Switching from "${currentDetail.source}" (${currentLen} eps) to "${newDetail.source}" (${newLen} eps)`);
-              }
-
-              if (shouldSwitch) {
-                updates.detail = newDetail;
-                // Also update favorited status for the new source
-                Promise.all([
-                  FavoriteManager.isFavorited(newDetail.source, newDetail.id.toString()),
-                  PlayRecordManager.getLatestByTitle(newDetail.title, newDetail.year, newDetail.type)
-                ]).then(([isFav, resumeRec]) => {
-                  set({ isFavorited: isFav, resumeRecord: resumeRec });
-                }).catch(e => {
-                  logger.debug("[DetailStore] Failed to fetch aux data for auto-switched source:", e);
-                });
-              }
+            if (shouldSwitchToNewSource(currentDetail, newDetail, preferredSource, historySourceKey)) {
+              logger.info(`[AUTO-SWITCH] Switching from "${currentDetail.source}" (${currentDetail.episodes.length} eps) to "${newDetail.source}" (${newDetail.episodes.length} eps)`);
+              updates.detail = newDetail;
+              fetchDetailAuxData(newDetail).then(({ isFavorited, resumeRecord }) => {
+                set({ isFavorited, resumeRecord });
+              });
             } else if (newDetail.episodes.length > currentDetail.episodes.length) {
-              logger.warn(`[AUTO-SWITCH] Skipped switching to "${newDetail.source}" despite more episodes: Metadata mismatch or empty episodes list.`);
+              logger.warn(`[AUTO-SWITCH] Skipped switching to "${newDetail.source}" despite more episodes: Metadata mismatch or below threshold.`);
             }
           }
         }
@@ -487,10 +502,8 @@ const useDetailStore = create<DetailState>((set, get) => ({
 
   setDetail: async (detail) => {
     set({ detail });
-    const { source, id, episodes } = detail;
-    const isFavorited = await FavoriteManager.isFavorited(source, id.toString());
-    const resumeRecord = await PlayRecordManager.getLatestByTitle(detail.title, detail.year, detail.type);
-
+    const { source, episodes } = detail;
+    const { isFavorited, resumeRecord } = await fetchDetailAuxData(detail);
     set({ isFavorited, resumeRecord });
 
     // Trigger probing for newly selected source if resolution is not yet populated
@@ -504,7 +517,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
         probeM3U8WithCache(targetEpisode).then((probeRes) => {
           if (probeRes.available && probeRes.resolution) {
             const snap = get();
-            if (snap.detail?.source === source) {
+            if (snap.detail && snap.detail.source === source) {
               set({
                 detail: { ...snap.detail, resolution: probeRes.resolution },
                 searchResults: snap.searchResults.map((r) =>
@@ -624,21 +637,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
     }
 
     // 优先选择高清晰度、无广/超清标签、剧集更全的可用源
-    const sortedSources = availableSources.sort((a, b) => {
-      const bResScore = resolutionPriority(b.resolution);
-      const aResScore = resolutionPriority(a.resolution);
-      if (bResScore !== aResScore) {
-        return bResScore - aResScore;
-      }
-
-      const bLabelScore = labelPriority(b.source_name);
-      const aLabelScore = labelPriority(a.source_name);
-      if (bLabelScore !== aLabelScore) {
-        return bLabelScore - aLabelScore;
-      }
-
-      return (b.episodes?.length || 0) - (a.episodes?.length || 0);
-    });
+    const sortedSources = sortAvailableSources(availableSources);
 
     const selectedSource = sortedSources[0];
     logger.info(`[SOURCE_SELECTION] Selected fallback source: ${selectedSource.source} (${selectedSource.source_name}) with resolution: ${selectedSource.resolution || 'unknown'}`);

@@ -63,6 +63,9 @@ export interface SearchResult {
   desc?: string;
   type_name?: string;
   type?: string;
+  director?: string;
+  actor?: string;
+  area?: string;
 }
 
 export interface SearchResultWithResolution extends SearchResult {
