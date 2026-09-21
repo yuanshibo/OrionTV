@@ -25,6 +25,20 @@ export interface M3uTestResult {
   error?: string;
 }
 
+export type AuthSyncHandler = (apiBaseUrl: string, serverConfig: ServerConfig | null) => Promise<void> | void;
+let authSyncHandler: AuthSyncHandler | null = null;
+
+export const setAuthSyncHandler = (handler: AuthSyncHandler) => {
+  authSyncHandler = handler;
+};
+
+export type AuthLogoutHandler = () => Promise<void> | void;
+let authLogoutHandler: AuthLogoutHandler | null = null;
+
+export const setAuthLogoutHandler = (handler: AuthLogoutHandler) => {
+  authLogoutHandler = handler;
+};
+
 export const normalizeUrl = (rawUrl: string, defaultProtocol = "http://"): string => {
   let url = (rawUrl || "").trim();
   if (!url) return "";
@@ -116,8 +130,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       }
       await get().fetchServerConfig();
     } else {
-      const useAuthStore = (await import("./authStore")).default;
-      useAuthStore.setState({ isAuthChecked: true });
+      if (authSyncHandler) {
+        await authSyncHandler("", null);
+      }
     }
   },
   fetchServerConfig: async () => {
@@ -136,10 +151,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           if (config) {
             storageConfig.setStorageType(config.StorageType);
             set({ serverConfig: config, serverConfigError: null });
-            const useAuthStore = (await import("./authStore")).default;
-            await useAuthStore.getState().checkLoginStatus(get().apiBaseUrl);
+            if (authSyncHandler) {
+              await authSyncHandler(get().apiBaseUrl, config);
+            }
+            return;
           }
-          return;
         } catch (error) {
           lastError = error;
           logger.warn(`fetchServerConfig attempt ${attempt + 1} failed:`, error);
@@ -171,6 +187,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       logger.error("fetchServerConfig failed after all retries:", lastError);
     } finally {
       set({ isLoadingServerConfig: false });
+      if (!get().serverConfig && authSyncHandler) {
+        await authSyncHandler(get().apiBaseUrl, null);
+      }
     }
   },
   setApiBaseUrl: (url) => set({ apiBaseUrl: url, lastApiTestResult: null }),
@@ -297,8 +316,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     });
 
     if (oldApiBaseUrl !== processedApiBaseUrl) {
-      const useAuthStore = (await import("./authStore")).default;
-      await useAuthStore.getState().logout();
+      if (authLogoutHandler) {
+        await authLogoutHandler();
+      }
     }
 
     api.setBaseUrl(processedApiBaseUrl);

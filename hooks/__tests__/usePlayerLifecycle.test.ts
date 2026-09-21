@@ -255,5 +255,14 @@ describe('usePlayerLifecycle', () => {
     expect(handled).toBe(true);
     expect(mockFlushPlaybackRecord).toHaveBeenCalled();
     expect(mockBack).toHaveBeenCalledTimes(2);
+
+    // 4. Locked back button interception
+    usePlayerStore.setState({ isLocked: true });
+    act(() => {
+      handled = backHandlerListener!();
+    });
+    expect(handled).toBe(true);
+    // mockBack should still be 2 (not called again)
+    expect(mockBack).toHaveBeenCalledTimes(2);
   });
 });

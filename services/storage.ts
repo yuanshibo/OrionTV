@@ -27,8 +27,22 @@ const STORAGE_KEYS = {
 
 export type { PlayRecord, Favorite, PlayerSettings, AppSettings, LoginCredentials };
 
-// --- Helper ---
-const generateKey = (source: string, id: string) => `${source}+${id}`;
+// --- Storage Key Helpers ---
+export const buildStorageKey = (source: string, id: string): string => `${source}+${id}`;
+
+export const parseStorageKey = (key: string): { source: string; id: string } => {
+  const plusIndex = key.indexOf("+");
+  if (plusIndex === -1) {
+    return { source: "", id: key };
+  }
+  return {
+    source: key.slice(0, plusIndex),
+    id: key.slice(plusIndex + 1),
+  };
+};
+
+/** @deprecated Use buildStorageKey instead */
+export const generateKey = buildStorageKey;
 
 // --- PlayerSettingsManager (Uses AsyncStorage) ---
 export class PlayerSettingsManager {
@@ -267,8 +281,7 @@ export class PlayRecordManager {
     await PlayerSettingsManager.save(source, id, { introEndTime, outroStartTime });
 
     // 1. Always persist locally with LRU purge for 0ms UI response & offline safety
-    const data = await AsyncStorage.getItem(STORAGE_KEYS.PLAY_RECORDS);
-    const allRecords = data ? JSON.parse(data) : {};
+    const allRecords = await this.localDriver.getAll();
     const existingRecord = allRecords[key] || {};
 
     const fullRecord = { ...apiRecord, save_time: Date.now() };
@@ -286,11 +299,13 @@ export class PlayRecordManager {
     if (recordKeys.length > MAX_RECORDS) {
       const sorted = recordKeys.sort((a, b) => (allRecords[a].save_time || 0) - (allRecords[b].save_time || 0));
       const toDelete = sorted.slice(0, recordKeys.length - MAX_RECORDS);
-      toDelete.forEach(k => delete allRecords[k]);
+      for (const k of toDelete) {
+        delete allRecords[k];
+      }
       logger.info(`[Storage] Purged ${toDelete.length} old play records.`);
     }
 
-    await AsyncStorage.setItem(STORAGE_KEYS.PLAY_RECORDS, JSON.stringify(allRecords));
+    await this.localDriver.saveAll(allRecords);
 
     // 2. If using remote storage, sync asynchronously in background
     if (this.getStorageType() !== "localstorage") {

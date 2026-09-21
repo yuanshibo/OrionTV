@@ -54,6 +54,14 @@ export default function PlayScreen() {
     introEndTime,
     playbackRate,
     error,
+    loadVideo,
+    reset,
+    setVideoPlayer,
+    handlePlaybackStatusUpdate,
+    setShowControls,
+    setShowRelatedVideos,
+    setError,
+    savePlayRecord,
   } = usePlayerStore(
     useShallow((state) => ({
       isLoaded: state.status?.isLoaded ?? false,
@@ -68,12 +76,17 @@ export default function PlayScreen() {
       introEndTime: state.introEndTime,
       playbackRate: state.playbackRate,
       error: state.error,
+      loadVideo: state.loadVideo,
+      reset: state.reset,
+      setVideoPlayer: state.setVideoPlayer,
+      handlePlaybackStatusUpdate: state.handlePlaybackStatusUpdate,
+      setShowControls: state.setShowControls,
+      setShowRelatedVideos: state.setShowRelatedVideos,
+      setError: state.setError,
+      savePlayRecord: state.savePlayRecord,
     }))
   );
   const currentEpisode = usePlayerStore(selectCurrentEpisode);
-
-  // Get non-reactive actions from the store
-  const { loadVideo, reset, setVideoPlayer, handlePlaybackStatusUpdate, setShowControls, setShowRelatedVideos, setError, _savePlayRecord } = usePlayerStore.getState();
   const setFocusArea = useFocusStore((state) => state.setFocusArea);
 
   // Set focus area to player when component mounts
@@ -97,14 +110,14 @@ export default function PlayScreen() {
 
   useKeepAwake();
 
-  const { onScreenPress } = usePlayerInteractions(deviceType);
+  const { onScreenPress, onScreenLongPress } = usePlayerInteractions(deviceType);
 
   const flushPlaybackRecord = useCallback(() => {
     const playbackStatus = usePlayerStore.getState().status;
     if (playbackStatus?.isLoaded && playbackStatus.positionMillis > 0) {
-      _savePlayRecord({}, { immediate: true });
+      savePlayRecord({}, { immediate: true });
     }
-  }, [_savePlayRecord]);
+  }, [savePlayRecord]);
 
   usePlayerLifecycle({
     player,
@@ -184,6 +197,7 @@ export default function PlayScreen() {
         videoViewProps={videoViewProps}
         showControls={showControls && !showRelatedVideos}
         onScreenPress={onScreenPress}
+        onScreenLongPress={onScreenLongPress}
         setShowControls={setShowControls}
       />
       <EpisodeSelectionModal />

@@ -84,18 +84,18 @@ export const DetailInfoModal: React.FC<DetailInfoModalProps> = memo(({
                 hasTVPreferredFocus={isTV}
               >
                 {/* Meta details (director, actors, etc.) */}
-                {((detail as any).director || (detail as any).actor || detail.class) && (
+                {(detail.director || detail.actor || detail.class) && (
                   <View style={styles.metaSection}>
-                    {(detail as any).director ? (
+                    {detail.director ? (
                       <View style={styles.metaRow}>
                         <ThemedText style={styles.metaLabel}>导演：</ThemedText>
-                        <ThemedText style={styles.metaValue}>{(detail as any).director}</ThemedText>
+                        <ThemedText style={styles.metaValue}>{detail.director}</ThemedText>
                       </View>
                     ) : null}
-                    {(detail as any).actor ? (
+                    {detail.actor ? (
                       <View style={styles.metaRow}>
                         <ThemedText style={styles.metaLabel}>主演：</ThemedText>
-                        <ThemedText style={styles.metaValue}>{(detail as any).actor}</ThemedText>
+                        <ThemedText style={styles.metaValue}>{detail.actor}</ThemedText>
                       </View>
                     ) : null}
                     {detail.class ? (

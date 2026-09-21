@@ -81,6 +81,10 @@ export const probeM3U8WithCache = async (
     try {
       const result = await probeM3U8(episodeUrl, signal);
       probeCache.set(episodeUrl, { value: result, timestamp: Date.now() });
+      if (probeCache.size > 150) {
+        const firstKey = probeCache.keys().next().value;
+        if (firstKey) probeCache.delete(firstKey);
+      }
       return result;
     } finally {
       probeCachePending.delete(episodeUrl);

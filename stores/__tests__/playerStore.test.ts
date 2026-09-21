@@ -137,4 +137,76 @@ describe('playerStore - Playback Recovery and togglePlayPause', () => {
     expect(usePlayerStore.getState().currentEpisodeIndex).toBe(1);
     expect(mockReplaceAsync).toHaveBeenCalledWith('http://example.com/ep2.m3u8');
   });
+
+  it('manages isLocked state and auto-hides controls on lock', () => {
+    expect(usePlayerStore.getState().isLocked).toBe(false);
+
+    // Open controls and modals
+    usePlayerStore.setState({
+      showControls: true,
+      showEpisodeModal: true,
+      showSourceModal: true,
+      showSpeedModal: true,
+    });
+
+    // Lock screen
+    usePlayerStore.getState().setIsLocked(true);
+    expect(usePlayerStore.getState().isLocked).toBe(true);
+    expect(usePlayerStore.getState().showControls).toBe(false);
+    expect(usePlayerStore.getState().showEpisodeModal).toBe(false);
+    expect(usePlayerStore.getState().showSourceModal).toBe(false);
+    expect(usePlayerStore.getState().showSpeedModal).toBe(false);
+
+    // Unlock screen
+    usePlayerStore.getState().setIsLocked(false);
+    expect(usePlayerStore.getState().isLocked).toBe(false);
+
+    // Toggle screen lock
+    usePlayerStore.getState().toggleScreenLock();
+    expect(usePlayerStore.getState().isLocked).toBe(true);
+
+    usePlayerStore.getState().toggleScreenLock();
+    expect(usePlayerStore.getState().isLocked).toBe(false);
+
+    // Reset clears isLocked
+    usePlayerStore.getState().setIsLocked(true);
+    usePlayerStore.getState().reset();
+    expect(usePlayerStore.getState().isLocked).toBe(false);
+  });
+
+  it('preserves isLocked state when switching episodes via playEpisode or loadVideo', async () => {
+    usePlayerStore.setState({
+      isLocked: true,
+      episodes: [
+        { url: 'http://example.com/ep1.m3u8', title: '第 1 集' },
+        { url: 'http://example.com/ep2.m3u8', title: '第 2 集' },
+      ],
+      currentEpisodeIndex: 0,
+    });
+
+    // Switch episode via playEpisode
+    usePlayerStore.getState().playEpisode(1);
+    expect(usePlayerStore.getState().currentEpisodeIndex).toBe(1);
+    expect(usePlayerStore.getState().isLocked).toBe(true);
+
+    // Reload video / episode via loadVideo
+    const mockDetail = {
+      id: 123,
+      title: '小猪佩奇',
+      source: 'test',
+      episodes: [
+        { url: 'http://example.com/ep1.m3u8', title: '第 1 集' },
+        { url: 'http://example.com/ep2.m3u8', title: '第 2 集' },
+      ],
+    } as any;
+
+    await usePlayerStore.getState().loadVideo({
+      detail: mockDetail,
+      episodeIndex: 1,
+      router: { back: jest.fn() } as any,
+    });
+
+    // Still locked!
+    expect(usePlayerStore.getState().isLocked).toBe(true);
+  });
 });

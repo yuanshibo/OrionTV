@@ -19,6 +19,7 @@ export class PerformanceMonitor {
   private static lastTimestamp = 0;
   private static monitoringEnabled = false;
   private static listeners: ((metrics: PerformanceMetrics) => void)[] = [];
+  private static intervalId: ReturnType<typeof setInterval> | null = null;
 
   /**
    * 启动性能监测
@@ -55,7 +56,7 @@ export class PerformanceMonitor {
     };
     requestAnimationFrame(countFrames);
 
-    (this as any)._intervalId = interval;
+    this.intervalId = interval;
   }
 
   /**
@@ -63,8 +64,9 @@ export class PerformanceMonitor {
    */
   static stop(): void {
     this.monitoringEnabled = false;
-    if ((this as any)._intervalId) {
-      clearInterval((this as any)._intervalId);
+    if (this.intervalId) {
+      clearInterval(this.intervalId);
+      this.intervalId = null;
     }
   }
 

@@ -25,6 +25,29 @@ interface HomeUIState {
     setCurrentFocusArea: (area: 'header' | 'category' | 'tags' | 'content') => void;
 }
 
+const createAllCategoryFilterConfig = (
+    baseConfig: DoubanFilterConfig,
+    kind: "movie" | "tv"
+): { filterConfig: DoubanFilterConfig; activeFilters: ActiveDoubanFilters } => {
+    const newKindGroups = DOUBAN_FILTERS_METADATA[kind];
+    const newStaticFilters: Partial<DoubanRecommendationFilters> = { label: "all" };
+    if (kind === "tv") {
+        newStaticFilters.format = "电视剧";
+    }
+
+    const filterConfig: DoubanFilterConfig = {
+        ...baseConfig,
+        kind,
+        groups: [ALL_MEDIA_KIND_SELECTOR_GROUP, ...newKindGroups],
+        staticFilters: newStaticFilters,
+    };
+
+    const activeFilters = buildDefaultFilters(filterConfig);
+    activeFilters.kind = kind;
+
+    return { filterConfig, activeFilters };
+};
+
 const isSameCategory = (a?: Category | null, b?: Category | null) => {
     if (!a || !b) return false;
     return a.title === b.title && a.tag === b.tag && a.type === b.type;
@@ -95,22 +118,10 @@ export const useHomeUIStore = create<HomeUIState>((set, get) => ({
 
         if (key === "kind" && targetCategory.title === "所有") {
             const newKind = value as "movie" | "tv";
-            const newKindGroups = DOUBAN_FILTERS_METADATA[newKind];
-
-            const newStaticFilters: Partial<DoubanRecommendationFilters> = { label: "all" };
-            if (newKind === 'tv') {
-                newStaticFilters.format = '电视剧';
-            }
-
-            const newFilterConfig: DoubanFilterConfig = {
-                ...targetCategory.filterConfig,
-                kind: newKind,
-                groups: [ALL_MEDIA_KIND_SELECTOR_GROUP, ...newKindGroups],
-                staticFilters: newStaticFilters,
-            };
-
-            const newActiveFilters = buildDefaultFilters(newFilterConfig);
-            newActiveFilters.kind = newKind;
+            const { filterConfig: newFilterConfig, activeFilters: newActiveFilters } = createAllCategoryFilterConfig(
+                targetCategory.filterConfig,
+                newKind
+            );
 
             updatedCategory = initializeFilterableCategory({
                 ...targetCategory,
@@ -146,17 +157,11 @@ export const useHomeUIStore = create<HomeUIState>((set, get) => ({
         let newActiveFilters = buildDefaultFilters(resetConfig);
 
         // If it was "所有", ensure default kind is 'tv'
-        if (targetCategory.title === "所有" && newKind !== "tv") {
+        if (targetCategory.title === "所有") {
             newKind = "tv";
-            const newKindGroups = DOUBAN_FILTERS_METADATA.tv;
-            resetConfig = {
-                ...resetConfig,
-                kind: "tv",
-                groups: [ALL_MEDIA_KIND_SELECTOR_GROUP, ...newKindGroups],
-                staticFilters: { format: "电视剧", label: "all" },
-            };
-            newActiveFilters = buildDefaultFilters(resetConfig);
-            newActiveFilters.kind = "tv";
+            const configObj = createAllCategoryFilterConfig(resetConfig, "tv");
+            resetConfig = configObj.filterConfig;
+            newActiveFilters = configObj.activeFilters;
         }
 
         const updatedCategory = initializeFilterableCategory({

@@ -3,6 +3,7 @@ import { StyleSheet, View, Image, Text, TouchableOpacity, ActivityIndicator } fr
 import { VideoView, VideoPlayer } from "expo-video";
 import { PlayerControls } from "@/components/PlayerControls";
 import { SeekingBar } from "@/components/SeekingBar";
+import { ScreenLockIndicator } from "@/components/player/ScreenLockIndicator";
 import { SearchResultWithResolution } from "@/services/api";
 import { VideoViewPropsSubset } from "@/hooks/useVideoHandlers";
 import usePlayerStore from "@/stores/playerStore";
@@ -69,6 +70,7 @@ interface PlayerViewProps {
   videoViewProps: VideoViewPropsSubset;
   showControls: boolean;
   onScreenPress: () => void;
+  onScreenLongPress?: () => void;
   setShowControls: (show: boolean) => void;
 }
 
@@ -87,9 +89,11 @@ const PlayerView = memo((props: PlayerViewProps) => {
     videoViewProps,
     showControls,
     onScreenPress,
+    onScreenLongPress,
     setShowControls,
   } = props;
 
+  const isLocked = usePlayerStore((state) => state.isLocked);
   const [hasEverBeenLoaded, setHasEverBeenLoaded] = useState(false);
 
   useEffect(() => {
@@ -132,6 +136,7 @@ const PlayerView = memo((props: PlayerViewProps) => {
       activeOpacity={1}
       style={dynamicStyles.videoContainer}
       onPress={onScreenPress}
+      onLongPress={onScreenLongPress}
       disabled={deviceType !== "tv" && showControls}
     >
       {shouldShowPoster && (
@@ -159,9 +164,11 @@ const PlayerView = memo((props: PlayerViewProps) => {
             </View>
           )}
 
-          {showControls && deviceType === "tv" && <PlayerControls showControls={showControls} setShowControls={setShowControls} />}
+          {showControls && !isLocked && deviceType === "tv" && <PlayerControls showControls={showControls} setShowControls={setShowControls} />}
 
-          {isSeeking && !showControls && <SeekingBar />}
+          {isSeeking && !isLocked && !showControls && <SeekingBar />}
+
+          <ScreenLockIndicator isLocked={isLocked} />
         </>
       )}
     </TouchableOpacity>
