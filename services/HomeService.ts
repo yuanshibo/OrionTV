@@ -5,6 +5,18 @@ import { buildDefaultFilters } from "./homeConfig";
 
 const DOUBAN_RECOMMENDATION_PAGE_SIZE = 25;
 
+export const KIDS_TAG_TO_DOUBAN: Record<string, { type: "movie" | "tv"; tag: string }> = {
+  "全部": { type: "movie", tag: "动画" },
+  "少儿": { type: "movie", tag: "少儿" },
+  "益智": { type: "movie", tag: "益智" },
+  "国产动画": { type: "movie", tag: "国产动画" },
+  "欧美动画": { type: "movie", tag: "欧美动画" },
+  "迪士尼": { type: "movie", tag: "迪士尼" },
+  "皮克斯": { type: "movie", tag: "皮克斯" },
+  "动画电影": { type: "movie", tag: "动画" },
+  "日本动画": { type: "tv", tag: "日本动画" },
+};
+
 export class HomeService {
 
   private mapDoubanItemsToRows(items: DoubanItem[]): RowItem[] {
@@ -110,7 +122,18 @@ export class HomeService {
     }
 
     // Logic for simple Tag (Old API)
-    const result = await api.getDoubanData(category.type, category.tag, 20, pageStart, signal);
+    let requestType: "movie" | "tv" = category.type;
+    let requestTag: string = category.tag;
+
+    if (category.title === "少儿" && KIDS_TAG_TO_DOUBAN[category.tag]) {
+      requestType = KIDS_TAG_TO_DOUBAN[category.tag].type;
+      requestTag = KIDS_TAG_TO_DOUBAN[category.tag].tag;
+    } else if (category.tag === "动画电影" || category.tag === "少儿电影") {
+      requestType = "movie";
+      requestTag = "动画";
+    }
+
+    const result = await api.getDoubanData(requestType, requestTag, 20, pageStart, signal);
     const items = this.mapDoubanItemsToRows(result.list);
     return {
       items,
