@@ -28,6 +28,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '24'
+          cache: 'yarn'
 
       - name: Enable Corepack and Install dependencies
         run: |
@@ -59,6 +60,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '24'
+          cache: 'yarn'
       
       - name: Enable Corepack and Install dependencies
         run: |
@@ -76,13 +78,9 @@ jobs:
           java-version: "17"
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
         with:
-          api-level: 36
-          build-tools: 36.0.0
-
-      - name: Prebuild TV App
-        run: yarn prebuild
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
 
       - name: Build TV APK
         run: yarn build
