@@ -91,6 +91,8 @@ export const DOUBAN_FILTERS_METADATA: Record<"tv" | "movie", DoubanFilterGroup[]
       defaultValue: "all",
       options: [
         { label: "全部", value: "all" },
+        { label: '动画', value: '动画' },
+        { label: '少儿', value: '少儿' },
         { label: '喜剧', value: '喜剧' },
         { label: '爱情', value: '爱情' },
         { label: '悬疑', value: '悬疑' },
@@ -152,6 +154,8 @@ export const DOUBAN_FILTERS_METADATA: Record<"tv" | "movie", DoubanFilterGroup[]
       defaultValue: "all",
       options: [
         { label: "全部", value: "all" },
+        { label: '动画', value: '动画' },
+        { label: '儿童', value: '儿童' },
         { label: '喜剧', value: '喜剧' },
         { label: '爱情', value: '爱情' },
         { label: '动作', value: '动作' },
@@ -230,6 +234,10 @@ export const createFilterTag = (type: "movie" | "tv" | "record", filters: Active
 };
 
 export const initializeFilterableCategory = (category: Category): Category => {
+  if (category.tags?.length && !category.tag) {
+    category = { ...category, tag: category.tags[0] };
+  }
+
   if (!category.filterConfig || !category.type || category.type === 'record') {
     return category;
   }
@@ -260,6 +268,7 @@ export const initialCategories: Category[] = initializeCategories([
       "经典",
       "豆瓣高分",
       "冷门佳片",
+      "动画",
       "华语",
       "欧美",
       "韩国",
@@ -271,6 +280,11 @@ export const initialCategories: Category[] = initializeCategories([
       "悬疑",
       "恐怖",
     ],
+  },
+  {
+    title: "少儿",
+    type: "tv",
+    tags: ["全部", "少儿", "益智", "国产动画", "日本动画", "欧美动画", "迪士尼", "动画电影"],
   },
   { title: "综艺", type: "tv", tag: "综艺" },
   { title: "豆瓣 Top250", type: "movie", tag: "top250" },
