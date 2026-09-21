@@ -14,6 +14,8 @@ import {
   seekPositionSV,
   resetPlayerSharedValues,
 } from "@/utils/playerSharedValues";
+import { processM3U8ForPlayback, AdInterval } from "@/services/m3u8AdFilter";
+import { useSettingsStore } from "@/stores/settingsStore";
 
 const logger = Logger.withTag('PlayerStore');
 
@@ -107,7 +109,8 @@ interface PlayerState {
     position?: number;
     router: ReturnType<typeof useRouter>;
   }) => Promise<void>;
-  playEpisode: (index: number) => void;
+  adIntervals: AdInterval[];
+  playEpisode: (index: number) => Promise<void> | void;
   togglePlayPause: () => void;
   retryCurrentPlayback: () => Promise<void>;
   seek: (duration: number) => void;
@@ -204,11 +207,12 @@ const usePlayerStore = create<PlayerState>((set, get) => {
     introEndTime: undefined,
     outroStartTime: undefined,
     _isRecordSaveThrottled: false,
+    adIntervals: [],
 
     setVideoPlayer: (player) => set({ videoPlayer: player }),
 
     loadVideo: async ({ detail, episodeIndex, position, router }) => {
-      set({ status: null, isLoading: true, isUserPaused: false, error: undefined, router, showRelatedVideos: false });
+      set({ status: null, isLoading: true, isUserPaused: false, error: undefined, router, showRelatedVideos: false, adIntervals: [] });
 
       const episodes = detail.episodes && detail.episodes.length > 0
         ? detail.episodes
@@ -258,11 +262,30 @@ const usePlayerStore = create<PlayerState>((set, get) => {
       }
 
       const mappedEpisodes = episodes.map((ep, index) => ({ url: ep, title: `第 ${index + 1} 集` }));
+
+      // Process target episode for ad-filtering
+      let adIntervals: AdInterval[] = [];
+      const adBlockMode = useSettingsStore.getState().adBlockMode || 'seamless';
+      const targetEpisode = mappedEpisodes[episodeIndex];
+
+      if (targetEpisode?.url && adBlockMode !== 'off') {
+        try {
+          const filterResult = await processM3U8ForPlayback(targetEpisode.url, adBlockMode);
+          if (filterResult.isModified) {
+            mappedEpisodes[episodeIndex] = { ...targetEpisode, url: filterResult.cleanUrl };
+            adIntervals = filterResult.adIntervals;
+          }
+        } catch (adErr) {
+          logger.warn('[PlayerStore] Error processing M3U8 ad filter:', adErr);
+        }
+      }
+
       set({
         isLoading: false,
         isUserPaused: false,
         currentEpisodeIndex: episodeIndex,
         episodes: mappedEpisodes,
+        adIntervals,
         ...data,
         initialPosition: finalInitialPosition,
       });
@@ -283,6 +306,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
           seekPosition: 0,
           error: undefined,
           isSeekBuffering: false,
+          adIntervals: [],
         });
         // Reset SharedValues for the new episode
         progressPositionSV.value = 0;
@@ -290,9 +314,31 @@ const usePlayerStore = create<PlayerState>((set, get) => {
         isSeekingSV.value = false;
         seekPositionSV.value = 0;
 
-        // Reuse videoPlayer instance if available to avoid destroying/recreating ExoPlayer
+        // Reuse videoPlayer instance immediately
         if (videoPlayer && targetEpisode?.url) {
           void safeReplacePlayerSource(videoPlayer, targetEpisode.url);
+        }
+
+        // Asynchronously process M3U8 for ad filtering if enabled
+        const adBlockMode = useSettingsStore.getState().adBlockMode || 'seamless';
+        if (targetEpisode?.url && adBlockMode !== 'off') {
+          processM3U8ForPlayback(targetEpisode.url, adBlockMode)
+            .then((filterResult) => {
+              if (filterResult.isModified) {
+                const currentEpList = get().episodes;
+                if (currentEpList[index]) {
+                  const updatedEpisodes = [...currentEpList];
+                  updatedEpisodes[index] = { ...updatedEpisodes[index], url: filterResult.cleanUrl };
+                  set({ episodes: updatedEpisodes, adIntervals: filterResult.adIntervals });
+                  if (get().currentEpisodeIndex === index && videoPlayer && filterResult.cleanUrl !== targetEpisode.url) {
+                    void safeReplacePlayerSource(videoPlayer, filterResult.cleanUrl);
+                  }
+                }
+              }
+            })
+            .catch((adErr) => {
+              logger.debug('[PlayerStore] playEpisode ad filter background check:', adErr);
+            });
         }
       }
     },

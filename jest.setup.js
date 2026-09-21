@@ -33,4 +33,18 @@ jest.mock('react-native-reanimated', () => ({
     withSpring: (val) => val,
 }));
 
+// Mock react-native-blob-util
+jest.mock('react-native-blob-util', () => ({
+    fs: {
+        dirs: {
+            CacheDir: '/mock/cache',
+            DocumentDir: '/mock/document',
+        },
+        writeFile: jest.fn(() => Promise.resolve()),
+        unlink: jest.fn(() => Promise.resolve()),
+        ls: jest.fn(() => Promise.resolve([])),
+        exists: jest.fn(() => Promise.resolve(true)),
+    },
+}));
+
 

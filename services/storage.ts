@@ -434,6 +434,7 @@ export class SettingsManager {
         sources: {},
       },
       m3uUrl: "",
+      adBlockMode: "seamless",
     };
     try {
       const data = await AsyncStorage.getItem(STORAGE_KEYS.SETTINGS);
@@ -443,6 +444,7 @@ export class SettingsManager {
         ...defaultSettings,
         ...parsed,
         apiBaseUrl: parsed.apiBaseUrl || DEFAULT_API_BASE_URL,
+        adBlockMode: parsed.adBlockMode || "seamless",
       };
     } catch (error) {
       logger.debug("Failed to get settings:", error);
