@@ -2,6 +2,8 @@ import { useEffect } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import { Image } from 'expo-image';
 import { contentCacheService } from '@/services/ContentCacheService';
+import { cleanupM3U8Cache } from '@/services/m3u8AdFilter';
+import usePlayerStore from '@/stores/playerStore';
 import Logger from '@/utils/Logger';
 
 const logger = Logger.withTag('MemoryManagement');
@@ -14,6 +16,7 @@ const logger = Logger.withTag('MemoryManagement');
  *  - contentCacheService.clear()   → releases the in-memory content cache (category data)
  *  - Image.clearMemoryCache()      → releases expo-image's in-memory image cache
  *    (disk cache is intentionally preserved for fast reload on resume)
+ *  - cleanupM3U8Cache(...)         → prunes old/expired adfree M3U8 files while protecting active video
  *
  * TV devices typically have 1–2 GB RAM. After heavy usage (search, category browsing,
  * multi-episode playback), accumulated poster thumbnails can reach 50–100 MB+.
@@ -31,6 +34,12 @@ export const useMemoryManagement = () => {
                 // 2. expo-image memory cache (poster thumbnails).
                 //    Only the memory layer is cleared; disk cache is kept for fast resume.
                 Image.clearMemoryCache();
+                // 3. Prune old/expired adfree M3U8 files while protecting the currently active episode
+                const { episodes, currentEpisodeIndex } = usePlayerStore.getState();
+                const activeEpisode = episodes[currentEpisodeIndex];
+                cleanupM3U8Cache({ activeUrl: activeEpisode?.url }).catch((e) =>
+                    logger.debug('Background M3U8 cache cleanup error:', e)
+                );
             }
         };
 

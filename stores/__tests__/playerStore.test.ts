@@ -209,4 +209,88 @@ describe('playerStore - Playback Recovery and togglePlayPause', () => {
     // Still locked!
     expect(usePlayerStore.getState().isLocked).toBe(true);
   });
+
+  it('plays prefetched clean file immediately without delay', () => {
+    const mockReplaceAsync = jest.fn().mockResolvedValue(undefined);
+    const mockPlayer = {
+      replaceAsync: mockReplaceAsync,
+    } as any;
+
+    usePlayerStore.setState({
+      videoPlayer: mockPlayer,
+      episodes: [
+        { url: 'file:///mock/cache/adfree_ep1.m3u8', title: '第 1 集' },
+        { url: 'file:///mock/cache/adfree_ep2.m3u8', title: '第 2 集' },
+      ],
+      currentEpisodeIndex: 0,
+    });
+
+    usePlayerStore.getState().playEpisode(1);
+
+    expect(usePlayerStore.getState().currentEpisodeIndex).toBe(1);
+    expect(mockReplaceAsync).toHaveBeenCalledTimes(1);
+    expect(mockReplaceAsync).toHaveBeenCalledWith('file:///mock/cache/adfree_ep2.m3u8');
+  });
+
+  it('triggers prefetchNextEpisode when playback status reaches 85% progress', async () => {
+    const prefetchSpy = jest.spyOn(usePlayerStore.getState(), 'prefetchNextEpisode').mockResolvedValue(undefined);
+
+    usePlayerStore.setState({
+      episodes: [
+        { url: 'http://example.com/ep1.m3u8', title: '第 1 集' },
+        { url: 'http://example.com/ep2.m3u8', title: '第 2 集' },
+      ],
+      currentEpisodeIndex: 0,
+      status: {
+        ...createInitialPlaybackState(),
+        isLoaded: true,
+        isPlaying: true,
+        durationMillis: 100000,
+        positionMillis: 50000,
+      },
+    });
+
+    usePlayerStore.getState().handlePlaybackStatusUpdate({
+      ...createInitialPlaybackState(),
+      isLoaded: true,
+      isPlaying: true,
+      durationMillis: 100000,
+      positionMillis: 86000, // 86% > 85%
+    });
+
+    expect(prefetchSpy).toHaveBeenCalled();
+    prefetchSpy.mockRestore();
+  });
+
+  it('triggers prefetchNextEpisode at least 60s before outroStartTime even if progress is below 85%', () => {
+    const prefetchSpy = jest.spyOn(usePlayerStore.getState(), 'prefetchNextEpisode').mockResolvedValue(undefined);
+
+    usePlayerStore.setState({
+      episodes: [
+        { url: 'http://example.com/ep1.m3u8', title: '第 1 集' },
+        { url: 'http://example.com/ep2.m3u8', title: '第 2 集' },
+      ],
+      currentEpisodeIndex: 0,
+      outroStartTime: 180000, // Outro starts at 180s remaining
+      status: {
+        ...createInitialPlaybackState(),
+        isLoaded: true,
+        isPlaying: true,
+        durationMillis: 1000000,
+        positionMillis: 700000,
+      },
+    });
+
+    // At 780s (78% < 85%, 220s remaining > 120s, but 220s <= 180s + 60s = 240s)
+    usePlayerStore.getState().handlePlaybackStatusUpdate({
+      ...createInitialPlaybackState(),
+      isLoaded: true,
+      isPlaying: true,
+      durationMillis: 1000000,
+      positionMillis: 780000,
+    });
+
+    expect(prefetchSpy).toHaveBeenCalled();
+    prefetchSpy.mockRestore();
+  });
 });

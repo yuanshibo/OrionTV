@@ -23,6 +23,19 @@ let seekTimeoutId: ReturnType<typeof setTimeout> | undefined = undefined;
 const SEEK_UI_TIMEOUT = 5000;
 let isEpisodeSwitching = false;
 
+// Prefetch state tracking for seamless next-episode transitions
+let prefetchedIndex: number | null = null;
+let inFlightPrefetchIndex: number | null = null;
+let inFlightPrefetchPromise: Promise<void> | null = null;
+const prefetchedAdIntervalsMap = new Map<number, AdInterval[]>();
+
+export function resetPrefetchState(): void {
+  prefetchedIndex = null;
+  inFlightPrefetchIndex = null;
+  inFlightPrefetchPromise = null;
+  prefetchedAdIntervalsMap.clear();
+}
+
 type ExtendableVideoPlayer = VideoPlayer & {
   replaceAsync?: (url: string) => Promise<void>;
   replace?: (url: string) => void;
@@ -120,6 +133,7 @@ interface PlayerState {
   }) => Promise<void>;
   adIntervals: AdInterval[];
   playEpisode: (index: number) => Promise<void> | void;
+  prefetchNextEpisode: () => Promise<void>;
   togglePlayPause: () => void;
   retryCurrentPlayback: () => Promise<void>;
   seek: (duration: number) => void;
@@ -221,6 +235,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
     setVideoPlayer: (player) => set({ videoPlayer: player }),
 
     loadVideo: async ({ detail, episodeIndex, position, router }) => {
+      resetPrefetchState();
       set({ status: null, isLoading: true, isUserPaused: false, error: undefined, router, showRelatedVideos: false, adIntervals: [] });
 
       const episodes = detail.episodes && detail.episodes.length > 0
@@ -304,6 +319,8 @@ const usePlayerStore = create<PlayerState>((set, get) => {
       const { episodes, introEndTime, videoPlayer } = get();
       if (index >= 0 && index < episodes.length) {
         const targetEpisode = episodes[index];
+        const prefetchedIntervals = prefetchedAdIntervalsMap.get(index) || [];
+
         set({
           status: null,
           isLoading: true,
@@ -315,7 +332,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
           seekPosition: 0,
           error: undefined,
           isSeekBuffering: false,
-          adIntervals: [],
+          adIntervals: prefetchedIntervals,
         });
         // Reset SharedValues for the new episode
         progressPositionSV.value = 0;
@@ -328,10 +345,30 @@ const usePlayerStore = create<PlayerState>((set, get) => {
           void safeReplacePlayerSource(videoPlayer, targetEpisode.url);
         }
 
+        // If targetEpisode.url is already a prefetched clean local file (file://), no additional processing needed!
+        if (targetEpisode?.url?.startsWith('file://')) {
+          logger.debug(`[PlayerStore] playEpisode #${index + 1} playing prefetched clean file immediately:`, targetEpisode.url);
+          return;
+        }
+
         // Asynchronously process M3U8 for ad filtering if enabled
         const adBlockMode = useSettingsStore.getState().adBlockMode || 'seamless';
         if (targetEpisode?.url && adBlockMode !== 'off') {
-          processM3U8ForPlayback(targetEpisode.url, adBlockMode)
+          // If prefetch is in flight for this exact index, reuse that promise
+          const adPromise =
+            inFlightPrefetchIndex === index && inFlightPrefetchPromise
+              ? inFlightPrefetchPromise.then(() => {
+                  const ep = get().episodes[index];
+                  return {
+                    cleanUrl: ep?.url || targetEpisode.url,
+                    adIntervals: prefetchedAdIntervalsMap.get(index) || [],
+                    totalAdDuration: 0,
+                    isModified: ep?.url !== targetEpisode.url,
+                  };
+                })
+              : processM3U8ForPlayback(targetEpisode.url, adBlockMode);
+
+          adPromise
             .then((filterResult) => {
               if (filterResult.isModified) {
                 const currentEpList = get().episodes;
@@ -351,6 +388,53 @@ const usePlayerStore = create<PlayerState>((set, get) => {
             });
         }
       }
+    },
+
+    prefetchNextEpisode: async () => {
+      const { episodes, currentEpisodeIndex } = get();
+      const nextIndex = currentEpisodeIndex + 1;
+      if (nextIndex >= episodes.length) return;
+      if (prefetchedIndex === nextIndex || inFlightPrefetchIndex === nextIndex) return;
+
+      const targetEpisode = episodes[nextIndex];
+      if (!targetEpisode?.url) return;
+
+      // Already processed into a local clean file
+      if (targetEpisode.url.startsWith('file://')) {
+        prefetchedIndex = nextIndex;
+        return;
+      }
+
+      const adBlockMode = useSettingsStore.getState().adBlockMode || 'seamless';
+      if (adBlockMode === 'off') return;
+
+      inFlightPrefetchIndex = nextIndex;
+      logger.info(`[PlayerStore] Prefetching next episode #${nextIndex + 1}: ${targetEpisode.url}`);
+
+      const promise = (async () => {
+        try {
+          const filterResult = await processM3U8ForPlayback(targetEpisode.url, adBlockMode);
+          if (filterResult.isModified) {
+            const currentEpList = get().episodes;
+            if (currentEpList[nextIndex]) {
+              const updatedEpisodes = [...currentEpList];
+              updatedEpisodes[nextIndex] = { ...updatedEpisodes[nextIndex], url: filterResult.cleanUrl };
+              set({ episodes: updatedEpisodes });
+              prefetchedAdIntervalsMap.set(nextIndex, filterResult.adIntervals);
+              logger.info(`[PlayerStore] Next episode #${nextIndex + 1} prefetched and cleaned: ${filterResult.cleanUrl}`);
+            }
+          }
+          prefetchedIndex = nextIndex;
+        } catch (err) {
+          logger.debug(`[PlayerStore] Prefetch for episode #${nextIndex + 1} failed:`, err);
+        } finally {
+          inFlightPrefetchPromise = null;
+          inFlightPrefetchIndex = null;
+        }
+      })();
+
+      inFlightPrefetchPromise = promise;
+      await promise;
     },
 
     retryCurrentPlayback: async () => {
@@ -519,6 +603,25 @@ const usePlayerStore = create<PlayerState>((set, get) => {
         nextState.showNextEpisodeOverlay = isNearEnd && currentEpisodeIndex < episodes.length - 1 && !outroStartTime;
       }
 
+      // Trigger background prefetch & pre-filtering for next episode:
+      // - At 85% progress
+      // - OR when remaining time <= 120s
+      // - OR at least 60s before outroStartTime kicks in (if configured)
+      if (newStatus.durationMillis && newStatus.durationMillis >= 60000) {
+        const remainingMillis = newStatus.durationMillis - newStatus.positionMillis;
+        const progressRatio = newStatus.positionMillis / newStatus.durationMillis;
+        const prefetchThresholdMillis = Math.max(120000, (outroStartTime || 0) + 60000);
+        const nextIdx = currentEpisodeIndex + 1;
+        if (
+          (progressRatio >= 0.85 || remainingMillis <= prefetchThresholdMillis) &&
+          nextIdx < episodes.length &&
+          prefetchedIndex !== nextIdx &&
+          inFlightPrefetchIndex !== nextIdx
+        ) {
+          void get().prefetchNextEpisode();
+        }
+      }
+
       if (newStatus.durationMillis) {
         const newProgress = newStatus.positionMillis / newStatus.durationMillis;
         nextState.progressPosition = newProgress;
@@ -656,6 +759,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
 
     reset: () => {
       if (seekTimeoutId) clearTimeout(seekTimeoutId);
+      resetPrefetchState();
       set({
         videoPlayer: null, episodes: [], currentEpisodeIndex: 0, status: null, isLoading: true, isUserPaused: false, showControls: false,
         showEpisodeModal: false, showSourceModal: false, showSpeedModal: false, showNextEpisodeOverlay: false,

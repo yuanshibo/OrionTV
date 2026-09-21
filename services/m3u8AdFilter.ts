@@ -469,31 +469,84 @@ export function filterM3U8Content(
 }
 
 /**
- * Cache management: removes old temporary M3U8 files, keeping at most 5 files.
+ * Cache management options for M3U8 temporary files.
  */
-export async function cleanOldAdfreeFiles(): Promise<void> {
+export interface M3U8CacheCleanupOptions {
+  /** Maximum number of recent adfree M3U8 files to keep (default: 15) */
+  maxFiles?: number;
+  /** Maximum age in milliseconds before a file is considered expired (default: 24 hours) */
+  maxAgeMs?: number;
+  /** Currently active file URI (e.g. file:///.../adfree_xxx.m3u8), will NEVER be deleted */
+  activeUrl?: string;
+}
+
+const DEFAULT_MAX_CACHE_FILES = 15;
+const DEFAULT_MAX_CACHE_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+/**
+ * Cache management: removes old temporary M3U8 files with timestamp ordering,
+ * active playback file protection, and TTL expiration.
+ */
+export async function cleanupM3U8Cache(options?: M3U8CacheCleanupOptions): Promise<void> {
   try {
     const cacheDir = ReactNativeBlobUtil.fs?.dirs?.CacheDir;
     if (!cacheDir) return;
 
-    const files = await ReactNativeBlobUtil.fs.ls(cacheDir);
-    const adfreeFiles = files.filter((f) => f.startsWith('adfree_') && f.endsWith('.m3u8'));
+    const maxFiles = options?.maxFiles ?? DEFAULT_MAX_CACHE_FILES;
+    const maxAgeMs = options?.maxAgeMs ?? DEFAULT_MAX_CACHE_AGE_MS;
+    const activeUrl = options?.activeUrl;
 
-    if (adfreeFiles.length > 5) {
-      // Sort and remove older files
-      const toDelete = adfreeFiles.slice(0, adfreeFiles.length - 5);
-      for (const file of toDelete) {
-        try {
-          await ReactNativeBlobUtil.fs.unlink(`${cacheDir}/${file}`);
-        } catch (e) {
-          logger.debug('Failed to delete old adfree file:', e);
-        }
+    const files = await ReactNativeBlobUtil.fs.ls(cacheDir);
+    const now = Date.now();
+
+    // Filter files matching adfree_*.m3u8
+    const adfreeEntries = files
+      .filter((f) => f.startsWith('adfree_') && f.endsWith('.m3u8'))
+      .map((filename) => {
+        const fullPath = `${cacheDir}/${filename}`;
+        const fileUri = `file://${fullPath}`;
+        // Extract timestamp if present: adfree_<hash>_<timestamp>.m3u8
+        const match = filename.match(/^adfree_[^_]+_(\d+)\.m3u8$/);
+        const timestamp = match ? parseInt(match[1], 10) : 0;
+        return { filename, fullPath, fileUri, timestamp };
+      });
+
+    // Separate active file from candidate files (active file is strictly protected)
+    const candidateEntries = adfreeEntries.filter((entry) => {
+      if (activeUrl && (entry.fileUri === activeUrl || entry.fullPath === activeUrl || activeUrl.endsWith(entry.filename))) {
+        return false;
+      }
+      return true;
+    });
+
+    // Sort candidate files descending by timestamp (newest first)
+    candidateEntries.sort((a, b) => b.timestamp - a.timestamp);
+
+    const filesToDelete: typeof candidateEntries = [];
+
+    candidateEntries.forEach((entry, index) => {
+      const isTooOld = entry.timestamp > 0 && now - entry.timestamp > maxAgeMs;
+      const isExceedingCount = index >= maxFiles;
+      if (isTooOld || isExceedingCount) {
+        filesToDelete.push(entry);
+      }
+    });
+
+    for (const entry of filesToDelete) {
+      try {
+        await ReactNativeBlobUtil.fs.unlink(entry.fullPath);
+        logger.debug(`[M3U8Cache] Evicted cache file: ${entry.filename}`);
+      } catch (unlinkErr) {
+        logger.debug(`[M3U8Cache] Failed to unlink file ${entry.filename}:`, unlinkErr);
       }
     }
   } catch (error) {
-    logger.debug('cleanOldAdfreeFiles error:', error);
+    logger.debug('[M3U8Cache] Cache cleanup error:', error);
   }
 }
+
+/** Backward compatibility alias */
+export const cleanOldAdfreeFiles = cleanupM3U8Cache;
 
 /**
  * Simple hash helper for filenames
@@ -505,6 +558,19 @@ function hashString(str: string): string {
     hash |= 0;
   }
   return Math.abs(hash).toString(36);
+}
+
+/** In-memory cache for processed M3U8 ad filter results */
+interface CachedFilterResult {
+  result: AdFilterResult;
+  timestamp: number;
+}
+const adFilterResultCache = new Map<string, CachedFilterResult>();
+const IN_MEMORY_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+/** Clears the in-memory ad filter cache (useful for testing or full resets) */
+export function clearAdFilterCache(): void {
+  adFilterResultCache.clear();
 }
 
 /**
@@ -528,6 +594,28 @@ export async function processM3U8ForPlayback(
 
   if (!isLikelyM3U8) {
     return { cleanUrl: originalUrl, adIntervals: [], totalAdDuration: 0, isModified: false };
+  }
+
+  // Check in-memory result cache
+  const cacheKey = `${originalUrl}|${mode}`;
+  const cached = adFilterResultCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < IN_MEMORY_CACHE_TTL_MS) {
+    // If it's a local file, ensure the file still exists
+    if (cached.result.cleanUrl.startsWith('file://')) {
+      const filePath = cached.result.cleanUrl.replace(/^file:\/\//, '');
+      try {
+        const exists = await ReactNativeBlobUtil.fs.exists(filePath);
+        if (exists) {
+          logger.debug(`Using in-memory cached ad-filter result for: ${originalUrl}`);
+          return cached.result;
+        }
+      } catch {
+        // If check fails, continue to re-fetch
+      }
+    } else {
+      logger.debug(`Using in-memory cached ad-filter result for: ${originalUrl}`);
+      return cached.result;
+    }
   }
 
   try {
@@ -576,7 +664,14 @@ export async function processM3U8ForPlayback(
 
     if (!filterResult.isModified) {
       logger.debug('No ads detected in M3U8 stream');
-      return { cleanUrl: originalUrl, adIntervals: [], totalAdDuration: 0, isModified: false };
+      const unmodifiedResult: AdFilterResult = {
+        cleanUrl: originalUrl,
+        adIntervals: [],
+        totalAdDuration: 0,
+        isModified: false,
+      };
+      adFilterResultCache.set(cacheKey, { result: unmodifiedResult, timestamp: Date.now() });
+      return unmodifiedResult;
     }
 
     logger.info(
@@ -587,12 +682,14 @@ export async function processM3U8ForPlayback(
 
     // If mode is 'skip', do not write file, return originalUrl with adIntervals
     if (mode === 'skip') {
-      return {
+      const skipResult: AdFilterResult = {
         cleanUrl: originalUrl,
         adIntervals: filterResult.adIntervals,
         totalAdDuration: filterResult.totalAdDuration,
         isModified: true,
       };
+      adFilterResultCache.set(cacheKey, { result: skipResult, timestamp: Date.now() });
+      return skipResult;
     }
 
     // Mode is 'seamless': save clean M3U8 to local cache file
@@ -608,8 +705,6 @@ export async function processM3U8ForPlayback(
         };
       }
 
-      await cleanOldAdfreeFiles();
-
       const filename = `adfree_${hashString(finalUrl)}_${Date.now()}.m3u8`;
       const filePath = `${cacheDir}/${filename}`;
 
@@ -618,7 +713,12 @@ export async function processM3U8ForPlayback(
       const localFileUri = `file://${filePath}`;
       logger.info(`Cleaned M3U8 written to local file: ${localFileUri}`);
 
-      return {
+      // Non-blocking opportunistic cache cleanup protecting active/new file
+      void cleanupM3U8Cache({ activeUrl: localFileUri }).catch((err) =>
+        logger.debug('[M3U8Cache] Background cleanup error:', err)
+      );
+
+      const seamlessResult: AdFilterResult = {
         cleanUrl: localFileUri,
         // When using a clean local file, the ads are already physically stripped.
         // adIntervals is set to empty so the player does NOT seek or show skip toasts.
@@ -626,6 +726,8 @@ export async function processM3U8ForPlayback(
         totalAdDuration: filterResult.totalAdDuration,
         isModified: true,
       };
+      adFilterResultCache.set(cacheKey, { result: seamlessResult, timestamp: Date.now() });
+      return seamlessResult;
     } catch (fsErr) {
       logger.warn('Failed to write local M3U8 file, falling back to skip mode:', fsErr);
       return {
