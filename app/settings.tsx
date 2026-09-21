@@ -12,6 +12,7 @@ import { APIConfigSection } from "@/components/settings/APIConfigSection";
 import { LiveStreamSection } from "@/components/settings/LiveStreamSection";
 import { RemoteInputSection } from "@/components/settings/RemoteInputSection";
 import { UpdateSection } from "@/components/settings/UpdateSection";
+import { AdBlockSection } from "@/components/settings/AdBlockSection";
 import Toast from "react-native-toast-message";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { getCommonResponsiveStyles } from "@/utils/ResponsiveStyles";
@@ -124,6 +125,14 @@ export default function SettingsScreen() {
         />
       ),
       key: "livestream",
+    },
+    {
+      component: (
+        <AdBlockSection
+          onChanged={() => {}}
+        />
+      ),
+      key: "adblock",
     },
     Platform.OS === "android" && {
       component: <UpdateSection />,

@@ -81,6 +81,8 @@ interface SettingsState {
   isTestingM3u: boolean;
   lastApiTestResult: ApiTestResult | null;
   lastM3uTestResult: M3uTestResult | null;
+  adBlockMode: "seamless" | "skip" | "off";
+  setAdBlockMode: (mode: "seamless" | "skip" | "off") => void;
   loadSettings: () => Promise<void>;
   fetchServerConfig: () => Promise<void>;
   setApiBaseUrl: (url: string) => void;
@@ -110,6 +112,13 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     enabledAll: true,
     sources: {},
   },
+  adBlockMode: "seamless",
+  setAdBlockMode: (mode) => {
+    set({ adBlockMode: mode });
+    SettingsManager.save({ adBlockMode: mode }).catch((err) => {
+      logger.debug("Failed to auto-save adBlockMode:", err);
+    });
+  },
   loadSettings: async () => {
     const settings = await SettingsManager.get();
     const effectiveApiBaseUrl = settings.apiBaseUrl || DEFAULT_API_BASE_URL;
@@ -117,6 +126,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       apiBaseUrl: effectiveApiBaseUrl,
       m3uUrl: settings.m3uUrl,
       remoteInputEnabled: settings.remoteInputEnabled || false,
+      adBlockMode: settings.adBlockMode || "seamless",
       videoSource: settings.videoSource || {
         enabledAll: true,
         sources: {},
@@ -301,7 +311,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 
   saveSettings: async () => {
-    const { apiBaseUrl, m3uUrl, remoteInputEnabled, videoSource } = get();
+    const { apiBaseUrl, m3uUrl, remoteInputEnabled, videoSource, adBlockMode } = get();
 
     const processedApiBaseUrl = normalizeUrl(apiBaseUrl);
     const processedM3uUrl = normalizeUrl(m3uUrl);
@@ -313,6 +323,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       m3uUrl: processedM3uUrl,
       remoteInputEnabled,
       videoSource,
+      adBlockMode,
     });
 
     if (oldApiBaseUrl !== processedApiBaseUrl) {

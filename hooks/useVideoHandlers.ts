@@ -49,6 +49,7 @@ export const useVideoHandlers = ({
   const audioRecoveryCountRef = useRef<number>(0);
   const lastAudioRecoveryTimeRef = useRef<number>(0);
   const playbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSkippedAdEndRef = useRef<number>(0);
 
   const contentFit = usePlayerStore((state) => state.contentFit);
 
@@ -76,6 +77,7 @@ export const useVideoHandlers = ({
     lastValidPositionRef.current = 0;
     audioRecoveryCountRef.current = 0;
     lastAudioRecoveryTimeRef.current = 0;
+    lastSkippedAdEndRef.current = 0;
 
     clearPlaybackTimeout();
     if (currentEpisode?.url) {
@@ -219,6 +221,26 @@ export const useVideoHandlers = ({
           lastValidPositionRef.current = posMillis;
           clearPlaybackTimeout();
         }
+
+        // Check ad intervals for auto-skip (used ONLY in 'skip' mode or fallback when playing original stream)
+        const isPlayingLocalFile = currentEpisode?.url?.startsWith('file://');
+        const adIntervals = usePlayerStore.getState().adIntervals;
+        const isSeeking = usePlayerStore.getState().isSeeking;
+        if (!isPlayingLocalFile && !isSeeking && adIntervals && adIntervals.length > 0) {
+          const matchingAd = adIntervals.find(
+            (ad) => currentTime >= ad.start - 0.2 && currentTime < ad.end - 0.5 && lastSkippedAdEndRef.current !== ad.end
+          );
+          if (matchingAd) {
+            try {
+              lastSkippedAdEndRef.current = matchingAd.end;
+              player.currentTime = matchingAd.end;
+              errorService.showToast('已为您自动跳过片中广告', 'info');
+            } catch (seekErr) {
+              console.warn('[VIDEO] Failed to auto-seek past ad:', seekErr);
+            }
+          }
+        }
+
         emitStatusUpdate({
           positionMillis: posMillis,
           playableDurationMillis: bufferedPosition >= 0 ? bufferedPosition * 1000 : undefined,

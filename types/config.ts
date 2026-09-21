@@ -14,6 +14,7 @@ export interface AppSettings {
     };
   };
   m3uUrl: string;
+  adBlockMode?: "seamless" | "skip" | "off";
 }
 
 export interface ServerConfig {
