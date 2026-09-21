@@ -3,6 +3,10 @@ import {
   rewriteTagUri,
   filterM3U8Content,
   processM3U8ForPlayback,
+  calculateStreamStats,
+  calculateBlockAdScore,
+  StreamBlock,
+  StreamStats,
 } from '../m3u8AdFilter';
 
 // Mock react-native-blob-util
@@ -328,6 +332,135 @@ describe('m3u8AdFilter', () => {
       expect(result.adIntervals.length).toBe(1);
       expect(result.adIntervals[0].duration).toBeCloseTo(12.16, 1);
       expect(result.content).not.toContain('post_ad1.ts');
+    });
+
+    it('filters out inserted ad with remainder slice (29.28s) in high dominant frequency stream (Sample 6 at 12m32s)', () => {
+      // Stream with 30 blocks, where 98% of slices are 2.000s
+      // Block #15 has 14 slices of 2.00s + 1 slice of 1.28s = 29.28s (matches 30s ad)
+      // Block #29 (last block) has 1.16s remainder (boundary, should NOT be filtered)
+      const blocks: string[] = [];
+      for (let b = 0; b < 30; b++) {
+        const segs: string[] = [];
+        if (b === 15) {
+          // 29.28s commercial ad
+          for (let i = 0; i < 14; i++) {
+            segs.push(`#EXTINF:2.000,\nad_${i}.ts`);
+          }
+          segs.push('#EXTINF:1.280,\nad_tail.ts');
+        } else if (b === 29) {
+          // Last movie block with natural movie end remainder
+          for (let i = 0; i < 10; i++) {
+            segs.push(`#EXTINF:2.000,\nlast_${i}.ts`);
+          }
+          segs.push('#EXTINF:1.160,\nmovie_tail.ts');
+        } else {
+          // Regular movie blocks: all 2.000s
+          for (let i = 0; i < 10; i++) {
+            segs.push(`#EXTINF:2.000,\nm_${b}_${i}.ts`);
+          }
+        }
+        blocks.push(`#EXT-X-DISCONTINUITY\n${segs.join('\n')}`);
+      }
+
+      const m3u8 = `#EXTM3U\n${blocks.join('\n')}\n#EXT-X-ENDLIST`;
+      const result = filterM3U8Content(m3u8, 'https://cdn.example.com/hls/');
+
+      expect(result.isModified).toBe(true);
+      expect(result.adIntervals.length).toBe(1);
+      expect(result.adIntervals[0].duration).toBeCloseTo(29.28, 1);
+      expect(result.content).not.toContain('ad_tail.ts');
+      expect(result.content).toContain('movie_tail.ts');
+    });
+  });
+
+  describe('calculateStreamStats', () => {
+    it('accurately computes dominant slice duration and sparsity', () => {
+      const blocks: StreamBlock[] = [
+        { lines: [], durs: [2.0, 2.0, 2.0], duration: 6.0, hasKeyword: false, urls: [] },
+        { lines: [], durs: [2.0, 2.0], duration: 4.0, hasKeyword: false, urls: [] },
+      ];
+      const durCounts = { '2.00': 5 };
+      const stats = calculateStreamStats(blocks, durCounts, 5);
+
+      expect(stats.dominantDur).toBe(2.0);
+      expect(stats.dominantFreq).toBe(1.0);
+      expect(stats.totalDuration).toBe(10.0);
+      expect(stats.blockCount).toBe(2);
+      expect(stats.avgBlockDuration).toBe(5.0);
+    });
+  });
+
+  describe('calculateBlockAdScore', () => {
+    const defaultStats: StreamStats = {
+      totalDuration: 1000,
+      blockCount: 20,
+      avgBlockDuration: 50,
+      isSparseDiscontinuity: false,
+      dominantDur: 4.0,
+      dominantFreq: 0.4,
+      totalSliceCount: 250,
+    };
+
+    it('gives maximum score of 100 for keyword match', () => {
+      const block: StreamBlock = {
+        lines: ['#EXTINF:4.00,', 'guanggao_1.ts'],
+        durs: [4.0],
+        duration: 4.0,
+        hasKeyword: true,
+        urls: ['guanggao_1.ts'],
+      };
+      const res = calculateBlockAdScore(block, 1, [], defaultStats);
+      expect(res.score).toBe(100);
+      expect(res.reasons).toContain('keyword_match');
+    });
+
+    it('returns score 0 for blocks exceeding 90s', () => {
+      const block: StreamBlock = {
+        lines: [],
+        durs: [100.0],
+        duration: 100.0,
+        hasKeyword: false,
+        urls: [],
+      };
+      const res = calculateBlockAdScore(block, 1, [], defaultStats);
+      expect(res.score).toBe(0);
+      expect(res.reasons).toContain('exceeds_max_ad_duration_90s');
+    });
+
+    it('gives high score for exact integer standard commercial duration in dense streams', () => {
+      const block: StreamBlock = {
+        lines: [],
+        durs: [4.0, 5.48, 2.92, 4.0, 4.32, 1.28], // sum = 22.00
+        duration: 22.0,
+        hasKeyword: false,
+        urls: [],
+      };
+      const res = calculateBlockAdScore(block, 5, [block, block, block, block, block, block, block], defaultStats);
+      expect(res.score).toBeGreaterThanOrEqual(70);
+      expect(res.reasons).toContain('exact_integer_commercial_dur_low_dominant');
+    });
+
+    it('gives high score for remainder slice in uniform stream (dominantFreq >= 0.70)', () => {
+      const uniformStats: StreamStats = {
+        totalDuration: 2000,
+        blockCount: 50,
+        avgBlockDuration: 40,
+        isSparseDiscontinuity: false,
+        dominantDur: 2.0,
+        dominantFreq: 0.95,
+        totalSliceCount: 1000,
+      };
+      const block: StreamBlock = {
+        lines: [],
+        durs: [2.0, 2.0, 2.0, 2.0, 1.28], // sum = 9.28 ~ 10s ad
+        duration: 9.28,
+        hasKeyword: false,
+        urls: [],
+      };
+      const blocks = [block, block, block];
+      const res = calculateBlockAdScore(block, 1, blocks, uniformStats);
+      expect(res.score).toBeGreaterThanOrEqual(70);
+      expect(res.reasons).toContain('uniform_stream_remainder_slice_ad');
     });
   });
 

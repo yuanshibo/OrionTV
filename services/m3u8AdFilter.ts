@@ -73,12 +73,157 @@ export function rewriteTagUri(line: string, baseUrl: string): string {
   return line;
 }
 
-interface BlockData {
+export interface StreamBlock {
   lines: string[];
   durs: number[];
   duration: number;
   hasKeyword: boolean;
   urls: string[];
+}
+
+export interface StreamStats {
+  totalDuration: number;
+  blockCount: number;
+  avgBlockDuration: number;
+  isSparseDiscontinuity: boolean;
+  dominantDur: number | null;
+  dominantFreq: number;
+  totalSliceCount: number;
+}
+
+export interface BlockScoreResult {
+  score: number;
+  reasons: string[];
+}
+
+/**
+ * Computes stream-level statistics such as dominant slice duration,
+ * slice frequency, and discontinuity sparsity.
+ */
+export function calculateStreamStats(
+  blocks: StreamBlock[],
+  durCounts: Record<string, number>,
+  totalSliceCount: number
+): StreamStats {
+  let dominantDur: number | null = null;
+  let maxCount = 0;
+  for (const [dStr, count] of Object.entries(durCounts)) {
+    if (count > maxCount) {
+      maxCount = count;
+      dominantDur = parseFloat(dStr);
+    }
+  }
+  const dominantFreq = dominantDur !== null && totalSliceCount > 0 ? maxCount / totalSliceCount : 0;
+  const totalDuration = blocks.reduce((sum, b) => sum + b.duration, 0);
+  const avgBlockDuration = blocks.length > 0 ? totalDuration / blocks.length : 0;
+  const isSparseDiscontinuity = avgBlockDuration >= 60 || (blocks.length <= 15 && totalDuration > 90);
+
+  return {
+    totalDuration,
+    blockCount: blocks.length,
+    avgBlockDuration,
+    isSparseDiscontinuity,
+    dominantDur,
+    dominantFreq,
+    totalSliceCount,
+  };
+}
+
+/**
+ * Multi-dimensional anomaly scoring engine: Evaluates a candidate block
+ * across commercial duration matching, GOP/slice deviation, remainder slice detection,
+ * and topological context.
+ *
+ * Returns a score between 0 and 100. Scores >= 70 indicate high-confidence commercial ads.
+ */
+export function calculateBlockAdScore(
+  b: StreamBlock,
+  idx: number,
+  blocks: StreamBlock[],
+  stats: StreamStats,
+  standardAdDurs: number[] = DEFAULT_AD_DURATIONS,
+  isPartOfAdPod = false
+): BlockScoreResult {
+  const reasons: string[] = [];
+  if (b.duration > 90) {
+    return { score: 0, reasons: ['exceeds_max_ad_duration_90s'] };
+  }
+
+  if (b.hasKeyword) {
+    return { score: 100, reasons: ['keyword_match'] };
+  }
+
+  if (isPartOfAdPod) {
+    return { score: 95, reasons: ['ad_pod_sparse_sequence'] };
+  }
+
+  let score = 0;
+  const isBoundary = idx === 0 || idx === blocks.length - 1;
+  const matchesStandardDur = standardAdDurs.some((d) => Math.abs(b.duration - d) <= 1.5);
+  const isExactIntegerDur = standardAdDurs.some((d) => Math.abs(b.duration - d) < 0.01);
+
+  const matchDominantCount =
+    stats.dominantDur !== null ? b.durs.filter((d) => Math.abs(d - stats.dominantDur!) < 0.05).length : 0;
+  const dominantRatio = b.durs.length > 0 ? matchDominantCount / b.durs.length : 0;
+
+  if (stats.isSparseDiscontinuity) {
+    // Sparse Discontinuity Streams (e.g. phimgood, yzzy, ffzy):
+    // Discontinuities are inserted almost exclusively around commercial ad pods.
+    if (b.duration <= 45) {
+      if (matchesStandardDur) {
+        score += 50;
+        reasons.push('matches_standard_ad_dur');
+      }
+      if (dominantRatio <= 0.25) {
+        score += 40;
+        reasons.push('low_dominant_ratio');
+      }
+      if (b.durs.length <= 4) {
+        score += 30;
+        reasons.push('short_slice_count');
+      }
+    }
+  } else {
+    // Dense Discontinuity Streams (e.g. dytt, ryplay7, zuidazym3u8):
+    // Discontinuities appear frequently even in normal movie content.
+    // Feature A: Zero dominant ratio with short slice count (<= 3 slices, or <= 4 slices with standard dur)
+    if (dominantRatio === 0) {
+      if (b.durs.length <= 3) {
+        score += 80;
+        reasons.push('zero_dominant_short_slice_3');
+      } else if (b.durs.length <= 4 && matchesStandardDur) {
+        score += 80;
+        reasons.push('zero_dominant_short_slice_4_standard_dur');
+      }
+    }
+
+    // Feature B: Exact integer standard commercial ad duration with low dominant ratio (e.g. Sample 5 at 9m38s)
+    if (isExactIntegerDur && dominantRatio <= 0.35 && b.duration <= 35) {
+      score += 85;
+      reasons.push('exact_integer_commercial_dur_low_dominant');
+    }
+
+    // Feature C: Boundary short commercial ad (e.g. Sample 5 post-roll at 24m19s)
+    if (isBoundary && b.durs.length <= 3 && matchesStandardDur && dominantRatio <= 0.35) {
+      score += 85;
+      reasons.push('boundary_short_commercial_ad');
+    }
+
+    // Feature D: High-uniformity stream with remainder slice (e.g. Sample 6 at 12m32s)
+    if (
+      stats.dominantFreq >= 0.70 &&
+      idx > 0 &&
+      idx < blocks.length - 1 &&
+      b.duration <= 60 &&
+      matchesStandardDur &&
+      matchDominantCount < b.durs.length
+    ) {
+      score += 85;
+      reasons.push('uniform_stream_remainder_slice_ad');
+    }
+  }
+
+  return { score: Math.min(100, score), reasons };
 }
 
 /**
@@ -119,19 +264,9 @@ export function filterM3U8Content(
     }
   }
 
-  let dominantDur: number | null = null;
-  let maxCount = 0;
-  for (const [dStr, count] of Object.entries(durCounts)) {
-    if (count > maxCount) {
-      maxCount = count;
-      dominantDur = parseFloat(dStr);
-    }
-  }
-  const dominantFreq = dominantDur !== null && totalSliceCount > 0 ? maxCount / totalSliceCount : 0;
-
   // 2. Parse into blocks separated by #EXT-X-DISCONTINUITY
-  const blocks: BlockData[] = [];
-  let curBlock: BlockData = { lines: [], durs: [], duration: 0, hasKeyword: false, urls: [] };
+  const blocks: StreamBlock[] = [];
+  let curBlock: StreamBlock = { lines: [], durs: [], duration: 0, hasKeyword: false, urls: [] };
   const headerLines: string[] = [];
   let inHeader = true;
 
@@ -178,29 +313,13 @@ export function filterM3U8Content(
     blocks.push(curBlock);
   }
 
-  // 3. Detect which blocks are ads
-  const totalPlaylistDuration = blocks.reduce((sum, b) => sum + b.duration, 0);
-  const avgBlockDuration = blocks.length > 0 ? totalPlaylistDuration / blocks.length : 0;
-  // Sparse discontinuity streams have long blocks or few blocks, where discontinuities bracket commercial ads
-  const isSparseDiscontinuity = avgBlockDuration >= 60 || (blocks.length <= 15 && totalPlaylistDuration > 90);
-
+  // 3. Detect which blocks are ads using the Unified Scoring Engine
+  const stats = calculateStreamStats(blocks, durCounts, totalSliceCount);
   const isAdBlock: boolean[] = new Array(blocks.length).fill(false);
+  const isPodBlock: boolean[] = new Array(blocks.length).fill(false);
 
-  // 3.1 Initial pass: keyword matching & long block elimination
-  for (let idx = 0; idx < blocks.length; idx++) {
-    const b = blocks[idx];
-    if (b.duration > 90) {
-      continue;
-    }
-    if (b.hasKeyword) {
-      isAdBlock[idx] = true;
-    }
-  }
-
-  // 3.2 Detection based on stream discontinuity sparsity
-  if (isSparseDiscontinuity && blocks.length > 1) {
-    // In sparse discontinuity streams, discontinuities are inserted almost exclusively for commercial breaks.
-    // Identify contiguous runs of short blocks (<= 50s each) flanked by long content (> 50s or stream boundaries).
+  // 3.1 Pre-pass: Ad Pod aggregation in sparse streams
+  if (stats.isSparseDiscontinuity && blocks.length > 1) {
     let runStart: number | null = null;
     let runDur = 0;
 
@@ -219,7 +338,7 @@ export function filterM3U8Content(
           const nextLong = blocks[idx].duration > 50;
           if (runDur <= 90 && (prevLong || nextLong)) {
             for (let k = runStart; k < idx; k++) {
-              isAdBlock[k] = true;
+              isPodBlock[k] = true;
             }
           }
           runStart = null;
@@ -232,62 +351,22 @@ export function filterM3U8Content(
       const prevLong = runStart === 0 || blocks[runStart - 1].duration > 50;
       if (runDur <= 90 && prevLong) {
         for (let k = runStart; k < blocks.length; k++) {
-          isAdBlock[k] = true;
+          isPodBlock[k] = true;
         }
       }
     }
+  }
 
-    // Individual short block inspection (e.g. matching standard commercial duration or low dominant ratio)
-    for (let idx = 0; idx < blocks.length; idx++) {
-      const b = blocks[idx];
-      if (!isAdBlock[idx] && b.duration <= 45) {
-        const matchesStandardDur = standardAdDurs.some((d) => Math.abs(b.duration - d) <= 1.5);
-        const matchDominantCount =
-          dominantDur !== null ? b.durs.filter((d) => Math.abs(d - dominantDur!) < 0.05).length : 0;
-        const dominantRatio = b.durs.length > 0 ? matchDominantCount / b.durs.length : 0;
-
-        if (matchesStandardDur || dominantRatio <= 0.25 || b.durs.length <= 4) {
-          isAdBlock[idx] = true;
-        }
-      }
-    }
-  } else {
-    // 3.3 Dense discontinuity streams (e.g. dytt where discontinuity occurs every ~20s)
-    for (let idx = 0; idx < blocks.length; idx++) {
-      if (isAdBlock[idx]) continue;
-      const b = blocks[idx];
-      if (b.duration > 90) continue;
-
-      if (dominantFreq >= 0.25 && dominantDur !== null) {
-        const matchDominantCount = b.durs.filter((d) => Math.abs(d - dominantDur!) < 0.05).length;
-        const dominantRatio = b.durs.length > 0 ? matchDominantCount / b.durs.length : 0;
-        const matchesStandardDur = standardAdDurs.some((d) => Math.abs(b.duration - d) <= 1.5);
-
-        // In dense streams, require dominantRatio === 0 with short slice count (<= 3 or <= 4 with standard dur),
-        // OR an exact integer standard commercial ad duration (e.g. 22.000s, 19.000s, 15.000s) with dominantRatio <= 0.35,
-        // OR a boundary ad (pre-roll or post-roll) with short slice count (<= 3), matching standard ad duration, and dominantRatio <= 0.35
-        if (dominantRatio === 0 && (b.durs.length <= 3 || (matchesStandardDur && b.durs.length <= 4))) {
-          isAdBlock[idx] = true;
-        } else if (
-          standardAdDurs.some((d) => Math.abs(b.duration - d) < 0.01) &&
-          dominantRatio <= 0.35 &&
-          b.duration <= 35
-        ) {
-          isAdBlock[idx] = true;
-        } else if (
-          (idx === 0 || idx === blocks.length - 1) &&
-          b.durs.length <= 3 &&
-          matchesStandardDur &&
-          dominantRatio <= 0.35
-        ) {
-          isAdBlock[idx] = true;
-        }
-      } else if (b.duration > 0 && b.duration <= 35) {
-        const matchesStandardDur = standardAdDurs.some((d) => Math.abs(b.duration - d) <= 1.0);
-        if (matchesStandardDur && b.durs.length <= 3) {
-          isAdBlock[idx] = true;
-        }
-      }
+  // 3.2 Scoring pass
+  const AD_SCORE_THRESHOLD = 70;
+  for (let idx = 0; idx < blocks.length; idx++) {
+    const b = blocks[idx];
+    const { score, reasons } = calculateBlockAdScore(b, idx, blocks, stats, standardAdDurs, isPodBlock[idx]);
+    if (score >= AD_SCORE_THRESHOLD) {
+      isAdBlock[idx] = true;
+      logger.debug(
+        `Flagged block #${idx} as ad: score=${score}, reasons=${reasons.join(', ')}`
+      );
     }
   }
 

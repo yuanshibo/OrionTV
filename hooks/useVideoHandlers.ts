@@ -178,7 +178,9 @@ export const useVideoHandlers = ({
 
                 try {
                   if (typeof (player as any).replaceAsync === 'function') {
-                    (player as any).replaceAsync(currentEpisode.url);
+                    void (player as any).replaceAsync(currentEpisode.url).catch((err: any) => {
+                      console.warn('[VIDEO] replaceAsync audio recovery failed:', err);
+                    });
                   } else if (typeof (player as any).replace === 'function') {
                     (player as any).replace(currentEpisode.url);
                   } else {

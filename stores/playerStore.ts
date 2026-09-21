@@ -34,7 +34,16 @@ const safeReplacePlayerSource = (player: VideoPlayer | null, url: string): Promi
   const extPlayer = player as ExtendableVideoPlayer;
   try {
     if (typeof extPlayer.replaceAsync === "function") {
-      return extPlayer.replaceAsync(url);
+      const p = extPlayer.replaceAsync(url);
+      if (p && typeof p.catch === "function") {
+        p.catch((e) => {
+          logger.debug(
+            "[PlayerStore] safeReplacePlayerSource async failed (player may have been released or changed):",
+            e
+          );
+        });
+      }
+      return p;
     } else if (typeof extPlayer.replace === "function") {
       extPlayer.replace(url);
     } else if (typeof player.replay === "function") {
@@ -330,8 +339,9 @@ const usePlayerStore = create<PlayerState>((set, get) => {
                   const updatedEpisodes = [...currentEpList];
                   updatedEpisodes[index] = { ...updatedEpisodes[index], url: filterResult.cleanUrl };
                   set({ episodes: updatedEpisodes, adIntervals: filterResult.adIntervals });
-                  if (get().currentEpisodeIndex === index && videoPlayer && filterResult.cleanUrl !== targetEpisode.url) {
-                    void safeReplacePlayerSource(videoPlayer, filterResult.cleanUrl);
+                  const activePlayer = get().videoPlayer;
+                  if (get().currentEpisodeIndex === index && activePlayer && filterResult.cleanUrl !== targetEpisode.url) {
+                    void safeReplacePlayerSource(activePlayer, filterResult.cleanUrl);
                   }
                 }
               }
