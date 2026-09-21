@@ -3,6 +3,10 @@ import {
   rewriteTagUri,
   filterM3U8Content,
   processM3U8ForPlayback,
+  calculateStreamStats,
+  calculateBlockAdScore,
+  StreamBlock,
+  StreamStats,
 } from '../m3u8AdFilter';
 
 // Mock react-native-blob-util
@@ -366,6 +370,97 @@ describe('m3u8AdFilter', () => {
       expect(result.adIntervals[0].duration).toBeCloseTo(29.28, 1);
       expect(result.content).not.toContain('ad_tail.ts');
       expect(result.content).toContain('movie_tail.ts');
+    });
+  });
+
+  describe('calculateStreamStats', () => {
+    it('accurately computes dominant slice duration and sparsity', () => {
+      const blocks: StreamBlock[] = [
+        { lines: [], durs: [2.0, 2.0, 2.0], duration: 6.0, hasKeyword: false, urls: [] },
+        { lines: [], durs: [2.0, 2.0], duration: 4.0, hasKeyword: false, urls: [] },
+      ];
+      const durCounts = { '2.00': 5 };
+      const stats = calculateStreamStats(blocks, durCounts, 5);
+
+      expect(stats.dominantDur).toBe(2.0);
+      expect(stats.dominantFreq).toBe(1.0);
+      expect(stats.totalDuration).toBe(10.0);
+      expect(stats.blockCount).toBe(2);
+      expect(stats.avgBlockDuration).toBe(5.0);
+    });
+  });
+
+  describe('calculateBlockAdScore', () => {
+    const defaultStats: StreamStats = {
+      totalDuration: 1000,
+      blockCount: 20,
+      avgBlockDuration: 50,
+      isSparseDiscontinuity: false,
+      dominantDur: 4.0,
+      dominantFreq: 0.4,
+      totalSliceCount: 250,
+    };
+
+    it('gives maximum score of 100 for keyword match', () => {
+      const block: StreamBlock = {
+        lines: ['#EXTINF:4.00,', 'guanggao_1.ts'],
+        durs: [4.0],
+        duration: 4.0,
+        hasKeyword: true,
+        urls: ['guanggao_1.ts'],
+      };
+      const res = calculateBlockAdScore(block, 1, [], defaultStats);
+      expect(res.score).toBe(100);
+      expect(res.reasons).toContain('keyword_match');
+    });
+
+    it('returns score 0 for blocks exceeding 90s', () => {
+      const block: StreamBlock = {
+        lines: [],
+        durs: [100.0],
+        duration: 100.0,
+        hasKeyword: false,
+        urls: [],
+      };
+      const res = calculateBlockAdScore(block, 1, [], defaultStats);
+      expect(res.score).toBe(0);
+      expect(res.reasons).toContain('exceeds_max_ad_duration_90s');
+    });
+
+    it('gives high score for exact integer standard commercial duration in dense streams', () => {
+      const block: StreamBlock = {
+        lines: [],
+        durs: [4.0, 5.48, 2.92, 4.0, 4.32, 1.28], // sum = 22.00
+        duration: 22.0,
+        hasKeyword: false,
+        urls: [],
+      };
+      const res = calculateBlockAdScore(block, 5, [block, block, block, block, block, block, block], defaultStats);
+      expect(res.score).toBeGreaterThanOrEqual(70);
+      expect(res.reasons).toContain('exact_integer_commercial_dur_low_dominant');
+    });
+
+    it('gives high score for remainder slice in uniform stream (dominantFreq >= 0.70)', () => {
+      const uniformStats: StreamStats = {
+        totalDuration: 2000,
+        blockCount: 50,
+        avgBlockDuration: 40,
+        isSparseDiscontinuity: false,
+        dominantDur: 2.0,
+        dominantFreq: 0.95,
+        totalSliceCount: 1000,
+      };
+      const block: StreamBlock = {
+        lines: [],
+        durs: [2.0, 2.0, 2.0, 2.0, 1.28], // sum = 9.28 ~ 10s ad
+        duration: 9.28,
+        hasKeyword: false,
+        urls: [],
+      };
+      const blocks = [block, block, block];
+      const res = calculateBlockAdScore(block, 1, blocks, uniformStats);
+      expect(res.score).toBeGreaterThanOrEqual(70);
+      expect(res.reasons).toContain('uniform_stream_remainder_slice_ad');
     });
   });
 
