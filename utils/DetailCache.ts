@@ -6,7 +6,7 @@ export type DetailCacheEntry = {
   timestamp: number;
   detail: SearchResultWithResolution | null;
   searchResults: SearchResultWithResolution[];
-  sources: { source: string; source_name: string; resolution: string | null | undefined }[];
+  sources: { source: string; source_name: string; resolution: string | null | undefined; latencyMs?: number | null }[];
   allSourcesLoaded: boolean;
 };
 
@@ -32,7 +32,7 @@ export const setDetailCacheEntry = (
   cacheKey: string,
   detail: SearchResultWithResolution | null,
   searchResults: SearchResultWithResolution[],
-  sources: { source: string; source_name: string; resolution: string | null | undefined }[],
+  sources: { source: string; source_name: string; resolution: string | null | undefined; latencyMs?: number | null }[],
   allSourcesLoaded: boolean
 ) => {
   detailCache.set(cacheKey, {

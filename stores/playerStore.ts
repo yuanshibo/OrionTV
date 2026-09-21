@@ -161,6 +161,8 @@ interface PlayerState {
   /** @deprecated Use savePlayRecord instead */
   _savePlayRecord: (updates?: Partial<PlayRecord>, options?: { immediate?: boolean }) => void;
   handleVideoError: (errorType: 'ssl' | 'network' | 'other', failedUrl: string) => Promise<void>;
+  stallFailoverCount: number;
+  handlePlaybackStall: (stallPositionMs?: number) => Promise<void>;
 }
 
 /** Typed result for _loadPlaybackData, replacing the previous `as any` escape hatch */
@@ -231,12 +233,13 @@ const usePlayerStore = create<PlayerState>((set, get) => {
     outroStartTime: undefined,
     _isRecordSaveThrottled: false,
     adIntervals: [],
+    stallFailoverCount: 0,
 
     setVideoPlayer: (player) => set({ videoPlayer: player }),
 
     loadVideo: async ({ detail, episodeIndex, position, router }) => {
       resetPrefetchState();
-      set({ status: null, isLoading: true, isUserPaused: false, error: undefined, router, showRelatedVideos: false, adIntervals: [] });
+      set({ status: null, isLoading: true, isUserPaused: false, error: undefined, router, showRelatedVideos: false, adIntervals: [], stallFailoverCount: 0 });
 
       const episodes = detail.episodes && detail.episodes.length > 0
         ? detail.episodes
@@ -333,6 +336,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
           error: undefined,
           isSeekBuffering: false,
           adIntervals: prefetchedIntervals,
+          stallFailoverCount: 0,
         });
         // Reset SharedValues for the new episode
         progressPositionSV.value = 0;
@@ -764,7 +768,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
         videoPlayer: null, episodes: [], currentEpisodeIndex: 0, status: null, isLoading: true, isUserPaused: false, showControls: false,
         showEpisodeModal: false, showSourceModal: false, showSpeedModal: false, showNextEpisodeOverlay: false,
         initialPosition: 0, playbackRate: 1.0, contentFit: 'contain', isLocked: false, introEndTime: undefined, outroStartTime: undefined, error: undefined,
-        isSeeking: false, isSeekBuffering: false,
+        isSeeking: false, isSeekBuffering: false, stallFailoverCount: 0,
       });
       // Reset SharedValues so stale progress doesn't bleed into the next video
       resetPlayerSharedValues();
@@ -777,7 +781,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
         return;
       }
 
-      const { currentEpisodeIndex, introEndTime } = get();
+      const { currentEpisodeIndex, introEndTime, status, progressPosition, initialPosition, videoPlayer } = get();
       const currentSource = detail.source;
       useDetailStore.getState().markSourceAsFailed(currentSource, `${errorType} error`);
       const fallbackSource = useDetailStore.getState().getNextAvailableSource(currentSource, currentEpisodeIndex);
@@ -797,14 +801,25 @@ const usePlayerStore = create<PlayerState>((set, get) => {
       const newEpisodes = fallbackSource.episodes || [];
       if (newEpisodes.length > currentEpisodeIndex) {
         const mappedEpisodes = newEpisodes.map((ep, index) => ({ url: ep, title: `第 ${index + 1} 集` }));
+        const resumePosition =
+          status?.positionMillis && status.positionMillis > 0
+            ? status.positionMillis
+            : (progressPosition && progressPosition > 0 ? progressPosition : (initialPosition || introEndTime || 0));
+
         set({
           episodes: mappedEpisodes,
           error: undefined,
           status: null,
           isLoading: true,
           isUserPaused: false,
-          initialPosition: introEndTime || 0,
+          initialPosition: resumePosition,
         });
+
+        const targetEp = mappedEpisodes[currentEpisodeIndex];
+        if (videoPlayer && targetEp?.url) {
+          void safeReplacePlayerSource(videoPlayer, targetEp.url);
+        }
+
         Toast.show({
           type: "success",
           text1: "已自动切换播放源",
@@ -813,6 +828,77 @@ const usePlayerStore = create<PlayerState>((set, get) => {
       } else {
         const msg = errorService.handle("回退的播放源缺少当前剧集", { context: "handleVideoError", showToast: false });
         set({ error: msg, isLoading: false, status: null });
+      }
+    },
+
+    handlePlaybackStall: async (stallPositionMs?: number) => {
+      const { stallFailoverCount = 0 } = get();
+      if (stallFailoverCount >= 3) {
+        logger.warn("[STALL_FAILOVER] Reached max consecutive stall failovers (3). Halting auto-switch.");
+        Toast.show({
+          type: "error",
+          text1: "播放多次卡顿，网络可能较慢",
+          text2: "请检查网络或在播放控制面板手动切换清晰度/播放源",
+        });
+        return;
+      }
+
+      const { detail } = useDetailStore.getState();
+      if (!detail) return;
+
+      const { currentEpisodeIndex, introEndTime, status, progressPosition, initialPosition, videoPlayer } = get();
+      const currentSource = detail.source;
+      useDetailStore.getState().markSourceAsFailed(currentSource, "Playback stall (buffering > 6s)");
+      const fallbackSource = useDetailStore.getState().getNextAvailableSource(currentSource, currentEpisodeIndex);
+
+      if (!fallbackSource) {
+        logger.warn(`[STALL_FAILOVER] No alternative source available after stall on "${currentSource}"`);
+        Toast.show({
+          type: "info",
+          text1: "播放卡顿",
+          text2: "暂无其他可用的备用源，请稍候缓冲...",
+        });
+        return;
+      }
+
+      const resumePosition =
+        stallPositionMs && stallPositionMs > 0
+          ? stallPositionMs
+          : (status?.positionMillis && status.positionMillis > 0
+            ? status.positionMillis
+            : (progressPosition && progressPosition > 0 ? progressPosition : (initialPosition || introEndTime || 0)));
+
+      logger.info(
+        `[STALL_FAILOVER] Stalling detected. Switching from "${currentSource}" to "${fallbackSource.source}" at ${Math.round(resumePosition / 1000)}s (attempt ${stallFailoverCount + 1}/3)`
+      );
+
+      await useDetailStore.getState().setDetail(fallbackSource);
+      const newEpisodes = fallbackSource.episodes || [];
+      if (newEpisodes.length > currentEpisodeIndex) {
+        const mappedEpisodes = newEpisodes.map((ep, index) => ({ url: ep, title: `第 ${index + 1} 集` }));
+        const targetEp = mappedEpisodes[currentEpisodeIndex];
+
+        set({
+          episodes: mappedEpisodes,
+          error: undefined,
+          status: null,
+          isLoading: true,
+          isUserPaused: false,
+          initialPosition: resumePosition,
+          stallFailoverCount: stallFailoverCount + 1,
+        });
+
+        if (videoPlayer && targetEp?.url) {
+          void safeReplacePlayerSource(videoPlayer, targetEp.url);
+        }
+
+        Toast.show({
+          type: "info",
+          text1: "检测到播放卡顿，已静默换源",
+          text2: `正在切换至 ${fallbackSource.source_name} 继续播放`,
+        });
+      } else {
+        logger.warn("[STALL_FAILOVER] Fallback source missing current episode index");
       }
     },
   };

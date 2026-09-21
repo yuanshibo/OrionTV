@@ -293,4 +293,106 @@ describe('playerStore - Playback Recovery and togglePlayPause', () => {
     expect(prefetchSpy).toHaveBeenCalled();
     prefetchSpy.mockRestore();
   });
+
+  describe('Stall failover and position preservation', () => {
+    const mockDetail1 = {
+      id: '1',
+      title: '剧集A',
+      source: 'source_1',
+      source_name: '源 1',
+      episodes: ['http://example.com/s1_ep1.m3u8', 'http://example.com/s1_ep2.m3u8'],
+    } as any;
+
+    const mockDetail2 = {
+      id: '2',
+      title: '剧集A',
+      source: 'source_2',
+      source_name: '源 2',
+      episodes: ['http://example.com/s2_ep1.m3u8', 'http://example.com/s2_ep2.m3u8'],
+    } as any;
+
+    beforeEach(() => {
+      usePlayerStore.getState().reset();
+      useDetailStore.setState({
+        detail: mockDetail1,
+        searchResults: [mockDetail1, mockDetail2],
+        failedSources: new Set(),
+      });
+    });
+
+    it('handleVideoError preserves current playback position rather than resetting to introEndTime', async () => {
+      usePlayerStore.setState({
+        currentEpisodeIndex: 0,
+        introEndTime: 60000, // 60s
+        status: {
+          ...createInitialPlaybackState(),
+          isLoaded: true,
+          isPlaying: true,
+          positionMillis: 185000, // 185s
+        },
+      });
+
+      await usePlayerStore.getState().handleVideoError('network', 'http://example.com/s1_ep1.m3u8');
+
+      const state = usePlayerStore.getState();
+      expect(state.initialPosition).toBe(185000); // Preserves 185s, NOT wiped to introEndTime
+      expect(useDetailStore.getState().detail?.source).toBe('source_2');
+    });
+
+    it('handlePlaybackStall switches source, preserves position, and increments stallFailoverCount', async () => {
+      usePlayerStore.setState({
+        currentEpisodeIndex: 0,
+        introEndTime: 45000,
+        stallFailoverCount: 0,
+        status: {
+          ...createInitialPlaybackState(),
+          isLoaded: true,
+          isPlaying: false,
+          isBuffering: true,
+          positionMillis: 230000, // 230s
+        },
+      });
+
+      await usePlayerStore.getState().handlePlaybackStall(230000);
+
+      const state = usePlayerStore.getState();
+      expect(state.initialPosition).toBe(230000);
+      expect(state.stallFailoverCount).toBe(1);
+      expect(useDetailStore.getState().detail?.source).toBe('source_2');
+    });
+
+    it('handlePlaybackStall stops failover when stallFailoverCount reaches 3', async () => {
+      usePlayerStore.setState({
+        currentEpisodeIndex: 0,
+        stallFailoverCount: 3,
+        status: {
+          ...createInitialPlaybackState(),
+          isLoaded: true,
+          isPlaying: false,
+          isBuffering: true,
+          positionMillis: 50000,
+        },
+      });
+
+      await usePlayerStore.getState().handlePlaybackStall(50000);
+
+      // Should not switch source
+      expect(usePlayerStore.getState().stallFailoverCount).toBe(3);
+      expect(useDetailStore.getState().detail?.source).toBe('source_1');
+    });
+
+    it('playEpisode resets stallFailoverCount to 0', () => {
+      usePlayerStore.setState({
+        episodes: [
+          { url: 'http://example.com/ep1.m3u8', title: '第 1 集' },
+          { url: 'http://example.com/ep2.m3u8', title: '第 2 集' },
+        ],
+        currentEpisodeIndex: 0,
+        stallFailoverCount: 2,
+      });
+
+      usePlayerStore.getState().playEpisode(1);
+      expect(usePlayerStore.getState().stallFailoverCount).toBe(0);
+    });
+  });
 });

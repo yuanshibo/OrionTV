@@ -568,9 +568,12 @@ interface CachedFilterResult {
 const adFilterResultCache = new Map<string, CachedFilterResult>();
 const IN_MEMORY_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
+const inFlightProcessPromiseMap = new Map<string, Promise<AdFilterResult>>();
+
 /** Clears the in-memory ad filter cache (useful for testing or full resets) */
 export function clearAdFilterCache(): void {
   adFilterResultCache.clear();
+  inFlightProcessPromiseMap.clear();
 }
 
 /**
@@ -596,8 +599,30 @@ export async function processM3U8ForPlayback(
     return { cleanUrl: originalUrl, adIntervals: [], totalAdDuration: 0, isModified: false };
   }
 
-  // Check in-memory result cache
   const cacheKey = `${originalUrl}|${mode}`;
+
+  // Check in-flight promise deduplication to prevent parallel duplicate downloads & disk writes
+  const inFlight = inFlightProcessPromiseMap.get(cacheKey);
+  if (inFlight) {
+    logger.debug(`Reusing in-flight ad-filter process for: ${originalUrl}`);
+    return inFlight;
+  }
+
+  const processPromise = _processM3U8ForPlaybackInternal(originalUrl, mode, cacheKey, options);
+  inFlightProcessPromiseMap.set(cacheKey, processPromise);
+  try {
+    return await processPromise;
+  } finally {
+    inFlightProcessPromiseMap.delete(cacheKey);
+  }
+}
+
+async function _processM3U8ForPlaybackInternal(
+  originalUrl: string,
+  mode: AdBlockMode,
+  cacheKey: string,
+  options?: AdFilterOptions
+): Promise<AdFilterResult> {
   const cached = adFilterResultCache.get(cacheKey);
   if (cached && Date.now() - cached.timestamp < IN_MEMORY_CACHE_TTL_MS) {
     // If it's a local file, ensure the file still exists

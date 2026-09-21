@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback } from "react";
+import React, { useEffect, useCallback, useRef } from "react";
 import { StyleSheet } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useKeepAwake } from "expo-keep-awake";
@@ -140,6 +140,8 @@ export default function PlayScreen() {
     }
   }, [sourceStr, videoId, videoTitle, initDetail, setError]);
 
+  const lastLoadedKeyRef = useRef<string>('');
+
   useEffect(() => {
     if (detail && detail.episodes && detail.episodes.length > 0) {
       const matchesTitle = videoTitle ? detail.title === videoTitle : true;
@@ -147,6 +149,12 @@ export default function PlayScreen() {
       const matchesSource = sourceStr ? detail.source === sourceStr : true;
 
       if (matchesTitle || matchesId || matchesSource) {
+        // Prevent duplicate loadVideo calls caused by metadata/resolution/latency enrichment on the same active detail
+        const loadKey = `${detail.source}::${detail.id}::${episodeIndex}::${position ?? 'auto'}`;
+        if (lastLoadedKeyRef.current === loadKey) {
+          return;
+        }
+        lastLoadedKeyRef.current = loadKey;
         loadVideo({ detail, episodeIndex, position, router });
       }
     }
@@ -156,6 +164,7 @@ export default function PlayScreen() {
     return () => {
       flushPlaybackRecord();
       reset();
+      lastLoadedKeyRef.current = '';
     };
   }, [flushPlaybackRecord, reset]);
 
