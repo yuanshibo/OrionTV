@@ -110,7 +110,7 @@ export default function PlayScreen() {
 
   useKeepAwake();
 
-  const { onScreenPress } = usePlayerInteractions(deviceType);
+  const { onScreenPress, onScreenLongPress } = usePlayerInteractions(deviceType);
 
   const flushPlaybackRecord = useCallback(() => {
     const playbackStatus = usePlayerStore.getState().status;
@@ -197,6 +197,7 @@ export default function PlayScreen() {
         videoViewProps={videoViewProps}
         showControls={showControls && !showRelatedVideos}
         onScreenPress={onScreenPress}
+        onScreenLongPress={onScreenLongPress}
         setShowControls={setShowControls}
       />
       <EpisodeSelectionModal />

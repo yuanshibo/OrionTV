@@ -126,6 +126,9 @@ interface PlayerState {
   contentFit: 'contain' | 'cover' | 'fill';
   setContentFit: (fit: 'contain' | 'cover' | 'fill') => void;
   toggleContentFit: () => void;
+  isLocked: boolean;
+  setIsLocked: (isLocked: boolean) => void;
+  toggleScreenLock: () => void;
   reset: () => void;
   _isRecordSaveThrottled: boolean;
   savePlayRecord: (updates?: Partial<PlayRecord>, options?: { immediate?: boolean }) => void;
@@ -197,6 +200,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
     initialPosition: 0,
     playbackRate: 1.0,
     contentFit: 'contain',
+    isLocked: false,
     introEndTime: undefined,
     outroStartTime: undefined,
     _isRecordSaveThrottled: false,
@@ -574,12 +578,32 @@ const usePlayerStore = create<PlayerState>((set, get) => {
       Toast.show({ type: 'info', text1: '画面比例', text2: labelMap[nextFit] });
     },
 
+    setIsLocked: (isLocked) => {
+      if (isLocked) {
+        set({
+          isLocked: true,
+          showControls: false,
+          showEpisodeModal: false,
+          showSourceModal: false,
+          showSpeedModal: false,
+          showRelatedVideos: false,
+          showNextEpisodeOverlay: false,
+        });
+      } else {
+        set({ isLocked: false });
+      }
+    },
+    toggleScreenLock: () => {
+      const { isLocked } = get();
+      get().setIsLocked(!isLocked);
+    },
+
     reset: () => {
       if (seekTimeoutId) clearTimeout(seekTimeoutId);
       set({
         videoPlayer: null, episodes: [], currentEpisodeIndex: 0, status: null, isLoading: true, isUserPaused: false, showControls: false,
         showEpisodeModal: false, showSourceModal: false, showSpeedModal: false, showNextEpisodeOverlay: false,
-        initialPosition: 0, playbackRate: 1.0, contentFit: 'contain', introEndTime: undefined, outroStartTime: undefined, error: undefined,
+        initialPosition: 0, playbackRate: 1.0, contentFit: 'contain', isLocked: false, introEndTime: undefined, outroStartTime: undefined, error: undefined,
         isSeeking: false, isSeekBuffering: false,
       });
       // Reset SharedValues so stale progress doesn't bleed into the next video

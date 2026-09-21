@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { AppState, AppStateStatus, BackHandler } from 'react-native';
 import { useRouter } from 'expo-router';
 import { VideoPlayer } from 'expo-video';
+import Toast from 'react-native-toast-message';
 import usePlayerStore, { PlaybackState } from '@/stores/playerStore';
 import Logger from '@/utils/Logger';
 
@@ -31,6 +32,7 @@ export function usePlayerLifecycle({
   const playerRef = useRef(player);
   const statusRef = useRef(status);
   const flushPlaybackRecordRef = useRef(flushPlaybackRecord);
+  const lastBackToastTimeRef = useRef<number>(0);
 
   useEffect(() => {
     playerRef.current = player;
@@ -112,6 +114,21 @@ export function usePlayerLifecycle({
 
   useEffect(() => {
     const backAction = () => {
+      const isLocked = usePlayerStore.getState().isLocked;
+      if (isLocked) {
+        const now = Date.now();
+        if (now - lastBackToastTimeRef.current > 2000) {
+          lastBackToastTimeRef.current = now;
+          Toast.show({
+            type: "info",
+            text1: "画面已锁定",
+            text2: "长按确认键解锁",
+            visibilityTime: 2000,
+          });
+        }
+        return true;
+      }
+
       if (showRelatedVideos) {
         setShowRelatedVideos(false);
         if (router.canGoBack()) {
