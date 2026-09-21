@@ -329,6 +329,44 @@ describe('m3u8AdFilter', () => {
       expect(result.adIntervals[0].duration).toBeCloseTo(12.16, 1);
       expect(result.content).not.toContain('post_ad1.ts');
     });
+
+    it('filters out inserted ad with remainder slice (29.28s) in high dominant frequency stream (Sample 6 at 12m32s)', () => {
+      // Stream with 30 blocks, where 98% of slices are 2.000s
+      // Block #15 has 14 slices of 2.00s + 1 slice of 1.28s = 29.28s (matches 30s ad)
+      // Block #29 (last block) has 1.16s remainder (boundary, should NOT be filtered)
+      const blocks: string[] = [];
+      for (let b = 0; b < 30; b++) {
+        const segs: string[] = [];
+        if (b === 15) {
+          // 29.28s commercial ad
+          for (let i = 0; i < 14; i++) {
+            segs.push(`#EXTINF:2.000,\nad_${i}.ts`);
+          }
+          segs.push('#EXTINF:1.280,\nad_tail.ts');
+        } else if (b === 29) {
+          // Last movie block with natural movie end remainder
+          for (let i = 0; i < 10; i++) {
+            segs.push(`#EXTINF:2.000,\nlast_${i}.ts`);
+          }
+          segs.push('#EXTINF:1.160,\nmovie_tail.ts');
+        } else {
+          // Regular movie blocks: all 2.000s
+          for (let i = 0; i < 10; i++) {
+            segs.push(`#EXTINF:2.000,\nm_${b}_${i}.ts`);
+          }
+        }
+        blocks.push(`#EXT-X-DISCONTINUITY\n${segs.join('\n')}`);
+      }
+
+      const m3u8 = `#EXTM3U\n${blocks.join('\n')}\n#EXT-X-ENDLIST`;
+      const result = filterM3U8Content(m3u8, 'https://cdn.example.com/hls/');
+
+      expect(result.isModified).toBe(true);
+      expect(result.adIntervals.length).toBe(1);
+      expect(result.adIntervals[0].duration).toBeCloseTo(29.28, 1);
+      expect(result.content).not.toContain('ad_tail.ts');
+      expect(result.content).toContain('movie_tail.ts');
+    });
   });
 
   describe('processM3U8ForPlayback', () => {

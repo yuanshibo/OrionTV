@@ -281,6 +281,15 @@ export function filterM3U8Content(
           dominantRatio <= 0.35
         ) {
           isAdBlock[idx] = true;
+        } else if (
+          dominantFreq >= 0.70 &&
+          idx > 0 &&
+          idx < blocks.length - 1 &&
+          b.duration <= 60 &&
+          matchesStandardDur &&
+          matchDominantCount < b.durs.length
+        ) {
+          isAdBlock[idx] = true;
         }
       } else if (b.duration > 0 && b.duration <= 35) {
         const matchesStandardDur = standardAdDurs.some((d) => Math.abs(b.duration - d) <= 1.0);
