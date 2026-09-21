@@ -1,3 +1,4 @@
+import ReactNativeBlobUtil from 'react-native-blob-util';
 import {
   resolveAbsoluteUrl,
   rewriteTagUri,
@@ -5,6 +6,8 @@ import {
   processM3U8ForPlayback,
   calculateStreamStats,
   calculateBlockAdScore,
+  cleanupM3U8Cache,
+  clearAdFilterCache,
   StreamBlock,
   StreamStats,
 } from '../m3u8AdFilter';
@@ -17,6 +20,7 @@ jest.mock('react-native-blob-util', () => ({
     },
     writeFile: jest.fn().mockResolvedValue(undefined),
     unlink: jest.fn().mockResolvedValue(undefined),
+    exists: jest.fn().mockResolvedValue(true),
     ls: jest.fn().mockResolvedValue(['adfree_old_1.m3u8', 'adfree_old_2.m3u8']),
   },
 }));
@@ -478,6 +482,94 @@ describe('m3u8AdFilter', () => {
       const res = await processM3U8ForPlayback(url, 'seamless');
       expect(res.cleanUrl).toBe(url);
       expect(res.isModified).toBe(false);
+    });
+  });
+
+  describe('cleanupM3U8Cache', () => {
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    it('sorts files by timestamp and deletes files beyond maxFiles limit', async () => {
+      const now = Date.now();
+      const mockFiles = [
+        `adfree_hash1_${now - 5000}.m3u8`,
+        `adfree_hash2_${now - 1000}.m3u8`,
+        `adfree_hash3_${now - 3000}.m3u8`,
+        `adfree_hash4_${now - 4000}.m3u8`,
+        `adfree_hash5_${now - 2000}.m3u8`,
+      ];
+      (ReactNativeBlobUtil.fs.ls as jest.Mock).mockResolvedValueOnce(mockFiles);
+
+      await cleanupM3U8Cache({ maxFiles: 3, maxAgeMs: 24 * 60 * 60 * 1000 });
+
+      expect(ReactNativeBlobUtil.fs.unlink).toHaveBeenCalledWith(`/mock/cache/adfree_hash4_${now - 4000}.m3u8`);
+      expect(ReactNativeBlobUtil.fs.unlink).toHaveBeenCalledWith(`/mock/cache/adfree_hash1_${now - 5000}.m3u8`);
+      expect(ReactNativeBlobUtil.fs.unlink).not.toHaveBeenCalledWith(`/mock/cache/adfree_hash2_${now - 1000}.m3u8`);
+      expect(ReactNativeBlobUtil.fs.unlink).not.toHaveBeenCalledWith(`/mock/cache/adfree_hash5_${now - 2000}.m3u8`);
+      expect(ReactNativeBlobUtil.fs.unlink).not.toHaveBeenCalledWith(`/mock/cache/adfree_hash3_${now - 3000}.m3u8`);
+    });
+
+    it('strictly protects activeUrl from being deleted even if it is old or exceeds limit', async () => {
+      const now = Date.now();
+      const mockFiles = [
+        `adfree_hash1_${now - 5000}.m3u8`,
+        `adfree_hash2_${now - 1000}.m3u8`,
+      ];
+      (ReactNativeBlobUtil.fs.ls as jest.Mock).mockResolvedValueOnce(mockFiles);
+
+      await cleanupM3U8Cache({
+        maxFiles: 0,
+        activeUrl: `file:///mock/cache/adfree_hash1_${now - 5000}.m3u8`,
+      });
+
+      expect(ReactNativeBlobUtil.fs.unlink).toHaveBeenCalledWith(`/mock/cache/adfree_hash2_${now - 1000}.m3u8`);
+      expect(ReactNativeBlobUtil.fs.unlink).not.toHaveBeenCalledWith(`/mock/cache/adfree_hash1_${now - 5000}.m3u8`);
+    });
+
+    it('deletes files older than maxAgeMs', async () => {
+      const now = Date.now();
+      const freshFile = `adfree_fresh_${now - 1000}.m3u8`;
+      const expiredFile = `adfree_expired_${now - 50000}.m3u8`;
+      (ReactNativeBlobUtil.fs.ls as jest.Mock).mockResolvedValueOnce([freshFile, expiredFile]);
+
+      await cleanupM3U8Cache({ maxFiles: 10, maxAgeMs: 10000 });
+
+      expect(ReactNativeBlobUtil.fs.unlink).toHaveBeenCalledWith(`/mock/cache/${expiredFile}`);
+      expect(ReactNativeBlobUtil.fs.unlink).not.toHaveBeenCalledWith(`/mock/cache/${freshFile}`);
+    });
+  });
+
+  describe('adFilterResultCache', () => {
+    beforeEach(() => {
+      clearAdFilterCache();
+    });
+
+    it('caches filter result and returns cached result on next call', async () => {
+      const url = 'https://cdn.example.com/test.m3u8';
+      const fakeM3u8 = '#EXTM3U\n#EXT-X-VERSION:3\n#EXTINF:6.0,\nseg1.ts\n';
+
+      const fetchSpy = jest.spyOn(global, 'fetch' as any).mockResolvedValue({
+        ok: true,
+        text: async () => fakeM3u8,
+        url,
+      } as any);
+
+      // First call
+      const res1 = await processM3U8ForPlayback(url, 'seamless');
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+      // Second call should hit in-memory cache and not call fetch
+      const res2 = await processM3U8ForPlayback(url, 'seamless');
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      expect(res2).toEqual(res1);
+
+      // After clearing cache, fetch is called again
+      clearAdFilterCache();
+      await processM3U8ForPlayback(url, 'seamless');
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+
+      fetchSpy.mockRestore();
     });
   });
 });

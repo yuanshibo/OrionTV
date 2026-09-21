@@ -5,6 +5,7 @@ const logger = Logger.withTag('M3U8');
 export interface M3U8ProbeResult {
   available: boolean;
   resolution: string | null;
+  latencyMs?: number | null;
   error?: string;
 }
 
@@ -100,13 +101,15 @@ export const probeM3U8 = async (
     }
 
     const perfEnd = performance.now();
+    const latencyMs = Math.round(perfEnd - perfStart);
     logger.debug(
-      `[PROBE] M3U8 probe success: took ${(perfEnd - perfStart).toFixed(1)}ms, resolution: ${resolutionString || 'unknown'}`
+      `[PROBE] M3U8 probe success: took ${latencyMs}ms, resolution: ${resolutionString || 'unknown'}`
     );
 
     return {
       available: true,
       resolution: resolutionString,
+      latencyMs,
     };
   } catch (error) {
     clearTimeout(timeoutId);
@@ -114,14 +117,16 @@ export const probeM3U8 = async (
       externalSignal.removeEventListener('abort', abortHandler);
     }
     const perfEnd = performance.now();
+    const latencyMs = Math.round(perfEnd - perfStart);
     const isTimeout = combinedSignal.aborted && !externalSignal?.aborted;
     const errorMsg = isTimeout ? 'Timeout (3.5s)' : error instanceof Error ? error.message : 'Network error';
 
-    logger.debug(`[PROBE] M3U8 probe failed in ${(perfEnd - perfStart).toFixed(1)}ms: ${errorMsg}`);
+    logger.debug(`[PROBE] M3U8 probe failed in ${latencyMs}ms: ${errorMsg}`);
 
     const result: M3U8ProbeResult = {
       available: false,
       resolution: null,
+      latencyMs,
       error: errorMsg,
     };
 

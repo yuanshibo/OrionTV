@@ -69,6 +69,10 @@ export const useVideoHandlers = ({
   );
 
   const lastValidPositionRef = useRef<number>(0);
+  const hasStartedPlayingRef = useRef<boolean>(false);
+  const lastProgressTimestampRef = useRef<number>(Date.now());
+  const lastSeenTimeRef = useRef<number>(0);
+  const uninterruptedPlaySecondsRef = useRef<number>(0);
 
   useEffect(() => {
     statusRef.current = createInitialPlaybackState();
@@ -78,6 +82,10 @@ export const useVideoHandlers = ({
     audioRecoveryCountRef.current = 0;
     lastAudioRecoveryTimeRef.current = 0;
     lastSkippedAdEndRef.current = 0;
+    hasStartedPlayingRef.current = false;
+    lastProgressTimestampRef.current = Date.now();
+    lastSeenTimeRef.current = 0;
+    uninterruptedPlaySecondsRef.current = 0;
 
     clearPlaybackTimeout();
     if (currentEpisode?.url) {
@@ -140,6 +148,8 @@ export const useVideoHandlers = ({
             break;
           case 'readyToPlay':
             clearPlaybackTimeout();
+            hasStartedPlayingRef.current = true;
+            lastProgressTimestampRef.current = Date.now();
             emitStatusUpdate({ isLoaded: true, isBuffering: false, error: undefined });
             updateDuration();
             applyPendingSeek();
@@ -221,7 +231,23 @@ export const useVideoHandlers = ({
         const posMillis = currentTime * 1000;
         if (posMillis > 0) {
           lastValidPositionRef.current = posMillis;
+          hasStartedPlayingRef.current = true;
           clearPlaybackTimeout();
+        }
+
+        // Track forward playback progress for stall detection and uninterrupted streak
+        if (currentTime > lastSeenTimeRef.current + 0.05) {
+          const deltaSec = currentTime - lastSeenTimeRef.current;
+          lastProgressTimestampRef.current = Date.now();
+          lastSeenTimeRef.current = currentTime;
+          if (deltaSec > 0 && deltaSec < 3) {
+            uninterruptedPlaySecondsRef.current += deltaSec;
+            if (uninterruptedPlaySecondsRef.current >= 15) {
+              if (usePlayerStore.getState().stallFailoverCount > 0) {
+                usePlayerStore.setState({ stallFailoverCount: 0 });
+              }
+            }
+          }
         }
 
         // Check ad intervals for auto-skip (used ONLY in 'skip' mode or fallback when playing original stream)
@@ -276,6 +302,47 @@ export const useVideoHandlers = ({
       console.warn('[VIDEO] Failed to apply playback rate update', error);
     }
   }, [player, playbackRate]);
+
+  // Mid-playback stall watchdog (6s continuous freeze/buffering detection)
+  useEffect(() => {
+    const watchdogInterval = setInterval(() => {
+      const store = usePlayerStore.getState();
+      if (
+        !player ||
+        !hasStartedPlayingRef.current ||
+        store.isUserPaused ||
+        store.isSeeking ||
+        store.isSeekBuffering ||
+        statusRef.current.didJustFinish ||
+        !currentEpisode?.url
+      ) {
+        lastProgressTimestampRef.current = Date.now();
+        uninterruptedPlaySecondsRef.current = 0;
+        return;
+      }
+
+      const isBuffering = statusRef.current.isBuffering || (player as any).status === 'loading';
+      const isSupposedToBePlaying = player.playing || isBuffering;
+
+      if (isSupposedToBePlaying) {
+        const now = Date.now();
+        const stalledMs = now - lastProgressTimestampRef.current;
+        if (stalledMs >= 6000) {
+          lastProgressTimestampRef.current = now; // Prevent multiple triggers in same stall
+          uninterruptedPlaySecondsRef.current = 0;
+          console.warn(`[VIDEO] Playback stalled for ${stalledMs}ms, triggering silent failover...`);
+          const stallPos = lastValidPositionRef.current || statusRef.current.positionMillis || 0;
+          store.handlePlaybackStall(stallPos);
+        }
+      } else {
+        lastProgressTimestampRef.current = Date.now();
+      }
+    }, 1000);
+
+    return () => {
+      clearInterval(watchdogInterval);
+    };
+  }, [player, currentEpisode?.url]);
 
   const videoViewProps = useMemo<VideoViewPropsSubset>(
     () => ({ nativeControls: deviceType !== 'tv', contentFit }),

@@ -70,6 +70,7 @@ export interface SearchResult {
 
 export interface SearchResultWithResolution extends SearchResult {
   resolution?: string | null;
+  latencyMs?: number | null;
   dedupeKey?: string;
 }
 

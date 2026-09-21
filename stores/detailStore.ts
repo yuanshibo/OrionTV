@@ -15,6 +15,7 @@ import {
   mergeResultsByDedupeKey,
   labelPriority,
   resolutionPriority,
+  latencyPriority,
 } from "@/utils/DetailUtils";
 import { processNewResults } from "@/utils/DetailLogic";
 import {
@@ -25,6 +26,18 @@ import {
 } from "@/utils/DetailCache";
 
 const logger = Logger.withTag('DetailStore');
+
+// Lazy accessor to avoid circular require cycles between detailStore <-> playerStore
+const getIsPlayerActivelyPlaying = (): boolean => {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const playerStoreModule = require("@/stores/playerStore");
+    const usePlayerStore = playerStoreModule?.default || playerStoreModule?.usePlayerStore;
+    return Boolean(usePlayerStore?.getState?.()?.status?.isPlaying);
+  } catch {
+    return false;
+  }
+};
 
 const NETWORK_ERROR_FRIENDLY_MESSAGE = APP_CONFIG.MESSAGES.NETWORK_ERROR_FRIENDLY;
 
@@ -83,14 +96,16 @@ const sortAvailableSources = (sources: SearchResultWithResolution[]): SearchResu
   return [...sources].sort((a, b) => {
     const bResScore = resolutionPriority(b.resolution);
     const aResScore = resolutionPriority(a.resolution);
-    if (bResScore !== aResScore) {
-      return bResScore - aResScore;
-    }
-
+    const bLatScore = latencyPriority(b.latencyMs);
+    const aLatScore = latencyPriority(a.latencyMs);
     const bLabelScore = labelPriority(b.source_name);
     const aLabelScore = labelPriority(a.source_name);
-    if (bLabelScore !== aLabelScore) {
-      return bLabelScore - aLabelScore;
+
+    const bTotal = bResScore * 10 + bLatScore * 8 + bLabelScore * 2;
+    const aTotal = aResScore * 10 + aLatScore * 8 + aLabelScore * 2;
+
+    if (bTotal !== aTotal) {
+      return bTotal - aTotal;
     }
 
     return (b.episodes?.length || 0) - (a.episodes?.length || 0);
@@ -100,7 +115,7 @@ const sortAvailableSources = (sources: SearchResultWithResolution[]): SearchResu
 interface DetailState {
   q: string | null;
   searchResults: SearchResultWithResolution[];
-  sources: { source: string; source_name: string; resolution: string | null | undefined }[];
+  sources: { source: string; source_name: string; resolution: string | null | undefined; latencyMs?: number | null }[];
   detail: SearchResultWithResolution | null;
   loading: boolean;
   error: string | null;
@@ -287,26 +302,41 @@ const useDetailStore = create<DetailState>((set, get) => ({
         targetEpisodeUrl: string
       ) => {
         try {
+          // Bandwidth non-compete guard: If video is currently playing, skip background probing to preserve playback bandwidth
+          const isPlaying = getIsPlayerActivelyPlaying();
+          if (isPlaying) {
+            logger.debug(`[PROBE] Video is actively playing, skipping background probe for "${sourceKey}" to preserve bandwidth.`);
+            return;
+          }
+
           const probeResult = await probeM3U8WithCache(targetEpisodeUrl, signal);
           if (signal.aborted) return;
 
           const snapshot = get();
           if (probeResult.available) {
             const detectedResolution = probeResult.resolution || undefined;
-            if (!detectedResolution) return;
+            const latencyMs = probeResult.latencyMs ?? null;
 
-            // Update searchResults with detected resolution
+            // Update searchResults with detected resolution and latencyMs
             const updatedSearchResults = snapshot.searchResults.map((item) => {
               if (item.source === sourceKey) {
-                return { ...item, resolution: detectedResolution };
+                return {
+                  ...item,
+                  resolution: detectedResolution || item.resolution,
+                  latencyMs: latencyMs ?? item.latencyMs,
+                };
               }
               return item;
             });
 
-            // Update sources with detected resolution
+            // Update sources with detected resolution and latencyMs
             const updatedSources = snapshot.sources.map((item) => {
               if (item.source === sourceKey) {
-                return { ...item, resolution: detectedResolution };
+                return {
+                  ...item,
+                  resolution: detectedResolution || item.resolution,
+                  latencyMs: latencyMs ?? item.latencyMs,
+                };
               }
               return item;
             });
@@ -318,10 +348,14 @@ const useDetailStore = create<DetailState>((set, get) => ({
 
             // Update detail if this source is the current active detail
             if (snapshot.detail?.source === sourceKey) {
-              updates.detail = { ...snapshot.detail, resolution: detectedResolution };
+              updates.detail = {
+                ...snapshot.detail,
+                resolution: detectedResolution || snapshot.detail.resolution,
+                latencyMs: latencyMs ?? snapshot.detail.latencyMs,
+              };
             }
 
-            // Smart promotion check: If candidate has higher quality and complete episodes
+            // Smart promotion check: If candidate has higher composite score and complete episodes
             const currentDetail = snapshot.detail;
             const candidate = updatedSearchResults.find((r) => r.source === sourceKey);
             if (
@@ -335,7 +369,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
               if (!isStrictPreferred) {
                 updates.detail = candidate;
                 logger.info(
-                  `[SMART_PROMOTION] Promoted high-quality source "${candidate.source}" (${candidate.resolution || 'HD'}) over "${currentDetail.source}"`
+                  `[SMART_PROMOTION] Promoted high-quality/fast source "${candidate.source}" (${candidate.resolution || 'HD'}, ${candidate.latencyMs ?? '?'}ms) over "${currentDetail.source}"`
                 );
               }
             }
@@ -377,7 +411,12 @@ const useDetailStore = create<DetailState>((set, get) => ({
         // If this is the first valid source, set it as detail and stop loading
         let updates: Partial<DetailState> = {
           searchResults: newSearchResults,
-          sources: newSearchResults.map(r => ({ source: r.source, source_name: r.source_name.trim(), resolution: r.resolution })),
+          sources: newSearchResults.map(r => ({
+            source: r.source,
+            source_name: r.source_name.trim(),
+            resolution: r.resolution,
+            latencyMs: r.latencyMs,
+          })),
         };
 
         if (snapshot.loading) {
@@ -515,16 +554,18 @@ const useDetailStore = create<DetailState>((set, get) => ({
       const targetEpisode = episodes[targetIndex] || episodes[0];
       if (targetEpisode) {
         probeM3U8WithCache(targetEpisode).then((probeRes) => {
-          if (probeRes.available && probeRes.resolution) {
+          if (probeRes.available) {
             const snap = get();
             if (snap.detail && snap.detail.source === source) {
+              const res = probeRes.resolution || snap.detail.resolution;
+              const lat = probeRes.latencyMs ?? snap.detail.latencyMs;
               set({
-                detail: { ...snap.detail, resolution: probeRes.resolution },
+                detail: { ...snap.detail, resolution: res, latencyMs: lat },
                 searchResults: snap.searchResults.map((r) =>
-                  r.source === source ? { ...r, resolution: probeRes.resolution } : r
+                  r.source === source ? { ...r, resolution: res, latencyMs: lat } : r
                 ),
                 sources: snap.sources.map((s) =>
-                  s.source === source ? { ...s, resolution: probeRes.resolution } : s
+                  s.source === source ? { ...s, resolution: res, latencyMs: lat } : s
                 ),
               });
             }

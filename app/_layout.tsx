@@ -19,6 +19,7 @@ import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { useMemoryManagement } from "@/hooks/useMemoryManagement";
 import { ConsoleOptimizer } from '@/utils/ConsoleOptimizer';
 import { usePerformanceMonitor } from '@/hooks/usePerformanceMonitor';
+import { cleanupM3U8Cache } from '@/services/m3u8AdFilter';
 import Logger from '@/utils/Logger';
 
 const logger = Logger.withTag('RootLayout');
@@ -57,6 +58,8 @@ export default function RootLayout() {
         // loadSettings will call fetchServerConfig which in turn calls checkLoginStatus
         // so we don't need to call checkLoginStatus directly here (avoids double-call)
         await loadSettings();
+        // Prune expired M3U8 temporary files left over from prior sessions
+        void cleanupM3U8Cache().catch((err) => logger.debug('Startup M3U8 cache cleanup error:', err));
       } catch (e) {
         logger.warn(`Error during initialization: ${e}`);
       } finally {

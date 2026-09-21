@@ -1,6 +1,7 @@
 import React from "react";
-import { StyleSheet, FlatList } from "react-native";
+import { StyleSheet, FlatList, View } from "react-native";
 import { StyledButton } from "./StyledButton";
+import { ThemedText } from "./ThemedText";
 import { PlayerModalBase } from "./player/PlayerModalBase";
 import useDetailStore from "@/stores/detailStore";
 import usePlayerStore from "@/stores/playerStore";
@@ -61,19 +62,47 @@ export const SourceSelectionModal: React.FC = () => {
     >
       <FlatList
         data={filteredSearchResults}
-        numColumns={4}
+        numColumns={3}
         contentContainerStyle={styles.sourceList}
         keyExtractor={(item, index) => `source-${item.source}-${index}`}
-        renderItem={({ item, index }) => (
-          <StyledButton
-            text={item.source_name}
-            onPress={() => onSelectSource(index)}
-            isSelected={detail?.source === item.source}
-            hasTVPreferredFocus={detail?.source === item.source}
-            style={styles.sourceItem}
-            textStyle={styles.sourceItemText}
-          />
-        )}
+        renderItem={({ item, index }) => {
+          const isSelected = detail?.source === item.source;
+          return (
+            <StyledButton
+              onPress={() => onSelectSource(index)}
+              isSelected={isSelected}
+              hasTVPreferredFocus={isSelected}
+              style={styles.sourceItem}
+            >
+              <View style={styles.sourceItemContent}>
+                <ThemedText style={[styles.sourceItemText, isSelected && styles.selectedItemText]} numberOfLines={1}>
+                  {item.source_name}
+                </ThemedText>
+                <View style={styles.badgeRow}>
+                  {item.resolution ? (
+                    <View style={[styles.badge, styles.resBadge, isSelected && styles.selectedBadge]}>
+                      <ThemedText style={styles.badgeText}>{item.resolution}</ThemedText>
+                    </View>
+                  ) : null}
+                  {item.latencyMs !== undefined && item.latencyMs !== null ? (
+                    <View
+                      style={[
+                        styles.badge,
+                        item.latencyMs < 400
+                          ? styles.latencyFast
+                          : item.latencyMs < 900
+                          ? styles.latencyMedium
+                          : styles.latencySlow,
+                      ]}
+                    >
+                      <ThemedText style={styles.latencyBadgeText}>{item.latencyMs}ms</ThemedText>
+                    </View>
+                  ) : null}
+                </View>
+              </View>
+            </StyledButton>
+          );
+        }}
       />
     </PlayerModalBase>
   );
@@ -82,15 +111,63 @@ export const SourceSelectionModal: React.FC = () => {
 const styles = StyleSheet.create({
   sourceList: {
     justifyContent: "flex-start",
+    paddingVertical: 4,
   },
   sourceItem: {
-    paddingVertical: 2,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
     margin: 4,
-    marginLeft: 10,
-    marginRight: 8,
-    width: "20%",
+    width: "31%",
+    borderRadius: 8,
+  },
+  sourceItemContent: {
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
   },
   sourceItemText: {
-    fontSize: 12,
+    fontSize: 13,
+    fontWeight: "500",
+    textAlign: "center",
+  },
+  selectedItemText: {
+    fontWeight: "700",
+  },
+  badgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    marginTop: 3,
+  },
+  badge: {
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 3,
+  },
+  resBadge: {
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+  },
+  selectedBadge: {
+    backgroundColor: "rgba(255, 255, 255, 0.25)",
+  },
+  badgeText: {
+    fontSize: 9,
+    color: "#fff",
+    fontWeight: "600",
+  },
+  latencyFast: {
+    backgroundColor: "rgba(46, 204, 113, 0.25)",
+  },
+  latencyMedium: {
+    backgroundColor: "rgba(243, 156, 18, 0.25)",
+  },
+  latencySlow: {
+    backgroundColor: "rgba(189, 195, 199, 0.2)",
+  },
+  latencyBadgeText: {
+    fontSize: 9,
+    fontWeight: "600",
+    color: "#ecf0f1",
   },
 });

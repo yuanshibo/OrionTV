@@ -193,6 +193,25 @@ export const shouldPreferRawResult = (current: SearchResult, candidate: SearchRe
     return false;
 };
 
+export const latencyPriority = (latencyMs?: number | null): number => {
+    if (latencyMs === undefined || latencyMs === null || latencyMs <= 0) {
+        return 0; // neutral score for unknown latency
+    }
+    if (latencyMs < 300) {
+        return 4; // 极速 (<300ms)
+    }
+    if (latencyMs < 600) {
+        return 3; // 良好 (300-600ms)
+    }
+    if (latencyMs < 1200) {
+        return 2; // 一般 (600-1200ms)
+    }
+    if (latencyMs < 2000) {
+        return 1; // 较慢 (1200-2000ms)
+    }
+    return -2; // 极慢 (>2000ms)
+};
+
 export const shouldPreferEnrichedResult = (
     current: SearchResultWithResolution,
     candidate: SearchResultWithResolution
@@ -208,25 +227,24 @@ export const shouldPreferEnrichedResult = (
         return false;
     }
 
-    const currentResolutionScore = resolutionPriority(current.resolution);
-    const candidateResolutionScore = resolutionPriority(candidate.resolution);
+    // Composite Quality Score: Resolution (weight 10) + Latency (weight 8) + Label (weight 2)
+    const currentResScore = resolutionPriority(current.resolution);
+    const candidateResScore = resolutionPriority(candidate.resolution);
 
-    if (candidateResolutionScore > currentResolutionScore) {
-        return true;
-    }
-
-    if (candidateResolutionScore < currentResolutionScore) {
-        return false;
-    }
+    const currentLatScore = latencyPriority(current.latencyMs);
+    const candidateLatScore = latencyPriority(candidate.latencyMs);
 
     const currentLabelScore = labelPriority(current.source_name);
     const candidateLabelScore = labelPriority(candidate.source_name);
 
-    if (candidateLabelScore > currentLabelScore) {
+    const currentTotal = currentResScore * 10 + currentLatScore * 8 + currentLabelScore * 2;
+    const candidateTotal = candidateResScore * 10 + candidateLatScore * 8 + candidateLabelScore * 2;
+
+    if (candidateTotal > currentTotal) {
         return true;
     }
 
-    if (candidateLabelScore < currentLabelScore) {
+    if (candidateTotal < currentTotal) {
         return false;
     }
 
