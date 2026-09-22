@@ -25,7 +25,31 @@ export const SourceSelectionModal: React.FC = () => {
     });
   }, [searchResults, detail]);
 
-  const onSelectSource = (index: number) => {
+  const selectedIndex = React.useMemo(() => {
+    if (!detail) return -1;
+    return filteredSearchResults.findIndex((item) => detail.source === item.source);
+  }, [filteredSearchResults, detail]);
+
+  const isCooldownRef = React.useRef(false);
+
+  React.useEffect(() => {
+    if (showSourceModal) {
+      isCooldownRef.current = true;
+      const timer = setTimeout(() => {
+        isCooldownRef.current = false;
+      }, 250);
+      return () => clearTimeout(timer);
+    }
+    isCooldownRef.current = false;
+  }, [showSourceModal]);
+
+  const onSelectSource = React.useCallback((index: number) => {
+    // 250ms cooldown to avoid accidental click-through on long-press release
+    if (isCooldownRef.current) {
+      logger.debug("onSelectSource ignored due to anti-misclick cooldown");
+      return;
+    }
+
     // Note: index is now based on filteredSearchResults
     const selectedItem = filteredSearchResults[index];
     logger.debug("onSelectSource", index, selectedItem.source, detail?.source);
@@ -47,7 +71,7 @@ export const SourceSelectionModal: React.FC = () => {
       });
     }
     setShowSourceModal(false);
-  };
+  }, [filteredSearchResults, detail, _savePlayRecord, setDetail, status, loadVideo, currentEpisodeIndex, router, setShowSourceModal]);
 
   const onClose = () => {
     setShowSourceModal(false);
@@ -65,13 +89,16 @@ export const SourceSelectionModal: React.FC = () => {
         numColumns={3}
         contentContainerStyle={styles.sourceList}
         keyExtractor={(item, index) => `source-${item.source}-${index}`}
+        removeClippedSubviews={false}
+        initialNumToRender={filteredSearchResults.length || 12}
+        maxToRenderPerBatch={filteredSearchResults.length || 12}
         renderItem={({ item, index }) => {
           const isSelected = detail?.source === item.source;
           return (
             <StyledButton
               onPress={() => onSelectSource(index)}
               isSelected={isSelected}
-              hasTVPreferredFocus={isSelected}
+              hasTVPreferredFocus={isSelected || (selectedIndex === -1 && index === 0)}
               style={styles.sourceItem}
             >
               <View style={styles.sourceItemContent}>

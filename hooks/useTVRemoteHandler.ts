@@ -17,7 +17,11 @@ export const useTVRemoteHandler = () => {
   const setShowControls = usePlayerStore((state) => state.setShowControls);
   const showEpisodeModal = usePlayerStore((state) => state.showEpisodeModal);
   const setShowEpisodeModal = usePlayerStore((state) => state.setShowEpisodeModal);
+  const showSourceModal = usePlayerStore((state) => state.showSourceModal);
+  const setShowSourceModal = usePlayerStore((state) => state.setShowSourceModal);
+  const showSpeedModal = usePlayerStore((state) => state.showSpeedModal);
   const showRelatedVideos = usePlayerStore((state) => state.showRelatedVideos);
+  const setShowRelatedVideos = usePlayerStore((state) => state.setShowRelatedVideos);
   const togglePlayPause = usePlayerStore((state) => state.togglePlayPause);
   const seek = usePlayerStore((state) => state.seek);
   const isLocked = usePlayerStore((state) => state.isLocked);
@@ -155,7 +159,7 @@ export const useTVRemoteHandler = () => {
       }
 
       // Modal/overlay guards: if any modal is open, block all other remote events.
-      if (showEpisodeModal || showRelatedVideos) {
+      if (showEpisodeModal || showSourceModal || showSpeedModal || showRelatedVideos) {
         // We only allow the `backPress` event to be handled by the component, 
         // all other remote events are ignored.
         if (event.eventType !== 'backPress') {
@@ -173,6 +177,11 @@ export const useTVRemoteHandler = () => {
         return;
       }
 
+      // Ignore key up for longUp and longDown
+      if ((event.eventType === 'longUp' || event.eventType === 'longDown') && event.eventKeyAction === 1) {
+        return;
+      }
+
       // --- Logic when PlayerControls are VISIBLE ---
       if (showControls) {
         resetTimer();
@@ -186,6 +195,20 @@ export const useTVRemoteHandler = () => {
         if (event.eventType === 'up') {
           setShowControls(false);
           setShowEpisodeModal(true);
+          return;
+        }
+
+        // When controls are visible, long pressing UP directly switches to source selection modal
+        if (event.eventType === 'longUp') {
+          setShowControls(false);
+          setShowSourceModal(true);
+          return;
+        }
+
+        // When controls are visible, long pressing DOWN directly switches to related videos modal
+        if (event.eventType === 'longDown') {
+          setShowControls(false);
+          setShowRelatedVideos(true);
           return;
         }
 
@@ -206,6 +229,10 @@ export const useTVRemoteHandler = () => {
           case 'up':
             // UP: Directly open episode selection modal
             setShowEpisodeModal(true);
+            break;
+          case 'longUp':
+            // Long UP: Directly open source selection modal
+            setShowSourceModal(true);
             break;
           case 'left':
           case 'longLeft':
@@ -255,6 +282,10 @@ export const useTVRemoteHandler = () => {
           case 'playPause':
             togglePlayPause();
             break;
+          case 'longDown':
+            // Long DOWN: Directly open related videos modal
+            setShowRelatedVideos(true);
+            break;
           case 'down':
             // DOWN: Show player controls
             setShowControls(true);
@@ -262,7 +293,7 @@ export const useTVRemoteHandler = () => {
         }
       }
     },
-    [showControls, showEpisodeModal, showRelatedVideos, isLocked, setShowControls, setShowEpisodeModal, resetTimer, togglePlayPause, seek, toggleScreenLock, showLockedToast]
+    [showControls, showEpisodeModal, showSourceModal, showSpeedModal, showRelatedVideos, isLocked, setShowControls, setShowEpisodeModal, setShowSourceModal, setShowRelatedVideos, resetTimer, togglePlayPause, seek, toggleScreenLock, showLockedToast]
   );
 
   useTVEventHandler(handleTVEvent);

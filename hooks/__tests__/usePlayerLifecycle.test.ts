@@ -227,7 +227,7 @@ describe('usePlayerLifecycle', () => {
     });
     expect(handled).toBe(true);
     expect(mockSetShowRelatedVideos).toHaveBeenCalledWith(false);
-    expect(mockBack).toHaveBeenCalledTimes(1);
+    expect(mockBack).not.toHaveBeenCalled();
 
     // 2. Controls open
     rerender({
@@ -254,7 +254,7 @@ describe('usePlayerLifecycle', () => {
     });
     expect(handled).toBe(true);
     expect(mockFlushPlaybackRecord).toHaveBeenCalled();
-    expect(mockBack).toHaveBeenCalledTimes(2);
+    expect(mockBack).toHaveBeenCalledTimes(1);
 
     // 4. Locked back button interception
     usePlayerStore.setState({ isLocked: true });
@@ -262,7 +262,7 @@ describe('usePlayerLifecycle', () => {
       handled = backHandlerListener!();
     });
     expect(handled).toBe(true);
-    // mockBack should still be 2 (not called again)
-    expect(mockBack).toHaveBeenCalledTimes(2);
+    // mockBack should still be 1 (not called again)
+    expect(mockBack).toHaveBeenCalledTimes(1);
   });
 });

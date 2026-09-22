@@ -1,3 +1,4 @@
+import { AppState } from 'react-native';
 import usePlayerStore, { createInitialPlaybackState } from '../playerStore';
 import useDetailStore from '../detailStore';
 
@@ -379,6 +380,32 @@ describe('playerStore - Playback Recovery and togglePlayPause', () => {
       // Should not switch source
       expect(usePlayerStore.getState().stallFailoverCount).toBe(3);
       expect(useDetailStore.getState().detail?.source).toBe('source_1');
+    });
+
+    it('handlePlaybackStall ignores stall when AppState is not active', async () => {
+      const originalAppState = AppState.currentState;
+      try {
+        (AppState as any).currentState = 'background';
+        usePlayerStore.setState({
+          currentEpisodeIndex: 0,
+          stallFailoverCount: 0,
+          status: {
+            ...createInitialPlaybackState(),
+            isLoaded: true,
+            isPlaying: false,
+            isBuffering: true,
+            positionMillis: 100000,
+          },
+        });
+
+        await usePlayerStore.getState().handlePlaybackStall(100000);
+
+        // Failover count should remain 0, and detail source should not switch
+        expect(usePlayerStore.getState().stallFailoverCount).toBe(0);
+        expect(useDetailStore.getState().detail?.source).toBe('source_1');
+      } finally {
+        (AppState as any).currentState = originalAppState;
+      }
     });
 
     it('playEpisode resets stallFailoverCount to 0', () => {
