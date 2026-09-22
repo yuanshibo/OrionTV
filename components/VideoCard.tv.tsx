@@ -36,6 +36,7 @@ const VideoCard = forwardRef<View, VideoCardProps>(
       lastPlayed,
       onFocus,
       onLongPress,
+      onPress,
       onRecordDeleted,
       onFavoriteDeleted,
       // api prop is removed as we import it directly or use it from props if passed (but we removed it from destructuring to fix lint)
@@ -121,6 +122,9 @@ const VideoCard = forwardRef<View, VideoCardProps>(
 
     // Use handleLongPress from hook directly if no custom prop
     const onLongPressHandler = onLongPress || handleLongPress;
+    // When a custom onPress is passed (e.g. from RelatedSeriesModal), use it;
+    // otherwise default to internal handlePress.
+    const onPressHandler = onPress || handlePress;
 
     const progressText = formatProgressText({
       progress,
@@ -139,7 +143,7 @@ const VideoCard = forwardRef<View, VideoCardProps>(
         <Pressable
           ref={ref}
           android_ripple={Platform.isTV || deviceType !== 'tv' ? { color: 'transparent' } : { color: colors.link }}
-          onPress={handlePress}
+          onPress={onPressHandler}
           onLongPress={onLongPressHandler}
           onFocus={handleFocus}
           onBlur={handleBlur}

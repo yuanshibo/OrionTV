@@ -21,6 +21,7 @@ export const useTVRemoteHandler = () => {
   const setShowSourceModal = usePlayerStore((state) => state.setShowSourceModal);
   const showSpeedModal = usePlayerStore((state) => state.showSpeedModal);
   const showRelatedVideos = usePlayerStore((state) => state.showRelatedVideos);
+  const setShowRelatedVideos = usePlayerStore((state) => state.setShowRelatedVideos);
   const togglePlayPause = usePlayerStore((state) => state.togglePlayPause);
   const seek = usePlayerStore((state) => state.seek);
   const isLocked = usePlayerStore((state) => state.isLocked);
@@ -176,8 +177,8 @@ export const useTVRemoteHandler = () => {
         return;
       }
 
-      // Ignore key up for longUp
-      if (event.eventType === 'longUp' && event.eventKeyAction === 1) {
+      // Ignore key up for longUp and longDown
+      if ((event.eventType === 'longUp' || event.eventType === 'longDown') && event.eventKeyAction === 1) {
         return;
       }
 
@@ -201,6 +202,13 @@ export const useTVRemoteHandler = () => {
         if (event.eventType === 'longUp') {
           setShowControls(false);
           setShowSourceModal(true);
+          return;
+        }
+
+        // When controls are visible, long pressing DOWN directly switches to related videos modal
+        if (event.eventType === 'longDown') {
+          setShowControls(false);
+          setShowRelatedVideos(true);
           return;
         }
 
@@ -274,6 +282,10 @@ export const useTVRemoteHandler = () => {
           case 'playPause':
             togglePlayPause();
             break;
+          case 'longDown':
+            // Long DOWN: Directly open related videos modal
+            setShowRelatedVideos(true);
+            break;
           case 'down':
             // DOWN: Show player controls
             setShowControls(true);
@@ -281,7 +293,7 @@ export const useTVRemoteHandler = () => {
         }
       }
     },
-    [showControls, showEpisodeModal, showSourceModal, showSpeedModal, showRelatedVideos, isLocked, setShowControls, setShowEpisodeModal, setShowSourceModal, resetTimer, togglePlayPause, seek, toggleScreenLock, showLockedToast]
+    [showControls, showEpisodeModal, showSourceModal, showSpeedModal, showRelatedVideos, isLocked, setShowControls, setShowEpisodeModal, setShowSourceModal, setShowRelatedVideos, resetTimer, togglePlayPause, seek, toggleScreenLock, showLockedToast]
   );
 
   useTVEventHandler(handleTVEvent);

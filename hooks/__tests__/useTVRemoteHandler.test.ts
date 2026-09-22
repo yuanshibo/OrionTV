@@ -274,4 +274,106 @@ describe('useTVRemoteHandler - Screen Lock / Child Lock', () => {
       expect(seekSpy).not.toHaveBeenCalled();
     });
   });
+
+  describe('Down and LongDown handling', () => {
+    it('opens controls on down key when controls hidden', () => {
+      const setShowControlsSpy = jest.spyOn(usePlayerStore.getState(), 'setShowControls');
+      renderHook(() => useTVRemoteHandler());
+
+      act(() => {
+        tvEventHandlerCallback!({ eventType: 'down' });
+      });
+
+      expect(setShowControlsSpy).toHaveBeenCalledWith(true);
+    });
+
+    it('closes controls on down key when controls visible', () => {
+      const setShowControlsSpy = jest.spyOn(usePlayerStore.getState(), 'setShowControls');
+      act(() => {
+        usePlayerStore.setState({ showControls: true });
+      });
+
+      renderHook(() => useTVRemoteHandler());
+
+      act(() => {
+        tvEventHandlerCallback!({ eventType: 'down' });
+      });
+
+      expect(setShowControlsSpy).toHaveBeenCalledWith(false);
+    });
+
+    it('opens related videos modal on longDown when controls hidden', () => {
+      const setShowRelatedVideosSpy = jest.spyOn(usePlayerStore.getState(), 'setShowRelatedVideos');
+      renderHook(() => useTVRemoteHandler());
+
+      act(() => {
+        tvEventHandlerCallback!({ eventType: 'longDown', eventKeyAction: 0 });
+      });
+
+      expect(setShowRelatedVideosSpy).toHaveBeenCalledWith(true);
+    });
+
+    it('closes controls and opens related videos modal on longDown when controls visible', () => {
+      const setShowRelatedVideosSpy = jest.spyOn(usePlayerStore.getState(), 'setShowRelatedVideos');
+      const setShowControlsSpy = jest.spyOn(usePlayerStore.getState(), 'setShowControls');
+      act(() => {
+        usePlayerStore.setState({ showControls: true });
+      });
+
+      renderHook(() => useTVRemoteHandler());
+
+      act(() => {
+        tvEventHandlerCallback!({ eventType: 'longDown', eventKeyAction: 0 });
+      });
+
+      expect(setShowControlsSpy).toHaveBeenCalledWith(false);
+      expect(setShowRelatedVideosSpy).toHaveBeenCalledWith(true);
+    });
+
+    it('ignores longDown key up event (eventKeyAction: 1)', () => {
+      const setShowRelatedVideosSpy = jest.spyOn(usePlayerStore.getState(), 'setShowRelatedVideos');
+      renderHook(() => useTVRemoteHandler());
+
+      act(() => {
+        tvEventHandlerCallback!({ eventType: 'longDown', eventKeyAction: 1 });
+      });
+
+      expect(setShowRelatedVideosSpy).not.toHaveBeenCalled();
+    });
+
+    it('blocks longDown when screen is locked', () => {
+      const setShowRelatedVideosSpy = jest.spyOn(usePlayerStore.getState(), 'setShowRelatedVideos');
+      act(() => {
+        usePlayerStore.setState({ isLocked: true });
+      });
+
+      renderHook(() => useTVRemoteHandler());
+
+      act(() => {
+        tvEventHandlerCallback!({ eventType: 'longDown', eventKeyAction: 0 });
+      });
+
+      expect(setShowRelatedVideosSpy).not.toHaveBeenCalled();
+    });
+
+    it('blocks remote events when related videos modal is open', () => {
+      const togglePlayPauseSpy = jest.spyOn(usePlayerStore.getState(), 'togglePlayPause');
+      const seekSpy = jest.spyOn(usePlayerStore.getState(), 'seek');
+      act(() => {
+        usePlayerStore.setState({ showRelatedVideos: true });
+      });
+
+      renderHook(() => useTVRemoteHandler());
+
+      act(() => {
+        tvEventHandlerCallback!({ eventType: 'select' });
+        tvEventHandlerCallback!({ eventType: 'left' });
+        tvEventHandlerCallback!({ eventType: 'right' });
+        tvEventHandlerCallback!({ eventType: 'down' });
+      });
+
+      expect(togglePlayPauseSpy).not.toHaveBeenCalled();
+      expect(seekSpy).not.toHaveBeenCalled();
+    });
+  });
 });

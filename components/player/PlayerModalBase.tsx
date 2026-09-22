@@ -70,7 +70,7 @@ const styles = StyleSheet.create({
   },
   bottomContainer: {
     justifyContent: "flex-end",
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    backgroundColor: "transparent",
   },
   modalContent: {
     height: "100%",
@@ -80,9 +80,7 @@ const styles = StyleSheet.create({
   bottomContent: {
     height: "auto",
     maxHeight: "80%",
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    backgroundColor: "#1f2937",
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
   },
   modalTitle: {
     color: "white",

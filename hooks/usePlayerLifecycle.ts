@@ -131,9 +131,6 @@ export function usePlayerLifecycle({
 
       if (showRelatedVideos) {
         setShowRelatedVideos(false);
-        if (router.canGoBack()) {
-          router.back();
-        }
         return true;
       }
 

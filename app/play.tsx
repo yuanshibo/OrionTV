@@ -7,6 +7,7 @@ import PlayerView from "@/components/PlayerView";
 import { EpisodeSelectionModal } from "@/components/EpisodeSelectionModal";
 import { SourceSelectionModal } from "@/components/SourceSelectionModal";
 import { SpeedSelectionModal } from "@/components/SpeedSelectionModal";
+import { RelatedSeriesModal } from "@/components/RelatedSeriesModal";
 import useDetailStore from "@/stores/detailStore";
 import usePlayerStore, { selectCurrentEpisode } from "@/stores/playerStore";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
@@ -31,8 +32,8 @@ export default function PlayScreen() {
   const router = useRouter();
   const { deviceType } = useResponsiveLayout();
 
-  const { episodeIndex: episodeIndexStr, position: positionStr, source: sourceStr, id: videoId, title: videoTitle } = useLocalSearchParams<{
-    episodeIndex: string; position?: string; source?: string; id?: string; title?: string;
+  const { episodeIndex: episodeIndexStr, position: positionStr, source: sourceStr, id: videoId, title: videoTitle, q: queryTitle } = useLocalSearchParams<{
+    episodeIndex: string; position?: string; source?: string; id?: string; title?: string; q?: string;
   }>();
   const episodeIndex = parseInt(episodeIndexStr || "0", 10);
   const position = positionStr ? parseInt(positionStr, 10) : undefined;
@@ -131,14 +132,14 @@ export default function PlayScreen() {
   useEffect(() => {
     const source = sourceStr;
     const id = videoId;
-    const title = videoTitle;
+    const title = videoTitle || (queryTitle as string);
 
     if (source && id && title) {
       initDetail(title, source, id);
     } else {
       setError("视频加载失败: 缺少必要信息。");
     }
-  }, [sourceStr, videoId, videoTitle, initDetail, setError]);
+  }, [sourceStr, videoId, videoTitle, queryTitle, initDetail, setError]);
 
   const lastLoadedKeyRef = useRef<string>('');
 
@@ -212,6 +213,7 @@ export default function PlayScreen() {
       <EpisodeSelectionModal />
       <SourceSelectionModal />
       <SpeedSelectionModal />
+      <RelatedSeriesModal />
     </ThemedView>
   );
 }

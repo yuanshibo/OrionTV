@@ -767,7 +767,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
       resetPrefetchState();
       set({
         videoPlayer: null, episodes: [], currentEpisodeIndex: 0, status: null, isLoading: true, isUserPaused: false, showControls: false,
-        showEpisodeModal: false, showSourceModal: false, showSpeedModal: false, showNextEpisodeOverlay: false,
+        showEpisodeModal: false, showSourceModal: false, showSpeedModal: false, showRelatedVideos: false, showNextEpisodeOverlay: false,
         initialPosition: 0, playbackRate: 1.0, contentFit: 'contain', isLocked: false, introEndTime: undefined, outroStartTime: undefined, error: undefined,
         isSeeking: false, isSeekBuffering: false, stallFailoverCount: 0,
       });

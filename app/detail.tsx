@@ -92,6 +92,7 @@ export default function DetailScreen() {
     abort();
     const params: Record<string, string> = {
       q: detail.title,
+      title: detail.title,
       source: detail.source,
       id: detail.id.toString(),
       episodeIndex: episodeIndex.toString(),

@@ -59,29 +59,67 @@ export const useVideoCardInteractions = ({
     }
 
     if (progress !== undefined && episodeIndex !== undefined) {
+      let targetEpisodeIndex = 0;
+      let targetPosition = 0;
       if (isCompleted) {
         // 全剧或电影播放完毕：从第一集开头（第1集 00:00）重新开始播放
-        router.push({
-          pathname: "/play",
-          params: { source, id, episodeIndex: 0, title, position: 0 },
-        });
+        targetEpisodeIndex = 0;
+        targetPosition = 0;
       } else if (isEpisodeFinished && totalEpisodes && episodeIndex < totalEpisodes) {
         // 中间集数播完：自动续播下一集从开头播放
-        router.push({
-          pathname: "/play",
-          params: { source, id, episodeIndex: episodeIndex, title, position: 0 },
-        });
+        targetEpisodeIndex = episodeIndex;
+        targetPosition = 0;
       } else {
         // 继续播放当前集数断点进度
-        router.push({
-          pathname: "/play",
-          params: { source, id, episodeIndex: Math.max(episodeIndex - 1, 0), title, position: playTime * 1000 },
-        });
+        targetEpisodeIndex = Math.max(episodeIndex - 1, 0);
+        targetPosition = playTime * 1000;
       }
+
+      const playParams = {
+        source,
+        id,
+        episodeIndex: targetEpisodeIndex,
+        title,
+        position: targetPosition,
+      };
+
+      if (navigation) {
+        const state = navigation.getState();
+        const hasExistingPlayOrDetail = state?.routes?.some((r: any) =>
+          ['detail', 'play', 'related'].includes(r.name)
+        );
+
+        if (hasExistingPlayOrDetail && state?.routes) {
+          // If we are coming from a play, detail, or related screen:
+          // We MUST replace the existing consumption chain to prevent player stacking!
+          const routesToKeep = state.routes.filter((r: any) =>
+            !['detail', 'play', 'related'].includes(r.name)
+          );
+
+          navigation.dispatch({
+            type: 'RESET',
+            payload: {
+              ...state,
+              routes: [
+                ...routesToKeep,
+                { name: 'play', params: playParams },
+              ],
+              index: routesToKeep.length,
+            },
+          });
+          return;
+        }
+      }
+
+      router.push({
+        pathname: "/play",
+        params: playParams,
+      });
     } else {
       const isDouban = source === 'douban';
       const params = {
         q: title,
+        title,
         poster,
         year: (rest as any).year,
         type: (rest as any).mediaType,
@@ -89,28 +127,27 @@ export const useVideoCardInteractions = ({
       };
 
       // Smart navigation: Flatten the stack for Detail pages
-      // This ensures that navigating from Detail -> Related -> Detail doesn't create a deep stack.
-      // It keeps "context" pages (Home, Search, Favorites) but replaces the "Detail chain".
-      if (navigation) {
-        navigation.dispatch((state: any) => {
-          // Filter out existing Detail, Play, and Related screens from the stack
-          // This effectively "replaces" the current Detail flow with the new Detail page
-          // while preserving the history of how we got here (e.g. Home -> Search)
-          const routesToKeep = state.routes.filter((r: any) =>
-            !['detail', 'play', 'related'].includes(r.name)
-          );
+      // If the stack already has a detail/play/related chain (e.g. Detail -> Related -> Detail),
+      // RESET to prevent deep stacking. Otherwise simply push.
+      const state = navigation?.getState();
+      const hasExistingConsumptionChain = state?.routes?.some((r: any) =>
+        ['detail', 'play', 'related'].includes(r.name)
+      );
 
-          return {
-            type: 'RESET',
-            payload: {
-              ...state,
-              routes: [...routesToKeep, { name: 'detail', params }],
-              index: routesToKeep.length,
-            },
-          };
+      if (hasExistingConsumptionChain && state?.routes) {
+        const routesToKeep = state.routes.filter((r: any) =>
+          !['detail', 'play', 'related'].includes(r.name)
+        );
+
+        navigation!.dispatch({
+          type: 'RESET',
+          payload: {
+            ...state,
+            routes: [...routesToKeep, { name: 'detail', params }],
+            index: routesToKeep.length,
+          },
         });
       } else {
-        // Fallback if navigation is not available (shouldn't happen in expo-router)
         router.push({
           pathname: "/detail",
           params,
