@@ -1,5 +1,5 @@
+import { Platform } from "react-native";
 import ReactNativeBlobUtil from "react-native-blob-util";
-import FileViewer from "react-native-file-viewer";
 import Toast from "react-native-toast-message";
 import { version as currentVersion } from "../package.json";
 import { UPDATE_CONFIG } from "../constants/UpdateConfig";
@@ -163,13 +163,15 @@ class UpdateService {
         throw new Error(`APK file not found: ${filePath}`);
       }
 
-      // 使用FileViewer打开APK文件进行安装
-      // 这会触发Android的包安装器
-      await FileViewer.open(filePath, {
-        showOpenWithDialog: true, // 显示选择应用对话框
-        showAppsSuggestions: true, // 显示应用建议
-        displayName: "OrionTV Update",
-      });
+      // 使用 ReactNativeBlobUtil 打开 APK 文件进行安装，触发 Android 系统包安装器
+      if (Platform.OS === 'android') {
+        await ReactNativeBlobUtil.android.actionViewIntent(
+          filePath,
+          "application/vnd.android.package-archive"
+        );
+      } else {
+        await ReactNativeBlobUtil.ios.previewDocument(filePath);
+      }
     } catch (error) {
       logger.info("Error installing APK:", error);
       
