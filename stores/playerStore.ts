@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { AppState } from "react-native";
 import Toast from "react-native-toast-message";
 import { VideoPlayer } from "expo-video";
 import { PlayRecord, PlayRecordManager, PlayerSettingsManager } from "@/services/storage";
@@ -832,6 +833,11 @@ const usePlayerStore = create<PlayerState>((set, get) => {
     },
 
     handlePlaybackStall: async (stallPositionMs?: number) => {
+      if (AppState.currentState === "background" || AppState.currentState === "inactive") {
+        logger.info("[STALL_FAILOVER] Ignored stall failover because AppState is background/inactive");
+        return;
+      }
+
       const { stallFailoverCount = 0 } = get();
       if (stallFailoverCount >= 3) {
         logger.warn("[STALL_FAILOVER] Reached max consecutive stall failovers (3). Halting auto-switch.");

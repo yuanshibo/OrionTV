@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { View, Text, StyleSheet, useColorScheme } from "react-native";
-import { Pause, Play, SkipForward, List, Tv, ArrowDownToDot, ArrowUpFromDot, Gauge, Ratio } from "lucide-react-native";
+import { SkipForward, List, Tv, ArrowDownToDot, ArrowUpFromDot, Gauge, Ratio } from "lucide-react-native";
 import { MediaButton } from "@/components/MediaButton";
 import { useShallow } from "zustand/react/shallow";
 
@@ -23,13 +23,10 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
   const {
     currentEpisodeIndex,
     episodes,
-    isLoaded,
-    isPlaying,
     playbackRate,
     contentFit,
     introEndTime,
     outroStartTime,
-    togglePlayPause,
     playEpisode,
     toggleContentFit,
     setShowEpisodeModal,
@@ -41,13 +38,10 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
     useShallow((state) => ({
       currentEpisodeIndex: state.currentEpisodeIndex,
       episodes: state.episodes,
-      isLoaded: state.status?.isLoaded,
-      isPlaying: state.status?.isPlaying,
       playbackRate: state.playbackRate,
       contentFit: state.contentFit,
       introEndTime: state.introEndTime,
       outroStartTime: state.outroStartTime,
-      togglePlayPause: state.togglePlayPause,
       playEpisode: state.playEpisode,
       toggleContentFit: state.toggleContentFit,
       setShowEpisodeModal: state.setShowEpisodeModal,
@@ -161,15 +155,11 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
             <ArrowDownToDot color={colors.text} size={24} />
           </MediaButton>
 
-          <MediaButton onPress={togglePlayPause} hasTVPreferredFocus={showControls}>
-            {isLoaded && isPlaying ? (
-              <Pause color={colors.text} size={24} />
-            ) : (
-              <Play color={colors.text} size={24} />
-            )}
-          </MediaButton>
-
-          <MediaButton onPress={onPlayNextEpisode} disabled={!hasNextEpisode}>
+          <MediaButton
+            onPress={onPlayNextEpisode}
+            disabled={!hasNextEpisode}
+            hasTVPreferredFocus={hasNextEpisode && showControls}
+          >
             <SkipForward color={hasNextEpisode ? colors.text : colors.icon} size={24} />
           </MediaButton>
 
@@ -177,16 +167,8 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
             <ArrowUpFromDot color={colors.text} size={24} />
           </MediaButton>
 
-          <MediaButton onPress={() => setShowEpisodeModal(true)}>
-            <List color={colors.text} size={24} />
-          </MediaButton>
-
           <MediaButton onPress={() => setShowSpeedModal(true)} timeLabel={playbackRate !== 1.0 ? `${playbackRate}x` : undefined}>
             <Gauge color={colors.text} size={24} />
-          </MediaButton>
-
-          <MediaButton onPress={() => setShowSourceModal(true)}>
-            <Tv color={colors.text} size={24} />
           </MediaButton>
 
           <MediaButton
@@ -194,6 +176,17 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({ showControls, se
             timeLabel={contentFit === 'cover' ? '全屏' : contentFit === 'fill' ? '拉伸' : '16:9'}
           >
             <Ratio color={colors.text} size={24} />
+          </MediaButton>
+
+          <MediaButton
+            onPress={() => setShowEpisodeModal(true)}
+            hasTVPreferredFocus={!hasNextEpisode && showControls}
+          >
+            <List color={colors.text} size={24} />
+          </MediaButton>
+
+          <MediaButton onPress={() => setShowSourceModal(true)}>
+            <Tv color={colors.text} size={24} />
           </MediaButton>
         </View>
 

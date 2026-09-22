@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
-import { useVideoPlayer, VideoPlayer, VideoViewProps } from 'expo-video';
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import { AppState, AppStateStatus } from "react-native";
+import { useVideoPlayer, VideoPlayer, VideoViewProps } from "expo-video";
 import type {
   VideoPlayerEvents,
   StatusChangeEventPayload,
@@ -60,6 +61,26 @@ export const useVideoHandlers = ({
     }
   }, []);
 
+  const startPlaybackTimeout = useCallback(() => {
+    clearPlaybackTimeout();
+    if (currentEpisode?.url && !statusRef.current.isLoaded) {
+      playbackTimeoutRef.current = setTimeout(() => {
+        const isAppInBackground =
+          AppState.currentState === "background" || AppState.currentState === "inactive";
+        if (
+          !statusRef.current.isLoaded &&
+          !statusRef.current.error &&
+          currentEpisode?.url &&
+          !isAppInBackground
+        ) {
+          console.warn("[VIDEO] Playback loading timed out after 15s, triggering source fallback...");
+          errorService.showToast("加载超时，正在自动切换播放源...", "error");
+          usePlayerStore.getState().handleVideoError("network", currentEpisode.url);
+        }
+      }, 15000);
+    }
+  }, [clearPlaybackTimeout, currentEpisode?.url]);
+
   const emitStatusUpdate = useCallback(
     (updates: Partial<PlaybackState>) => {
       statusRef.current = { ...statusRef.current, ...updates };
@@ -73,6 +94,33 @@ export const useVideoHandlers = ({
   const lastProgressTimestampRef = useRef<number>(Date.now());
   const lastSeenTimeRef = useRef<number>(0);
   const uninterruptedPlaySecondsRef = useRef<number>(0);
+  const isAppActiveRef = useRef<boolean>(
+    AppState.currentState !== "background" && AppState.currentState !== "inactive"
+  );
+  const lastActiveTimestampRef = useRef<number>(Date.now());
+
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      const now = Date.now();
+      if (nextAppState === "active") {
+        isAppActiveRef.current = true;
+        lastActiveTimestampRef.current = now;
+        lastProgressTimestampRef.current = now;
+        uninterruptedPlaySecondsRef.current = 0;
+        startPlaybackTimeout();
+      } else {
+        isAppActiveRef.current = false;
+        lastProgressTimestampRef.current = now;
+        uninterruptedPlaySecondsRef.current = 0;
+        clearPlaybackTimeout();
+      }
+    };
+
+    const subscription = AppState.addEventListener("change", handleAppStateChange);
+    return () => {
+      subscription.remove();
+    };
+  }, [startPlaybackTimeout, clearPlaybackTimeout]);
 
   useEffect(() => {
     statusRef.current = createInitialPlaybackState();
@@ -87,22 +135,12 @@ export const useVideoHandlers = ({
     lastSeenTimeRef.current = 0;
     uninterruptedPlaySecondsRef.current = 0;
 
-    clearPlaybackTimeout();
-    if (currentEpisode?.url) {
-      // Setup 15-second load timeout protection to prevent infinite buffering on dead sources
-      playbackTimeoutRef.current = setTimeout(() => {
-        if (!statusRef.current.isLoaded && !statusRef.current.error && currentEpisode?.url) {
-          console.warn('[VIDEO] Playback loading timed out after 15s, triggering source fallback...');
-          errorService.showToast('加载超时，正在自动切换播放源...', 'error');
-          usePlayerStore.getState().handleVideoError('network', currentEpisode.url);
-        }
-      }, 15000);
-    }
+    startPlaybackTimeout();
 
     return () => {
       clearPlaybackTimeout();
     };
-  }, [currentEpisode?.url, handlePlaybackStatusUpdate, clearPlaybackTimeout]);
+  }, [currentEpisode?.url, handlePlaybackStatusUpdate, clearPlaybackTimeout, startPlaybackTimeout]);
 
   useEffect(() => {
     pendingSeekRef.current = initialPosition || introEndTime || 0;
@@ -307,7 +345,16 @@ export const useVideoHandlers = ({
   useEffect(() => {
     const watchdogInterval = setInterval(() => {
       const store = usePlayerStore.getState();
+      const now = Date.now();
+      const isAppInBackground =
+        !isAppActiveRef.current ||
+        AppState.currentState === "background" ||
+        AppState.currentState === "inactive";
+      const isWarmingUpFromBackground = now - lastActiveTimestampRef.current < 2500;
+
       if (
+        isAppInBackground ||
+        isWarmingUpFromBackground ||
         !player ||
         !hasStartedPlayingRef.current ||
         store.isUserPaused ||
@@ -316,16 +363,15 @@ export const useVideoHandlers = ({
         statusRef.current.didJustFinish ||
         !currentEpisode?.url
       ) {
-        lastProgressTimestampRef.current = Date.now();
+        lastProgressTimestampRef.current = now;
         uninterruptedPlaySecondsRef.current = 0;
         return;
       }
 
-      const isBuffering = statusRef.current.isBuffering || (player as any).status === 'loading';
+      const isBuffering = statusRef.current.isBuffering || (player as any).status === "loading";
       const isSupposedToBePlaying = player.playing || isBuffering;
 
       if (isSupposedToBePlaying) {
-        const now = Date.now();
         const stalledMs = now - lastProgressTimestampRef.current;
         if (stalledMs >= 6000) {
           lastProgressTimestampRef.current = now; // Prevent multiple triggers in same stall
@@ -335,7 +381,7 @@ export const useVideoHandlers = ({
           store.handlePlaybackStall(stallPos);
         }
       } else {
-        lastProgressTimestampRef.current = Date.now();
+        lastProgressTimestampRef.current = now;
       }
     }, 1000);
 
