@@ -24,6 +24,7 @@ import {
   getResolutionWithCache,
   probeM3U8WithCache,
 } from "@/utils/DetailCache";
+import { processM3U8ForPlayback } from "@/services/m3u8AdFilter";
 
 const logger = Logger.withTag('DetailStore');
 
@@ -65,6 +66,27 @@ const fetchDetailAuxData = async (detail: SearchResultWithResolution) => {
   } catch (e) {
     logger.debug("[DetailStore] Failed to fetch aux data for source:", e);
     return { isFavorited: false, resumeRecord: null };
+  }
+};
+
+const prefetchTargetEpisode = (detail: SearchResultWithResolution, resumeRecord: PlayRecord | null) => {
+  const adBlockMode = useSettingsStore.getState().adBlockMode || 'seamless';
+  if (adBlockMode === 'off') return;
+  if (getIsPlayerActivelyPlaying()) return;
+
+  const episodes = detail.episodes;
+  if (!episodes || episodes.length === 0) return;
+  
+  let targetIndex = 0;
+  if (resumeRecord && resumeRecord.index > 0 && resumeRecord.index <= episodes.length) {
+    targetIndex = resumeRecord.index - 1;
+  }
+  const targetEpisode = episodes[targetIndex] || episodes[0];
+  if (targetEpisode) {
+    logger.info(`[PREFETCH] Prefetching target episode for detail page: #${targetIndex + 1} (${detail.title})`);
+    processM3U8ForPlayback(targetEpisode, adBlockMode).catch(e => {
+      logger.debug('[PREFETCH] error:', e);
+    });
   }
 };
 
@@ -371,6 +393,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
                 logger.info(
                   `[SMART_PROMOTION] Promoted high-quality/fast source "${candidate.source}" (${candidate.resolution || 'HD'}, ${candidate.latencyMs ?? '?'}ms) over "${currentDetail.source}"`
                 );
+                prefetchTargetEpisode(candidate, snapshot.resumeRecord);
               }
             }
 
@@ -428,6 +451,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
 
             fetchDetailAuxData(firstDetail).then(({ isFavorited, resumeRecord }) => {
               set({ isFavorited, resumeRecord });
+              prefetchTargetEpisode(firstDetail, resumeRecord);
             });
           }
         } else {
@@ -439,6 +463,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
               updates.detail = newDetail;
               fetchDetailAuxData(newDetail).then(({ isFavorited, resumeRecord }) => {
                 set({ isFavorited, resumeRecord });
+                prefetchTargetEpisode(newDetail, resumeRecord);
               });
             } else if (newDetail.episodes.length > currentDetail.episodes.length) {
               logger.warn(`[AUTO-SWITCH] Skipped switching to "${newDetail.source}" despite more episodes: Metadata mismatch or below threshold.`);
@@ -544,6 +569,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
     const { source, episodes } = detail;
     const { isFavorited, resumeRecord } = await fetchDetailAuxData(detail);
     set({ isFavorited, resumeRecord });
+    prefetchTargetEpisode(detail, resumeRecord);
 
     // Trigger probing for newly selected source if resolution is not yet populated
     if (!detail.resolution && episodes && episodes.length > 0) {
