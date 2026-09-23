@@ -125,6 +125,7 @@ interface PlayerState {
   introEndTime?: number;
   outroStartTime?: number;
   router?: ReturnType<typeof useRouter>;
+  playbackSessionId: string;
   setVideoPlayer: (player: VideoPlayer | null) => void;
   loadVideo: (options: {
     detail: SearchResultWithResolution;
@@ -209,6 +210,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
   };
 
   return {
+    playbackSessionId: '',
     videoPlayer: null,
     episodes: [],
     currentEpisodeIndex: -1,
@@ -240,7 +242,8 @@ const usePlayerStore = create<PlayerState>((set, get) => {
 
     loadVideo: async ({ detail, episodeIndex, position, router }) => {
       resetPrefetchState();
-      set({ status: null, isLoading: true, isUserPaused: false, error: undefined, router, showRelatedVideos: false, adIntervals: [], stallFailoverCount: 0 });
+      const newSessionId = Math.random().toString(36).slice(2);
+      set({ status: null, isLoading: true, isUserPaused: false, error: undefined, router, showRelatedVideos: false, adIntervals: [], stallFailoverCount: 0, playbackSessionId: newSessionId });
 
       const episodes = detail.episodes && detail.episodes.length > 0
         ? detail.episodes
@@ -320,7 +323,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
     },
 
     playEpisode: (index) => {
-      const { episodes, introEndTime, videoPlayer } = get();
+      const { episodes, introEndTime, videoPlayer, playbackSessionId: expectedSessionId } = get();
       if (index >= 0 && index < episodes.length) {
         const targetEpisode = episodes[index];
         const prefetchedIntervals = prefetchedAdIntervalsMap.get(index) || [];
@@ -375,20 +378,27 @@ const usePlayerStore = create<PlayerState>((set, get) => {
 
           adPromise
             .then((filterResult) => {
+              if (get().playbackSessionId !== expectedSessionId) return;
               if (filterResult.isModified) {
                 const currentEpList = get().episodes;
                 if (currentEpList[index]) {
                   const updatedEpisodes = [...currentEpList];
                   updatedEpisodes[index] = { ...updatedEpisodes[index], url: filterResult.cleanUrl };
-                  set({ episodes: updatedEpisodes, adIntervals: filterResult.adIntervals });
-                  const activePlayer = get().videoPlayer;
-                  if (get().currentEpisodeIndex === index && activePlayer && filterResult.cleanUrl !== targetEpisode.url) {
-                    void safeReplacePlayerSource(activePlayer, filterResult.cleanUrl);
+                  // Only update adIntervals if we are STILL playing this specific episode
+                  if (get().currentEpisodeIndex === index) {
+                    set({ episodes: updatedEpisodes, adIntervals: filterResult.adIntervals });
+                    const activePlayer = get().videoPlayer;
+                    if (activePlayer && filterResult.cleanUrl !== targetEpisode.url) {
+                      void safeReplacePlayerSource(activePlayer, filterResult.cleanUrl);
+                    }
+                  } else {
+                    set({ episodes: updatedEpisodes });
                   }
                 }
               }
             })
             .catch((adErr) => {
+              if (get().playbackSessionId !== expectedSessionId) return;
               logger.debug('[PlayerStore] playEpisode ad filter background check:', adErr);
             });
         }
@@ -396,7 +406,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
     },
 
     prefetchNextEpisode: async () => {
-      const { episodes, currentEpisodeIndex } = get();
+      const { episodes, currentEpisodeIndex, playbackSessionId: expectedSessionId } = get();
       const nextIndex = currentEpisodeIndex + 1;
       if (nextIndex >= episodes.length) return;
       if (prefetchedIndex === nextIndex || inFlightPrefetchIndex === nextIndex) return;
@@ -419,6 +429,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
       const promise = (async () => {
         try {
           const filterResult = await processM3U8ForPlayback(targetEpisode.url, adBlockMode);
+          if (get().playbackSessionId !== expectedSessionId) return;
           if (filterResult.isModified) {
             const currentEpList = get().episodes;
             if (currentEpList[nextIndex]) {
@@ -431,10 +442,13 @@ const usePlayerStore = create<PlayerState>((set, get) => {
           }
           prefetchedIndex = nextIndex;
         } catch (err) {
+          if (get().playbackSessionId !== expectedSessionId) return;
           logger.debug(`[PlayerStore] Prefetch for episode #${nextIndex + 1} failed:`, err);
         } finally {
-          inFlightPrefetchPromise = null;
-          inFlightPrefetchIndex = null;
+          if (get().playbackSessionId === expectedSessionId) {
+            inFlightPrefetchPromise = null;
+            inFlightPrefetchIndex = null;
+          }
         }
       })();
 
@@ -770,8 +784,9 @@ const usePlayerStore = create<PlayerState>((set, get) => {
     reset: () => {
       if (seekTimeoutId) clearTimeout(seekTimeoutId);
       resetPrefetchState();
+      const newSessionId = Math.random().toString(36).slice(2);
       set({
-        videoPlayer: null, episodes: [], currentEpisodeIndex: 0, status: null, isLoading: true, isUserPaused: false, showControls: false,
+        playbackSessionId: newSessionId, videoPlayer: null, episodes: [], currentEpisodeIndex: 0, status: null, isLoading: true, isUserPaused: false, showControls: false,
         showEpisodeModal: false, showSourceModal: false, showSpeedModal: false, showRelatedVideos: false, showNextEpisodeOverlay: false,
         initialPosition: 0, playbackRate: 1.0, contentFit: 'contain', isLocked: false, introEndTime: undefined, outroStartTime: undefined, error: undefined,
         isSeeking: false, isSeekBuffering: false, stallFailoverCount: 0,
@@ -787,7 +802,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
         return;
       }
 
-      const { currentEpisodeIndex, introEndTime, status, progressPosition, initialPosition, videoPlayer } = get();
+      const { currentEpisodeIndex, introEndTime, status, progressPosition, initialPosition, videoPlayer, playbackSessionId: expectedSessionId } = get();
       const currentSource = detail.source;
       useDetailStore.getState().markSourceAsFailed(currentSource, `${errorType} error`);
       const fallbackSource = useDetailStore.getState().getNextAvailableSource(currentSource, currentEpisodeIndex);
@@ -799,11 +814,15 @@ const usePlayerStore = create<PlayerState>((set, get) => {
         } else {
           errorService.handle("所有播放源均不可用", { context: "handleVideoError", showToast: true });
         }
-        set({ error: "所有播放源均不可用", isLoading: false, isUserPaused: false, status: null });
+        if (get().playbackSessionId === expectedSessionId) {
+          set({ error: "所有播放源均不可用", isLoading: false, isUserPaused: false, status: null });
+        }
         return;
       }
 
       await useDetailStore.getState().setDetail(fallbackSource);
+      if (get().playbackSessionId !== expectedSessionId) return;
+
       const newEpisodes = fallbackSource.episodes || [];
       if (newEpisodes.length > currentEpisodeIndex) {
         const mappedEpisodes = newEpisodes.map((ep, index) => ({ url: ep, title: `第 ${index + 1} 集` }));
@@ -815,6 +834,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
         if (targetEp?.url && adBlockMode !== 'off') {
           try {
             const filterResult = await processM3U8ForPlayback(targetEp.url, adBlockMode);
+            if (get().playbackSessionId !== expectedSessionId) return;
             if (filterResult.isModified) {
               playUrl = filterResult.cleanUrl;
               mappedEpisodes[currentEpisodeIndex] = { ...targetEp, url: filterResult.cleanUrl };
@@ -824,6 +844,8 @@ const usePlayerStore = create<PlayerState>((set, get) => {
             logger.warn('[SOURCE_SELECTION] Error processing M3U8 ad filter:', adErr);
           }
         }
+
+        if (get().playbackSessionId !== expectedSessionId) return;
 
         const resumePosition =
           status?.positionMillis && status.positionMillis > 0
@@ -851,7 +873,9 @@ const usePlayerStore = create<PlayerState>((set, get) => {
         });
       } else {
         const msg = errorService.handle("回退的播放源缺少当前剧集", { context: "handleVideoError", showToast: false });
-        set({ error: msg, isLoading: false, status: null });
+        if (get().playbackSessionId === expectedSessionId) {
+          set({ error: msg, isLoading: false, status: null });
+        }
       }
     },
 
@@ -875,7 +899,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
       const { detail } = useDetailStore.getState();
       if (!detail) return;
 
-      const { currentEpisodeIndex, introEndTime, status, progressPosition, initialPosition, videoPlayer, isSeekBuffering, seekPosition } = get();
+      const { currentEpisodeIndex, introEndTime, status, progressPosition, initialPosition, videoPlayer, isSeekBuffering, seekPosition, playbackSessionId: expectedSessionId } = get();
       const currentSource = detail.source;
       useDetailStore.getState().markSourceAsFailed(currentSource, "Playback stall (buffering > 10s)");
       const fallbackSource = useDetailStore.getState().getNextAvailableSource(currentSource, currentEpisodeIndex);
@@ -909,6 +933,8 @@ const usePlayerStore = create<PlayerState>((set, get) => {
       );
 
       await useDetailStore.getState().setDetail(fallbackSource);
+      if (get().playbackSessionId !== expectedSessionId) return;
+
       const newEpisodes = fallbackSource.episodes || [];
       if (newEpisodes.length > currentEpisodeIndex) {
         const mappedEpisodes = newEpisodes.map((ep, index) => ({ url: ep, title: `第 ${index + 1} 集` }));
@@ -920,6 +946,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
         if (targetEp?.url && adBlockMode !== 'off') {
           try {
             const filterResult = await processM3U8ForPlayback(targetEp.url, adBlockMode);
+            if (get().playbackSessionId !== expectedSessionId) return;
             if (filterResult.isModified) {
               playUrl = filterResult.cleanUrl;
               mappedEpisodes[currentEpisodeIndex] = { ...targetEp, url: filterResult.cleanUrl };
@@ -929,6 +956,8 @@ const usePlayerStore = create<PlayerState>((set, get) => {
             logger.warn('[STALL_FAILOVER] Error processing M3U8 ad filter:', adErr);
           }
         }
+
+        if (get().playbackSessionId !== expectedSessionId) return;
 
         set({
           episodes: mappedEpisodes,

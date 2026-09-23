@@ -383,6 +383,28 @@ export const useVideoHandlers = ({
         AppState.currentState === "inactive";
       const isWarmingUpFromBackground = now - lastActiveTimestampRef.current < 2500;
 
+      let currentPlayTime = 0;
+      if (player) {
+        try {
+          currentPlayTime = player.currentTime;
+        } catch {}
+      }
+
+      if (currentPlayTime > 0) {
+        const timeDelta = currentPlayTime - watchdogLastTimeRef.current;
+        if (timeDelta > 0.08 || timeDelta < -0.2) {
+          lastProgressTimestampRef.current = now;
+          watchdogLastTimeRef.current = currentPlayTime;
+          if (timeDelta < -0.2 && store.stallFailoverCount > 0) {
+            usePlayerStore.setState({ stallFailoverCount: 0 });
+          }
+          // If the player is actively advancing hardware time, we are definitely no longer stuck buffering a seek
+          if (timeDelta > 0.08 && store.isSeekBuffering) {
+            usePlayerStore.setState({ isSeekBuffering: false });
+          }
+        }
+      }
+
       if (
         isAppInBackground ||
         isWarmingUpFromBackground ||
@@ -390,7 +412,6 @@ export const useVideoHandlers = ({
         !hasStartedPlayingRef.current ||
         store.isUserPaused ||
         store.isSeeking ||
-        store.isSeekBuffering ||
         statusRef.current.didJustFinish ||
         !currentEpisode?.url
       ) {
@@ -403,26 +424,6 @@ export const useVideoHandlers = ({
       const isSupposedToBePlaying = player.playing || isBuffering;
 
       if (isSupposedToBePlaying) {
-        // Direct player progress verification: if player's currentTime is advancing or rewound,
-        // playback is clearly NOT stalled.
-        let currentPlayTime = 0;
-        try {
-          currentPlayTime = player.currentTime;
-        } catch {
-          // Player may be transitioning
-        }
-
-        if (currentPlayTime > 0) {
-          const timeDelta = currentPlayTime - watchdogLastTimeRef.current;
-          if (timeDelta > 0.08 || timeDelta < -0.2) {
-            lastProgressTimestampRef.current = now;
-            watchdogLastTimeRef.current = currentPlayTime;
-            if (timeDelta < -0.2 && store.stallFailoverCount > 0) {
-              usePlayerStore.setState({ stallFailoverCount: 0 });
-            }
-          }
-        }
-
         const stalledMs = now - lastProgressTimestampRef.current;
         if (stalledMs >= 10000) {
           lastProgressTimestampRef.current = now; // Prevent multiple triggers in same stall
