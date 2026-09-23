@@ -18,11 +18,30 @@ export interface AdFilterResult {
   isModified: boolean;
 }
 
+export interface AdCandidateBlock {
+  idx: number;
+  duration: number;
+  prevUrl: string;
+  curUrl: string;
+  nextUrl: string;
+  prevDur: number;
+}
+
+export interface FilterM3U8Result {
+  content: string;
+  adIntervals: AdInterval[];
+  totalAdDuration: number;
+  isModified: boolean;
+  candidates?: AdCandidateBlock[];
+}
+
 export interface AdFilterOptions {
   /** Regular expressions for matching ad slice URLs or paths */
   adKeywords?: RegExp[];
   /** Common standard ad durations in seconds */
   adDurations?: number[];
+  /** Set of block indices explicitly verified as ads (e.g. via PTS probing) */
+  verifiedAdIndices?: Set<number>;
 }
 
 const DEFAULT_AD_KEYWORDS = [
@@ -71,6 +90,62 @@ export function rewriteTagUri(line: string, baseUrl: string): string {
     return line.replace(uriMatch[0], `URI="${absoluteUri}"`);
   }
   return line;
+}
+
+/**
+ * Fast zero-dependency MPEG-TS PES PTS parser using standard Uint8Array.
+ * Parses PAT (PID 0) -> PMT -> Video elementary PID -> first PES PTS timestamp.
+ * Returns PTS timestamp in seconds, or null if not found.
+ */
+export function parsePTSFromUint8Array(u8: Uint8Array): number | null {
+  if (!u8 || u8.length < 188) return null;
+  let pmtPid: number | null = null;
+  let videoPid: number | null = null;
+
+  for (let offset = 0; offset + 188 <= u8.length; offset += 188) {
+    if (u8[offset] !== 0x47) continue;
+    const pusi = (u8[offset + 1] & 0x40) !== 0;
+    const pid = ((u8[offset + 1] & 0x1f) << 8) | u8[offset + 2];
+    const afc = (u8[offset + 3] >> 4) & 0x03;
+    let pStart = offset + 4;
+    if (afc === 2 || afc === 3) pStart += 1 + u8[pStart];
+    if (pStart >= offset + 188) continue;
+
+    // PAT (Program Association Table)
+    if (pid === 0 && pusi) {
+      const p = u8[pStart];
+      pmtPid = ((u8[pStart + 1 + p + 10] & 0x1f) << 8) | u8[pStart + 1 + p + 11];
+    } else if (pid === pmtPid && pusi) {
+      // PMT (Program Map Table)
+      const p = u8[pStart];
+      const tableStart = pStart + 1 + p;
+      const progInfoLength = ((u8[tableStart + 10] & 0x0f) << 8) | u8[tableStart + 11];
+      let esStart = tableStart + 12 + progInfoLength;
+      while (esStart + 5 <= offset + 188) {
+        const streamType = u8[esStart];
+        if (streamType === 0x1b || streamType === 0x24) {
+          // H.264 or H.265 video elementary stream
+          videoPid = ((u8[esStart + 1] & 0x1f) << 8) | u8[esStart + 2];
+          break;
+        }
+        esStart += 5 + (((u8[esStart + 3] & 0x0f) << 8) | u8[esStart + 4]);
+      }
+    } else if (pid === videoPid && pusi && u8[pStart] === 0 && u8[pStart + 1] === 0 && u8[pStart + 2] === 1) {
+      // Video PES Header
+      const flags2 = u8[pStart + 7];
+      if (((flags2 >> 6) & 0x03) >= 2) {
+        const b = u8.subarray(pStart + 9, pStart + 14);
+        const ptsTicks =
+          (b[0] & 0x0e) * 536870912 +
+          (b[1] << 22) +
+          ((b[2] & 0xfe) << 14) +
+          (b[3] << 7) +
+          ((b[4] & 0xfe) >> 1);
+        return ptsTicks / 90000;
+      }
+    }
+  }
+  return null;
 }
 
 export interface StreamBlock {
@@ -234,12 +309,7 @@ export function filterM3U8Content(
   m3u8Content: string,
   baseUrl: string,
   options: AdFilterOptions = {}
-): {
-  content: string;
-  adIntervals: AdInterval[];
-  totalAdDuration: number;
-  isModified: boolean;
-} {
+): FilterM3U8Result {
   if (!m3u8Content || typeof m3u8Content !== 'string') {
     return { content: '', adIntervals: [], totalAdDuration: 0, isModified: false };
   }
@@ -361,6 +431,11 @@ export function filterM3U8Content(
   const AD_SCORE_THRESHOLD = 70;
   for (let idx = 0; idx < blocks.length; idx++) {
     const b = blocks[idx];
+    if (options.verifiedAdIndices?.has(idx)) {
+      isAdBlock[idx] = true;
+      logger.debug(`Flagged block #${idx} as ad: score=100, reasons=pts_verified_inserted_ad`);
+      continue;
+    }
     const { score, reasons } = calculateBlockAdScore(b, idx, blocks, stats, standardAdDurs, isPodBlock[idx]);
     if (score >= AD_SCORE_THRESHOLD) {
       isAdBlock[idx] = true;
@@ -430,14 +505,27 @@ export function filterM3U8Content(
   }
 
   let keptBlockCount = 0;
+  let prevWasVerifiedAd = false;
   for (let idx = 0; idx < blocks.length; idx++) {
     if (isAdBlock[idx]) {
+      // Only mark as verified if this block was confirmed via PTS probing.
+      // Heuristic-detected ads (keyword, duration, sparse sequence) may have
+      // genuinely different codec parameters on either side, so the
+      // #EXT-X-DISCONTINUITY between surrounding content blocks must be kept.
+      if (options.verifiedAdIndices?.has(idx)) {
+        prevWasVerifiedAd = true;
+      }
       continue;
     }
 
-    if (keptBlockCount > 0) {
+    // Omit #EXT-X-DISCONTINUITY ONLY when the excised ad was PTS-verified
+    // (proving the surrounding movie segments share continuous PTS timestamps).
+    // For all other ad types, keep the discontinuity to preserve correct
+    // decoder behavior across potentially different encodings.
+    if (keptBlockCount > 0 && !prevWasVerifiedAd) {
       outputLines.push('#EXT-X-DISCONTINUITY');
     }
+    prevWasVerifiedAd = false;
     keptBlockCount++;
 
     for (const rawLine of blocks[idx].lines) {
@@ -460,11 +548,52 @@ export function filterM3U8Content(
     outputLines.push('#EXT-X-ENDLIST');
   }
 
+  // 5. Candidate identification for dense discontinuity streams (when no ads detected via fast path)
+  let candidates: AdCandidateBlock[] | undefined = undefined;
+  if (!isModified && !stats.isSparseDiscontinuity && blocks.length > 2) {
+    const candidateMilestones = [15, 20, 22, 25, 30, 44, 45, 60, 75, 90];
+    const durCounts: Record<number, number> = {};
+    for (const b of blocks) {
+      const roundedDur = Math.round(b.duration);
+      durCounts[roundedDur] = (durCounts[roundedDur] || 0) + 1;
+    }
+
+    const rawCandidates: AdCandidateBlock[] = [];
+    for (let idx = 1; idx < blocks.length - 1; idx++) {
+      const b = blocks[idx];
+      const matchesMilestone = candidateMilestones.some((m) => Math.abs(b.duration - m) <= 1.5);
+      if (matchesMilestone && b.duration >= 14 && b.duration <= 90) {
+        const prevBlock = blocks[idx - 1];
+        const nextBlock = blocks[idx + 1];
+        if (prevBlock.urls.length > 0 && b.urls.length > 0 && nextBlock.urls.length > 0) {
+          rawCandidates.push({
+            idx,
+            duration: b.duration,
+            prevUrl: prevBlock.urls[prevBlock.urls.length - 1],
+            curUrl: b.urls[0],
+            nextUrl: nextBlock.urls[0],
+            prevDur: prevBlock.durs[prevBlock.durs.length - 1] || 2,
+          });
+        }
+      }
+    }
+
+    rawCandidates.sort((a, b) => {
+      const freqA = durCounts[Math.round(a.duration)] || 0;
+      const freqB = durCounts[Math.round(b.duration)] || 0;
+      if (freqA !== freqB) return freqA - freqB;
+      return b.duration - a.duration;
+    });
+
+    candidates = rawCandidates;
+  }
+
   return {
     content: outputLines.join('\n'),
     adIntervals,
     totalAdDuration,
     isModified,
+    candidates,
   };
 }
 
@@ -577,6 +706,62 @@ export function clearAdFilterCache(): void {
 }
 
 /**
+ * Verifies ambiguous ad candidate blocks in dense streams by checking PTS continuity.
+ * Makes a micro-range request (first 3KB) on the boundaries of candidate blocks.
+ */
+export async function verifyCandidateBlocksViaPTS(
+  candidates: AdCandidateBlock[],
+  baseUrl: string,
+  timeoutMs = 2500
+): Promise<Set<number>> {
+  const verifiedIndices = new Set<number>();
+  if (!candidates || candidates.length === 0) return verifiedIndices;
+
+  const fetchPTS = async (relUrl: string): Promise<number | null> => {
+    if (!relUrl) return null;
+    const absUrl = resolveAbsoluteUrl(relUrl, baseUrl);
+    const controller = new AbortController();
+    const tId = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(absUrl, {
+        signal: controller.signal,
+        headers: { Range: "bytes=0-3071" },
+      });
+      clearTimeout(tId);
+      if (!res.ok && res.status !== 206) return null;
+      const ab = await res.arrayBuffer();
+      return parsePTSFromUint8Array(new Uint8Array(ab));
+    } catch {
+      clearTimeout(tId);
+      return null;
+    }
+  };
+
+  // Check up to 5 prioritized candidates in parallel
+  const targetCandidates = candidates.slice(0, 5);
+  await Promise.all(
+    targetCandidates.map(async (c) => {
+      const [ptsPrev, ptsCur, ptsNext] = await Promise.all([
+        fetchPTS(c.prevUrl),
+        fetchPTS(c.curUrl),
+        fetchPTS(c.nextUrl),
+      ]);
+      const ptsJumpBack = ptsPrev !== null && ptsCur !== null && ptsCur < ptsPrev - 1.0;
+      const seamlessBridge =
+        ptsPrev !== null && ptsNext !== null && Math.abs(ptsNext - (ptsPrev + c.prevDur)) < 1.0;
+      if (ptsJumpBack && seamlessBridge) {
+        verifiedIndices.add(c.idx);
+        logger.info(
+          `[PTSProbe] Confirmed inserted ad at block #${c.idx} (PTS: prev=${ptsPrev.toFixed(1)}s, cur=${ptsCur.toFixed(1)}s, next=${ptsNext.toFixed(1)}s)`
+        );
+      }
+    })
+  );
+
+  return verifiedIndices;
+}
+
+/**
  * Main entrance: processes an M3U8 URL according to the specified AdBlockMode.
  */
 export async function processM3U8ForPlayback(
@@ -685,7 +870,22 @@ async function _processM3U8ForPlaybackInternal(
     const lastSlashIdx = finalUrl.lastIndexOf('/');
     const baseUrl = lastSlashIdx > 0 ? finalUrl.slice(0, lastSlashIdx + 1) : finalUrl + '/';
 
-    const filterResult = filterM3U8Content(m3u8Text, baseUrl, options);
+    let filterResult = filterM3U8Content(m3u8Text, baseUrl, options);
+
+    // Deep probe for dense discontinuity streams if fast-path found no ads
+    if (!filterResult.isModified && filterResult.candidates && filterResult.candidates.length > 0) {
+      logger.debug(
+        `[PTSProbe] Probing ${filterResult.candidates.length} candidate ad blocks in dense stream...`
+      );
+      const verified = await verifyCandidateBlocksViaPTS(filterResult.candidates, baseUrl);
+      if (verified.size > 0) {
+        logger.info(`[PTSProbe] Successfully verified ${verified.size} inserted ad block(s) via PTS!`);
+        filterResult = filterM3U8Content(m3u8Text, baseUrl, {
+          ...options,
+          verifiedAdIndices: verified,
+        });
+      }
+    }
 
     if (!filterResult.isModified) {
       logger.debug('No ads detected in M3U8 stream');

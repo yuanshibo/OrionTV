@@ -518,7 +518,12 @@ const usePlayerStore = create<PlayerState>((set, get) => {
       const currentPosition = isSeeking ? seekPosition * durationMillis : status.positionMillis;
       const newPosition = Math.max(0, Math.min(currentPosition + duration, durationMillis));
       const newSeekPosition = newPosition / durationMillis;
-      set({ isSeeking: true, isSeekBuffering: true, seekPosition: newSeekPosition });
+      set({
+        isSeeking: true,
+        isSeekBuffering: true,
+        seekPosition: newSeekPosition,
+        stallFailoverCount: 0,
+      });
       // Mirror to SharedValues so PlayerProgressBar can update on the UI thread
       isSeekingSV.value = true;
       seekPositionSV.value = newSeekPosition;
@@ -548,7 +553,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
 
       if (isSeekBuffering && newStatus.isPlaying && !newStatus.isBuffering) {
         const durationMillis = oldStatus?.durationMillis;
-        if (durationMillis && Math.abs(newStatus.positionMillis - seekPosition * durationMillis) < 1000) {
+        if (durationMillis && Math.abs(newStatus.positionMillis - seekPosition * durationMillis) < 3000) {
           nextState.isSeekBuffering = false;
         } else if (!durationMillis) {
           nextState.isSeekBuffering = false;
@@ -802,6 +807,24 @@ const usePlayerStore = create<PlayerState>((set, get) => {
       const newEpisodes = fallbackSource.episodes || [];
       if (newEpisodes.length > currentEpisodeIndex) {
         const mappedEpisodes = newEpisodes.map((ep, index) => ({ url: ep, title: `第 ${index + 1} 集` }));
+        const targetEp = mappedEpisodes[currentEpisodeIndex];
+
+        let playUrl = targetEp?.url;
+        let adIntervals: AdInterval[] = [];
+        const adBlockMode = useSettingsStore.getState().adBlockMode || 'seamless';
+        if (targetEp?.url && adBlockMode !== 'off') {
+          try {
+            const filterResult = await processM3U8ForPlayback(targetEp.url, adBlockMode);
+            if (filterResult.isModified) {
+              playUrl = filterResult.cleanUrl;
+              mappedEpisodes[currentEpisodeIndex] = { ...targetEp, url: filterResult.cleanUrl };
+              adIntervals = filterResult.adIntervals;
+            }
+          } catch (adErr) {
+            logger.warn('[SOURCE_SELECTION] Error processing M3U8 ad filter:', adErr);
+          }
+        }
+
         const resumePosition =
           status?.positionMillis && status.positionMillis > 0
             ? status.positionMillis
@@ -814,11 +837,11 @@ const usePlayerStore = create<PlayerState>((set, get) => {
           isLoading: true,
           isUserPaused: false,
           initialPosition: resumePosition,
+          adIntervals,
         });
 
-        const targetEp = mappedEpisodes[currentEpisodeIndex];
-        if (videoPlayer && targetEp?.url) {
-          void safeReplacePlayerSource(videoPlayer, targetEp.url);
+        if (videoPlayer && playUrl) {
+          void safeReplacePlayerSource(videoPlayer, playUrl);
         }
 
         Toast.show({
@@ -852,9 +875,9 @@ const usePlayerStore = create<PlayerState>((set, get) => {
       const { detail } = useDetailStore.getState();
       if (!detail) return;
 
-      const { currentEpisodeIndex, introEndTime, status, progressPosition, initialPosition, videoPlayer } = get();
+      const { currentEpisodeIndex, introEndTime, status, progressPosition, initialPosition, videoPlayer, isSeekBuffering, seekPosition } = get();
       const currentSource = detail.source;
-      useDetailStore.getState().markSourceAsFailed(currentSource, "Playback stall (buffering > 6s)");
+      useDetailStore.getState().markSourceAsFailed(currentSource, "Playback stall (buffering > 10s)");
       const fallbackSource = useDetailStore.getState().getNextAvailableSource(currentSource, currentEpisodeIndex);
 
       if (!fallbackSource) {
@@ -867,12 +890,19 @@ const usePlayerStore = create<PlayerState>((set, get) => {
         return;
       }
 
+      let seekTargetPos = 0;
+      if (isSeekBuffering && seekPosition > 0 && status?.durationMillis) {
+        seekTargetPos = Math.round(seekPosition * status.durationMillis);
+      }
+
       const resumePosition =
-        stallPositionMs && stallPositionMs > 0
-          ? stallPositionMs
-          : (status?.positionMillis && status.positionMillis > 0
-            ? status.positionMillis
-            : (progressPosition && progressPosition > 0 ? progressPosition : (initialPosition || introEndTime || 0)));
+        seekTargetPos > 0
+          ? seekTargetPos
+          : (stallPositionMs && stallPositionMs > 0
+            ? stallPositionMs
+            : (status?.positionMillis && status.positionMillis > 0
+              ? status.positionMillis
+              : (progressPosition && progressPosition > 0 ? progressPosition : (initialPosition || introEndTime || 0))));
 
       logger.info(
         `[STALL_FAILOVER] Stalling detected. Switching from "${currentSource}" to "${fallbackSource.source}" at ${Math.round(resumePosition / 1000)}s (attempt ${stallFailoverCount + 1}/3)`
@@ -884,6 +914,22 @@ const usePlayerStore = create<PlayerState>((set, get) => {
         const mappedEpisodes = newEpisodes.map((ep, index) => ({ url: ep, title: `第 ${index + 1} 集` }));
         const targetEp = mappedEpisodes[currentEpisodeIndex];
 
+        let playUrl = targetEp?.url;
+        let adIntervals: AdInterval[] = [];
+        const adBlockMode = useSettingsStore.getState().adBlockMode || 'seamless';
+        if (targetEp?.url && adBlockMode !== 'off') {
+          try {
+            const filterResult = await processM3U8ForPlayback(targetEp.url, adBlockMode);
+            if (filterResult.isModified) {
+              playUrl = filterResult.cleanUrl;
+              mappedEpisodes[currentEpisodeIndex] = { ...targetEp, url: filterResult.cleanUrl };
+              adIntervals = filterResult.adIntervals;
+            }
+          } catch (adErr) {
+            logger.warn('[STALL_FAILOVER] Error processing M3U8 ad filter:', adErr);
+          }
+        }
+
         set({
           episodes: mappedEpisodes,
           error: undefined,
@@ -892,10 +938,11 @@ const usePlayerStore = create<PlayerState>((set, get) => {
           isUserPaused: false,
           initialPosition: resumePosition,
           stallFailoverCount: stallFailoverCount + 1,
+          adIntervals,
         });
 
-        if (videoPlayer && targetEp?.url) {
-          void safeReplacePlayerSource(videoPlayer, targetEp.url);
+        if (videoPlayer && playUrl) {
+          void safeReplacePlayerSource(videoPlayer, playUrl);
         }
 
         Toast.show({

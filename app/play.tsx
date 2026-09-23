@@ -142,9 +142,25 @@ export default function PlayScreen() {
   }, [sourceStr, videoId, videoTitle, queryTitle, initDetail, setError]);
 
   const lastLoadedKeyRef = useRef<string>('');
+  const hasInitialLoadedRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    // Reset initial load flag when the target video or episode changes via navigation
+    hasInitialLoadedRef.current = false;
+    lastLoadedKeyRef.current = '';
+  }, [videoId, videoTitle, episodeIndex]);
 
   useEffect(() => {
     if (detail && detail.episodes && detail.episodes.length > 0) {
+      if (hasInitialLoadedRef.current) {
+        // Initial load for this video/episode is already complete.
+        // In-player source changes (manual switch, stall failover, error failover)
+        // are handled internally by playerStore with proper resumePosition.
+        // Re-triggering loadVideo here would wrongly overwrite the current playback
+        // position with the stale initial route position (e.g. jumping back to 21 min).
+        return;
+      }
+
       const matchesTitle = videoTitle ? detail.title === videoTitle : true;
       const matchesId = videoId ? detail.id.toString() === videoId : true;
       const matchesSource = sourceStr ? detail.source === sourceStr : true;
@@ -156,6 +172,7 @@ export default function PlayScreen() {
           return;
         }
         lastLoadedKeyRef.current = loadKey;
+        hasInitialLoadedRef.current = true;
         loadVideo({ detail, episodeIndex, position, router });
       }
     }
@@ -166,6 +183,7 @@ export default function PlayScreen() {
       flushPlaybackRecord();
       reset();
       lastLoadedKeyRef.current = '';
+      hasInitialLoadedRef.current = false;
     };
   }, [flushPlaybackRecord, reset]);
 

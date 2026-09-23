@@ -8,8 +8,11 @@ import {
   calculateBlockAdScore,
   cleanupM3U8Cache,
   clearAdFilterCache,
+  parsePTSFromUint8Array,
+  verifyCandidateBlocksViaPTS,
   StreamBlock,
   StreamStats,
+  AdCandidateBlock,
 } from '../m3u8AdFilter';
 
 // Mock react-native-blob-util
@@ -568,6 +571,294 @@ describe('m3u8AdFilter', () => {
       clearAdFilterCache();
       await processM3U8ForPlayback(url, 'seamless');
       expect(fetchSpy).toHaveBeenCalledTimes(2);
+
+      fetchSpy.mockRestore();
+    });
+  });
+
+  function createMockTsPacketWithPTS(ptsSeconds: number): Uint8Array {
+    const buf = new Uint8Array(188 * 3);
+
+    // Packet 0: PAT (PID 0) pointing to PMT PID 256
+    buf[0] = 0x47;
+    buf[1] = 0x40; // PUSI = 1, PID = 0
+    buf[2] = 0x00;
+    buf[3] = 0x10; // AFC = 1
+    buf[4] = 0x00; // pointer = 0
+    buf[15] = 0x01; // PMT PID = 256 (0x0100)
+    buf[16] = 0x00;
+
+    // Packet 1: PMT (PID 256) defining H.264 video with PID 257
+    buf[188] = 0x47;
+    buf[189] = 0x41; // PUSI = 1, PID = 0x0100
+    buf[190] = 0x00;
+    buf[191] = 0x10;
+    buf[192] = 0x00; // pointer = 0
+    buf[203] = 0x00; // progInfoLength = 0
+    buf[204] = 0x00;
+    buf[205] = 0x1b; // Stream type H.264
+    buf[206] = 0x01; // Video PID = 257 (0x0101)
+    buf[207] = 0x01;
+
+    // Packet 2: Video PES (PID 257) with PTS
+    buf[376] = 0x47;
+    buf[377] = 0x41; // PUSI = 1, PID = 0x0101
+    buf[378] = 0x01;
+    buf[379] = 0x10;
+    buf[380] = 0x00; // PES start code 00 00 01
+    buf[381] = 0x00;
+    buf[382] = 0x01;
+    buf[383] = 0xe0; // Video stream ID
+    buf[387] = 0x80; // flags2: PTS flag set
+    const ticks = Math.round(ptsSeconds * 90000);
+    buf[389] = 0x21 | (((ticks >>> 30) & 0x07) << 1);
+    buf[390] = (ticks >>> 22) & 0xff;
+    buf[391] = (((ticks >>> 15) & 0x7f) << 1) | 0x01;
+    buf[392] = (ticks >>> 7) & 0xff;
+    buf[393] = ((ticks & 0x7f) << 1) | 0x01;
+
+    return buf;
+  }
+
+  describe('parsePTSFromUint8Array', () => {
+    it('returns null for null, undefined, or buffer shorter than 188 bytes', () => {
+      expect(parsePTSFromUint8Array(null as any)).toBeNull();
+      expect(parsePTSFromUint8Array(undefined as any)).toBeNull();
+      expect(parsePTSFromUint8Array(new Uint8Array([]))).toBeNull();
+      expect(parsePTSFromUint8Array(new Uint8Array(100))).toBeNull();
+    });
+
+    it('returns null if TS sync byte 0x47 is missing', () => {
+      const buf = new Uint8Array(188 * 3);
+      expect(parsePTSFromUint8Array(buf)).toBeNull();
+    });
+
+    it('returns null when PES packet does not have PTS flag set', () => {
+      const buf = createMockTsPacketWithPTS(10.0);
+      buf[387] = 0x00;
+      expect(parsePTSFromUint8Array(buf)).toBeNull();
+    });
+
+    it('correctly parses PTS timestamps from MPEG-TS buffer', () => {
+      const pts1 = 789.48;
+      const buf1 = createMockTsPacketWithPTS(pts1);
+      const parsed1 = parsePTSFromUint8Array(buf1);
+      expect(parsed1).not.toBeNull();
+      expect(parsed1!).toBeCloseTo(pts1, 2);
+
+      const pts2 = 1.48;
+      const buf2 = createMockTsPacketWithPTS(pts2);
+      const parsed2 = parsePTSFromUint8Array(buf2);
+      expect(parsed2).not.toBeNull();
+      expect(parsed2!).toBeCloseTo(pts2, 2);
+
+      const pts3 = 791.48;
+      const buf3 = createMockTsPacketWithPTS(pts3);
+      const parsed3 = parsePTSFromUint8Array(buf3);
+      expect(parsed3).not.toBeNull();
+      expect(parsed3!).toBeCloseTo(pts3, 2);
+    });
+  });
+
+  describe('candidate blocks and verified ad indices in filterM3U8Content', () => {
+    function generateDenseM3U8(): string {
+      const lines = [
+        '#EXTM3U',
+        '#EXT-X-VERSION:3',
+        '#EXT-X-TARGETDURATION:3',
+      ];
+      for (let b = 0; b < 10; b++) {
+        if (b > 0) lines.push('#EXT-X-DISCONTINUITY');
+        if (b === 3) {
+          // Block 3: inserted commercial ad of 44s (22 slices of 2.0s)
+          for (let s = 0; s < 22; s++) {
+            lines.push('#EXTINF:2.000,');
+            lines.push(`ad_seg_${s}.ts`);
+          }
+        } else {
+          // Movie blocks: 2 or 3 slices of 2.0s
+          const sliceCount = b % 2 === 0 ? 2 : 3;
+          for (let s = 0; s < sliceCount; s++) {
+            lines.push('#EXTINF:2.000,');
+            lines.push(`movie_b${b}_s${s}.ts`);
+          }
+        }
+      }
+      return lines.join('\n');
+    }
+
+    it('identifies ad candidate blocks when dense stream has unconfirmed milestone duration', () => {
+      const m3u8 = generateDenseM3U8();
+      const res = filterM3U8Content(m3u8, 'https://cdn.example.com/hls/');
+      expect(res.isModified).toBe(false);
+      expect(res.candidates).toBeDefined();
+      expect(res.candidates!.length).toBeGreaterThan(0);
+      const adCandidate = res.candidates!.find((c) => c.idx === 3);
+      expect(adCandidate).toBeDefined();
+      expect(adCandidate!.duration).toBe(44);
+    });
+
+    it('strips block and marks isModified true when verifiedAdIndices includes the block', () => {
+      const m3u8 = generateDenseM3U8();
+      const res = filterM3U8Content(m3u8, 'https://cdn.example.com/hls/', {
+        verifiedAdIndices: new Set([3]),
+      });
+      expect(res.isModified).toBe(true);
+      expect(res.totalAdDuration).toBe(44);
+      expect(res.adIntervals).toHaveLength(1);
+      expect(res.adIntervals[0].duration).toBe(44);
+      expect(res.content).not.toContain('ad_seg_');
+      expect(res.content).toContain('movie_b0_s0.ts');
+      expect(res.content).toContain('movie_b4_s0.ts');
+    });
+  });
+
+  describe('verifyCandidateBlocksViaPTS', () => {
+    it('returns empty set when candidates list is empty', async () => {
+      const res = await verifyCandidateBlocksViaPTS([], 'https://cdn.example.com/');
+      expect(res.size).toBe(0);
+    });
+
+    it('confirms ad candidate when PTS jumps back and bridges seamlessly', async () => {
+      const candidate: AdCandidateBlock = {
+        idx: 3,
+        duration: 44.0,
+        prevUrl: 'https://cdn.example.com/prev.ts',
+        curUrl: 'https://cdn.example.com/cur.ts',
+        nextUrl: 'https://cdn.example.com/next.ts',
+        prevDur: 2.0,
+      };
+
+      const prevBuf = createMockTsPacketWithPTS(789.48);
+      const curBuf = createMockTsPacketWithPTS(1.48);
+      const nextBuf = createMockTsPacketWithPTS(791.48);
+
+      const fetchSpy = jest.spyOn(global, 'fetch' as any).mockImplementation((url: any) => {
+        let buf = prevBuf;
+        if (String(url).includes('cur.ts')) buf = curBuf;
+        else if (String(url).includes('next.ts')) buf = nextBuf;
+        return Promise.resolve({
+          ok: true,
+          status: 206,
+          arrayBuffer: async () => buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength),
+        });
+      });
+
+      const verified = await verifyCandidateBlocksViaPTS([candidate], 'https://cdn.example.com/');
+      expect(verified.has(3)).toBe(true);
+
+      fetchSpy.mockRestore();
+    });
+
+    it('does not flag block when PTS continues smoothly without jumping back (normal scene change)', async () => {
+      const candidate: AdCandidateBlock = {
+        idx: 2,
+        duration: 20.0,
+        prevUrl: 'https://cdn.example.com/movie_prev.ts',
+        curUrl: 'https://cdn.example.com/movie_cur.ts',
+        nextUrl: 'https://cdn.example.com/movie_next.ts',
+        prevDur: 2.0,
+      };
+
+      const prevBuf = createMockTsPacketWithPTS(200.0);
+      const curBuf = createMockTsPacketWithPTS(202.0);
+      const nextBuf = createMockTsPacketWithPTS(222.0);
+
+      const fetchSpy = jest.spyOn(global, 'fetch' as any).mockImplementation((url: any) => {
+        let buf = prevBuf;
+        if (String(url).includes('movie_cur.ts')) buf = curBuf;
+        else if (String(url).includes('movie_next.ts')) buf = nextBuf;
+        return Promise.resolve({
+          ok: true,
+          status: 206,
+          arrayBuffer: async () => buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength),
+        });
+      });
+
+      const verified = await verifyCandidateBlocksViaPTS([candidate], 'https://cdn.example.com/');
+      expect(verified.has(2)).toBe(false);
+
+      fetchSpy.mockRestore();
+    });
+
+    it('handles network failure or aborted request gracefully', async () => {
+      const candidate: AdCandidateBlock = {
+        idx: 1,
+        duration: 30.0,
+        prevUrl: 'https://cdn.example.com/fail_prev.ts',
+        curUrl: 'https://cdn.example.com/fail_cur.ts',
+        nextUrl: 'https://cdn.example.com/fail_next.ts',
+        prevDur: 2.0,
+      };
+
+      const fetchSpy = jest.spyOn(global, 'fetch' as any).mockRejectedValue(new Error('Network error'));
+      const verified = await verifyCandidateBlocksViaPTS([candidate], 'https://cdn.example.com/');
+      expect(verified.size).toBe(0);
+
+      fetchSpy.mockRestore();
+    });
+  });
+
+  describe('processM3U8ForPlayback with PTS verification', () => {
+    beforeEach(() => {
+      clearAdFilterCache();
+    });
+
+    it('probes candidate blocks in dense stream and writes clean M3U8 when ad is verified via PTS', async () => {
+      const streamUrl = 'https://cdn.example.com/dense/index.m3u8';
+      const lines = [
+        '#EXTM3U',
+        '#EXT-X-VERSION:3',
+        '#EXT-X-TARGETDURATION:3',
+      ];
+      for (let b = 0; b < 10; b++) {
+        if (b > 0) lines.push('#EXT-X-DISCONTINUITY');
+        if (b === 3) {
+          // Block 3: 44s ad (22 slices)
+          for (let s = 0; s < 22; s++) {
+            lines.push('#EXTINF:2.000,');
+            lines.push(`ad_seg_${s}.ts`);
+          }
+        } else {
+          // 2 slices of 2.0s
+          for (let s = 0; s < 2; s++) {
+            lines.push('#EXTINF:2.000,');
+            lines.push(`m_b${b}_s${s}.ts`);
+          }
+        }
+      }
+      const denseM3u8 = lines.join('\n');
+
+      const prevBuf = createMockTsPacketWithPTS(789.48);
+      const curBuf = createMockTsPacketWithPTS(1.48);
+      const nextBuf = createMockTsPacketWithPTS(791.48);
+
+      const fetchSpy = jest.spyOn(global, 'fetch' as any).mockImplementation((url: any) => {
+        const urlStr = String(url);
+        if (urlStr.includes('index.m3u8')) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            text: async () => denseM3u8,
+            url: streamUrl,
+          });
+        }
+        let buf = prevBuf;
+        if (urlStr.includes('ad_seg_0.ts')) buf = curBuf;
+        else if (urlStr.includes('m_b4_s0.ts')) buf = nextBuf;
+        return Promise.resolve({
+          ok: true,
+          status: 206,
+          arrayBuffer: async () => buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength),
+        });
+      });
+
+      const result = await processM3U8ForPlayback(streamUrl, 'seamless');
+      expect(result.isModified).toBe(true);
+      expect(result.totalAdDuration).toBe(44);
+      expect(result.cleanUrl).toContain('file:///mock/cache/adfree_');
+      expect(result.adIntervals).toEqual([]);
+      expect(ReactNativeBlobUtil.fs.writeFile).toHaveBeenCalled();
 
       fetchSpy.mockRestore();
     });

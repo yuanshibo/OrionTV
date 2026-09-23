@@ -7,6 +7,8 @@ import RelatedSeries from "./RelatedSeries";
 import useDetailStore from "@/stores/detailStore";
 import usePlayerStore from "@/stores/playerStore";
 import { SearchResult } from "@/services/api";
+import { requestTVFocus } from "@/utils/tvUtils";
+import { FocusPriority } from "@/types/focus";
 import Logger from "@/utils/Logger";
 
 const logger = Logger.withTag("RelatedSeriesModal");
@@ -34,11 +36,7 @@ export const RelatedSeriesModal: React.FC = () => {
       focusTimerRef.current = setTimeout(() => {
         focusTimerRef.current = null;
         if (firstCardRef.current) {
-          try {
-            (firstCardRef.current as any).setNativeProps({ hasTVPreferredFocus: true });
-          } catch (e) {
-            logger.warn("Failed to set TV focus on first related card:", e);
-          }
+          requestTVFocus(firstCardRef, { priority: FocusPriority.MODAL, duration: 300 });
         }
       }, 300);
 
