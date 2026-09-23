@@ -93,7 +93,9 @@ export const useVideoHandlers = ({
   const hasStartedPlayingRef = useRef<boolean>(false);
   const lastProgressTimestampRef = useRef<number>(Date.now());
   const lastSeenTimeRef = useRef<number>(0);
+  const lastBufferedPositionRef = useRef<number>(0);
   const uninterruptedPlaySecondsRef = useRef<number>(0);
+  const watchdogLastTimeRef = useRef<number>(0);
   const isAppActiveRef = useRef<boolean>(
     AppState.currentState !== "background" && AppState.currentState !== "inactive"
   );
@@ -133,7 +135,9 @@ export const useVideoHandlers = ({
     hasStartedPlayingRef.current = false;
     lastProgressTimestampRef.current = Date.now();
     lastSeenTimeRef.current = 0;
+    lastBufferedPositionRef.current = 0;
     uninterruptedPlaySecondsRef.current = 0;
+    watchdogLastTimeRef.current = 0;
 
     startPlaybackTimeout();
 
@@ -152,6 +156,8 @@ export const useVideoHandlers = ({
     if (target > 0) {
       try {
         player.currentTime = target / 1000;
+        // Refresh stall timestamp to give the player time to buffer at the seek position
+        lastProgressTimestampRef.current = Date.now();
       } catch (error) {
         console.warn('[VIDEO] Failed to apply initial seek', error);
       }
@@ -186,7 +192,10 @@ export const useVideoHandlers = ({
             break;
           case 'readyToPlay':
             clearPlaybackTimeout();
-            hasStartedPlayingRef.current = true;
+            // NOTE: Do NOT set hasStartedPlayingRef here. It is set in the
+            // timeUpdate handler when posMillis > 0 (actual playback progress).
+            // Setting it here prematurely enables the stall watchdog before the
+            // initial seek has buffered, causing false stall triggers on source switches.
             lastProgressTimestampRef.current = Date.now();
             emitStatusUpdate({ isLoaded: true, isBuffering: false, error: undefined });
             updateDuration();
@@ -274,18 +283,40 @@ export const useVideoHandlers = ({
         }
 
         // Track forward playback progress for stall detection and uninterrupted streak
-        if (currentTime > lastSeenTimeRef.current + 0.05) {
-          const deltaSec = currentTime - lastSeenTimeRef.current;
+        const timeDiff = currentTime - lastSeenTimeRef.current;
+        if (timeDiff > 0.05) {
           lastProgressTimestampRef.current = Date.now();
           lastSeenTimeRef.current = currentTime;
-          if (deltaSec > 0 && deltaSec < 3) {
-            uninterruptedPlaySecondsRef.current += deltaSec;
+          if (timeDiff < 3) {
+            uninterruptedPlaySecondsRef.current += timeDiff;
             if (uninterruptedPlaySecondsRef.current >= 15) {
               if (usePlayerStore.getState().stallFailoverCount > 0) {
                 usePlayerStore.setState({ stallFailoverCount: 0 });
               }
             }
           }
+        } else if (timeDiff < -0.2) {
+          // Backward seek detected (e.g. user pressed LEFT to rewind).
+          // Reset stall tracking so the watchdog gives the player a fresh window
+          // to buffer at the new (earlier) position, instead of counting the time
+          // since the old (forward) position as a stall.
+          lastSeenTimeRef.current = currentTime;
+          lastProgressTimestampRef.current = Date.now();
+          lastBufferedPositionRef.current = bufferedPosition;
+          uninterruptedPlaySecondsRef.current = 0;
+          if (usePlayerStore.getState().stallFailoverCount > 0) {
+            usePlayerStore.setState({ stallFailoverCount: 0 });
+          }
+          // If we rewound to before a previously skipped ad, allow it to be skipped again
+          if (lastSkippedAdEndRef.current > 0 && currentTime < lastSkippedAdEndRef.current - 1.0) {
+            lastSkippedAdEndRef.current = 0;
+          }
+        }
+
+        // If buffer is actively growing, refresh stall timestamp so active downloads don't trigger failover
+        if (bufferedPosition > lastBufferedPositionRef.current + 0.5) {
+          lastBufferedPositionRef.current = bufferedPosition;
+          lastProgressTimestampRef.current = Date.now();
         }
 
         // Check ad intervals for auto-skip (used ONLY in 'skip' mode or fallback when playing original stream)
@@ -372,8 +403,28 @@ export const useVideoHandlers = ({
       const isSupposedToBePlaying = player.playing || isBuffering;
 
       if (isSupposedToBePlaying) {
+        // Direct player progress verification: if player's currentTime is advancing or rewound,
+        // playback is clearly NOT stalled.
+        let currentPlayTime = 0;
+        try {
+          currentPlayTime = player.currentTime;
+        } catch {
+          // Player may be transitioning
+        }
+
+        if (currentPlayTime > 0) {
+          const timeDelta = currentPlayTime - watchdogLastTimeRef.current;
+          if (timeDelta > 0.08 || timeDelta < -0.2) {
+            lastProgressTimestampRef.current = now;
+            watchdogLastTimeRef.current = currentPlayTime;
+            if (timeDelta < -0.2 && store.stallFailoverCount > 0) {
+              usePlayerStore.setState({ stallFailoverCount: 0 });
+            }
+          }
+        }
+
         const stalledMs = now - lastProgressTimestampRef.current;
-        if (stalledMs >= 6000) {
+        if (stalledMs >= 10000) {
           lastProgressTimestampRef.current = now; // Prevent multiple triggers in same stall
           uninterruptedPlaySecondsRef.current = 0;
           console.warn(`[VIDEO] Playback stalled for ${stalledMs}ms, triggering silent failover...`);

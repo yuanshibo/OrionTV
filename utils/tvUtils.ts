@@ -44,9 +44,9 @@ export const requestTVFocus = (target: TVFocusTarget, options?: RequestFocusOpti
 
   const node = target && 'current' in target ? target.current : target;
 
-  if (!node || typeof node.setNativeProps !== 'function') {
+  if (!node || (typeof node.setNativeProps !== 'function' && typeof node.requestTVFocus !== 'function')) {
     if (__DEV__) {
-      console.warn('[requestTVFocus] Invalid target or target does not support setNativeProps');
+      console.warn('[requestTVFocus] Invalid target or target does not support focus methods');
     }
     return;
   }
@@ -65,8 +65,20 @@ export const requestTVFocus = (target: TVFocusTarget, options?: RequestFocusOpti
   // Update global priority
   currentGlobalPriority = priority;
 
-  // Set preferred focus
-  node.setNativeProps({ hasTVPreferredFocus: true });
+  // Set preferred focus:
+  // 1. Support react-native-tvos 0.86+ official NativeMethods.requestTVFocus()
+  if (typeof node.requestTVFocus === 'function') {
+    try {
+      node.requestTVFocus();
+    } catch {
+      // ignore and fallback to setNativeProps
+    }
+  }
+
+  // 2. Pulse via setNativeProps for universal backward compatibility
+  if (typeof node.setNativeProps === 'function') {
+    node.setNativeProps({ hasTVPreferredFocus: true });
+  }
 
   // Use requestAnimationFrame for better performance
   requestAnimationFrame(() => {
