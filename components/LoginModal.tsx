@@ -5,8 +5,10 @@ import Toast from "react-native-toast-message";
 import useAuthStore from "@/stores/authStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useHomeUIStore } from "@/stores/homeUIStore";
+import { useHomeDataStore } from "@/stores/homeDataStore";
 import { api } from "@/services/api";
 import { LoginCredentialsManager } from "@/services/storage";
+import { SyncQueue } from "@/services/storage/SyncQueue";
 import { ThemedView } from "./ThemedView";
 import { ThemedText } from "./ThemedText";
 import { StyledButton } from "./StyledButton";
@@ -89,8 +91,10 @@ const LoginModal = () => {
     try {
       await api.login(isLocalStorage ? undefined : username, password);
       await checkLoginStatus(apiBaseUrl);
+      useHomeDataStore.getState().clearError();
       await refreshPlayRecords();
       await LoginCredentialsManager.save({ username, password });
+      void SyncQueue.flush();
 
       Toast.show({ type: "success", text1: "登录成功" });
 

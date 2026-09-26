@@ -13,7 +13,6 @@ export interface AppSettings {
       [key: string]: boolean;
     };
   };
-  m3uUrl: string;
   adBlockMode?: "seamless" | "skip" | "off";
 }
 

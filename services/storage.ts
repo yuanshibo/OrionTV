@@ -433,7 +433,6 @@ export class SettingsManager {
         enabledAll: true,
         sources: {},
       },
-      m3uUrl: "",
       adBlockMode: "seamless",
     };
     try {

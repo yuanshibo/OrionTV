@@ -4,8 +4,9 @@ import { ThemedText } from "@/components/ThemedText";
 import { SettingsSection } from "./SettingsSection";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { Colors } from "@/constants/Colors";
-import { Check } from "lucide-react-native";
+import { Check, ShieldCheck } from "lucide-react-native";
 import Toast from "react-native-toast-message";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 
 interface AdBlockSectionProps {
   onChanged: () => void;
@@ -18,30 +19,33 @@ type AdBlockMode = "seamless" | "skip" | "off";
 interface OptionItem {
   key: AdBlockMode;
   title: string;
+  badge?: string;
   desc: string;
 }
 
 const OPTIONS: OptionItem[] = [
   {
     key: "seamless",
-    title: "智能无缝去除 (推荐)",
-    desc: "本地智能重写 M3U8 切片，剔除广告片段，观影丝滑无黑屏、无停顿",
+    title: "智能无缝去除",
+    badge: "推荐",
+    desc: "本地重写 M3U8 切片索引，剔除博彩、片头片中贴片广告，观影丝滑无黑屏、无卡顿",
   },
   {
     key: "skip",
     title: "自动快进跳过",
-    desc: "播放原源流媒体，播放器到达广告点时自动向后 Seek 快进跳过",
+    desc: "播放原源流媒体，当播放进度到达已标记广告切片时自动向后 Seek 快进跳过",
   },
   {
     key: "off",
     title: "关闭去广告",
-    desc: "不进行任何去广告处理，直接播放原始视频流",
+    desc: "不进行任何 M3U8 切片处理，直接播放原始视频流",
   },
 ];
 
 export const AdBlockSection: React.FC<AdBlockSectionProps> = ({ onChanged, onFocus, onBlur }) => {
   const colorScheme = useColorScheme() === "light" ? "light" : "dark";
   const colors = Colors[colorScheme];
+  const { deviceType } = useResponsiveLayout();
   const { adBlockMode, setAdBlockMode } = useSettingsStore();
   const [focusedKey, setFocusedKey] = useState<string | null>(null);
 
@@ -60,10 +64,24 @@ export const AdBlockSection: React.FC<AdBlockSectionProps> = ({ onChanged, onFoc
   const styles = useMemo(
     () =>
       StyleSheet.create({
-        title: {
-          fontSize: 18,
-          fontWeight: "bold",
+        headerRow: {
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 10,
           marginBottom: 6,
+        },
+        iconBadge: {
+          width: 32,
+          height: 32,
+          borderRadius: 8,
+          backgroundColor: colorScheme === "dark" ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.05)",
+          alignItems: "center",
+          justifyContent: "center",
+        },
+        title: {
+          fontSize: deviceType === "tv" ? 18 : 16,
+          fontWeight: "bold",
+          color: colors.text,
         },
         subtitle: {
           fontSize: 13,
@@ -80,41 +98,72 @@ export const AdBlockSection: React.FC<AdBlockSectionProps> = ({ onChanged, onFoc
           justifyContent: "space-between",
           paddingVertical: 14,
           paddingHorizontal: 16,
-          borderRadius: 8,
+          borderRadius: 10,
           borderWidth: 1.5,
-          borderColor: colors.border,
-          backgroundColor: colors.background,
+          borderColor: colorScheme === "dark" ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.1)",
+          backgroundColor: colorScheme === "dark" ? "rgba(0, 0, 0, 0.25)" : "#f9fafb",
         },
         optionItemActive: {
           borderColor: colors.primary,
-          backgroundColor: colors.border,
+          backgroundColor: colorScheme === "dark" ? "rgba(210, 105, 30, 0.12)" : "rgba(255, 165, 0, 0.1)",
         },
         optionItemFocused: {
           borderColor: colors.tint,
-          transform: [{ scale: 1.02 }],
+          shadowColor: colors.tint,
+          shadowOffset: { width: 0, height: 0 },
+          shadowOpacity: 0.7,
+          shadowRadius: 10,
+          elevation: 5,
+          transform: [{ scale: 1.015 }],
         },
         textContainer: {
           flex: 1,
           marginRight: 12,
         },
-        optionTitle: {
-          fontSize: 15,
-          fontWeight: "600",
+        titleRow: {
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 8,
           marginBottom: 4,
+        },
+        optionTitle: {
+          fontSize: deviceType === "tv" ? 16 : 15,
+          fontWeight: "600",
+          color: colors.text,
+        },
+        badgePill: {
+          paddingHorizontal: 8,
+          paddingVertical: 2,
+          borderRadius: 6,
+          backgroundColor: "rgba(210, 105, 30, 0.2)",
+          borderWidth: 1,
+          borderColor: colors.primary,
+        },
+        badgeText: {
+          fontSize: 11,
+          color: colors.primary,
+          fontWeight: "bold",
         },
         optionDesc: {
           fontSize: 12,
           color: colors.icon,
-          lineHeight: 16,
+          lineHeight: 17,
         },
-        checkIcon: {
+        checkCircle: {
           width: 24,
           height: 24,
+          borderRadius: 12,
+          borderWidth: 1.5,
+          borderColor: colorScheme === "dark" ? "rgba(255, 255, 255, 0.2)" : "rgba(0, 0, 0, 0.2)",
           alignItems: "center",
           justifyContent: "center",
         },
+        checkCircleActive: {
+          borderColor: colors.primary,
+          backgroundColor: colors.primary,
+        },
       }),
-    [colors]
+    [colors, colorScheme, deviceType]
   );
 
   return (
@@ -126,7 +175,12 @@ export const AdBlockSection: React.FC<AdBlockSectionProps> = ({ onChanged, onFoc
         onBlur?.();
       }}
     >
-      <ThemedText style={styles.title}>M3U8 切片去广告</ThemedText>
+      <View style={styles.headerRow}>
+        <View style={styles.iconBadge}>
+          <ShieldCheck size={18} color={colors.primary} />
+        </View>
+        <ThemedText style={styles.title}>M3U8 切片去广告</ThemedText>
+      </View>
       <ThemedText style={styles.subtitle}>
         自动识别切片广告（如博彩、开屏、片中插播广告），提供 TV 端原生无缝过滤或自动快进跳过。
       </ThemedText>
@@ -150,19 +204,26 @@ export const AdBlockSection: React.FC<AdBlockSectionProps> = ({ onChanged, onFoc
               ]}
             >
               <View style={styles.textContainer}>
-                <ThemedText
-                  style={[
-                    styles.optionTitle,
-                    isSelected && { color: colors.tint },
-                  ]}
-                >
-                  {item.title}
-                </ThemedText>
+                <View style={styles.titleRow}>
+                  <ThemedText
+                    style={[
+                      styles.optionTitle,
+                      isSelected && { color: colors.tint },
+                    ]}
+                  >
+                    {item.title}
+                  </ThemedText>
+                  {item.badge && (
+                    <View style={styles.badgePill}>
+                      <ThemedText style={styles.badgeText}>{item.badge}</ThemedText>
+                    </View>
+                  )}
+                </View>
                 <ThemedText style={styles.optionDesc}>{item.desc}</ThemedText>
               </View>
 
-              <View style={styles.checkIcon}>
-                {isSelected && <Check size={20} color={colors.tint} />}
+              <View style={[styles.checkCircle, isSelected && styles.checkCircleActive]}>
+                {isSelected && <Check size={15} color="#ffffff" strokeWidth={3} />}
               </View>
             </Pressable>
           );

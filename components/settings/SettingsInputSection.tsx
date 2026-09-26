@@ -2,8 +2,6 @@ import React, { useState, useRef, useImperativeHandle, forwardRef, useMemo } fro
 import { View, TextInput, StyleSheet, useColorScheme, TouchableOpacity, ActivityIndicator } from "react-native";
 import { ThemedText } from "@/components/ThemedText";
 import { SettingsSection } from "./SettingsSection";
-import { useRemoteControlStore } from "@/stores/remoteControlStore";
-import { useSettingsStore } from "@/stores/settingsStore";
 import { StyledButton } from "@/components/StyledButton";
 import { Colors } from "@/constants/Colors";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
@@ -29,7 +27,8 @@ export interface SettingsInputSectionProps {
   } | null;
   renderSuccessMessage?: () => string;
   fallbackErrorMessage?: string;
-  hideDescription?: boolean;
+  icon?: React.ReactNode;
+  description?: string;
   onChanged?: () => void;
   onFocus?: () => void;
   onBlur?: () => void;
@@ -49,7 +48,8 @@ export const SettingsInputSection = forwardRef<SettingsInputSectionRef, Settings
       testResult,
       renderSuccessMessage,
       fallbackErrorMessage = "操作失败",
-      hideDescription = false,
+      icon,
+      description,
       onChanged,
       onFocus,
       onBlur,
@@ -58,8 +58,6 @@ export const SettingsInputSection = forwardRef<SettingsInputSectionRef, Settings
   ) => {
     const colorScheme = useColorScheme() === "light" ? "light" : "dark";
     const colors = Colors[colorScheme];
-    const { remoteInputEnabled } = useSettingsStore();
-    const { serverUrl } = useRemoteControlStore();
     const [isInputFocused, setIsInputFocused] = useState(false);
     const inputRef = useRef<TextInput>(null);
     const { deviceType } = useResponsiveLayout();
@@ -94,88 +92,125 @@ export const SettingsInputSection = forwardRef<SettingsInputSectionRef, Settings
     const styles = useMemo(
       () =>
         StyleSheet.create({
+          headerRow: {
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: description ? 6 : 12,
+          },
           titleContainer: {
             flexDirection: "row",
             alignItems: "center",
-            marginBottom: 8,
+            gap: 10,
+          },
+          iconBadge: {
+            width: 32,
+            height: 32,
+            borderRadius: 8,
+            backgroundColor: colorScheme === "dark" ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.05)",
+            alignItems: "center",
+            justifyContent: "center",
           },
           sectionTitle: {
-            fontSize: 16,
+            fontSize: deviceType === "tv" ? 18 : 16,
             fontWeight: "bold",
-            marginRight: 12,
+            color: colors.text,
           },
-          subtitle: {
-            fontSize: 12,
+          description: {
+            fontSize: 13,
             color: colors.icon,
-            fontStyle: "italic",
+            marginBottom: 12,
+            lineHeight: 18,
           },
           inputRow: {
             flexDirection: "row",
             alignItems: "center",
             gap: 12,
-            marginBottom: 8,
           },
           inputContainer: {
             flex: 1,
             position: "relative",
           },
           input: {
-            height: 50,
-            borderWidth: 2,
-            borderRadius: 8,
-            paddingHorizontal: 15,
-            paddingRight: value ? 40 : 15,
-            fontSize: 16,
-            backgroundColor: colors.border,
+            height: deviceType === "tv" ? 52 : 48,
+            borderWidth: 1.5,
+            borderRadius: 10,
+            paddingHorizontal: 16,
+            paddingRight: value ? 44 : 16,
+            fontSize: deviceType === "tv" ? 16 : 15,
+            backgroundColor: colorScheme === "dark" ? "rgba(0, 0, 0, 0.35)" : "#f3f4f6",
             color: colors.text,
-            borderColor: "transparent",
+            borderColor: colorScheme === "dark" ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.12)",
           },
           inputFocused: {
             borderColor: colors.primary,
+            backgroundColor: colorScheme === "dark" ? "rgba(0, 0, 0, 0.55)" : "#ffffff",
             shadowColor: colors.primary,
             shadowOffset: { width: 0, height: 0 },
-            shadowOpacity: 0.8,
-            shadowRadius: 10,
-            elevation: 5,
+            shadowOpacity: 0.6,
+            shadowRadius: 8,
+            elevation: 4,
           },
           clearButton: {
             position: "absolute",
             right: 12,
-            top: 15,
+            top: deviceType === "tv" ? 16 : 14,
             zIndex: 10,
+            padding: 2,
           },
           testButton: {
-            minWidth: 100,
-            height: 50,
+            minWidth: deviceType === "tv" ? 110 : 96,
+            height: deviceType === "tv" ? 52 : 48,
+            borderRadius: 10,
           },
           statusBadge: {
             flexDirection: "row",
             alignItems: "center",
-            marginTop: 4,
-            paddingVertical: 4,
-            gap: 6,
+            marginTop: 10,
+            paddingVertical: 6,
+            paddingHorizontal: 12,
+            borderRadius: 8,
+            gap: 8,
+            alignSelf: "flex-start",
+          },
+          statusSuccessBadge: {
+            backgroundColor: "rgba(74, 222, 128, 0.12)",
+            borderWidth: 1,
+            borderColor: "rgba(74, 222, 128, 0.3)",
+          },
+          statusErrorBadge: {
+            backgroundColor: "rgba(248, 113, 113, 0.12)",
+            borderWidth: 1,
+            borderColor: "rgba(248, 113, 113, 0.3)",
           },
           statusTextSuccess: {
             fontSize: 13,
             color: "#4ade80",
+            fontWeight: "500",
           },
           statusTextError: {
             fontSize: 13,
             color: "#f87171",
+            fontWeight: "500",
           },
         }),
-      [colors, value]
+      [colors, colorScheme, description, deviceType, value]
     );
 
     return (
       <SettingsSection focusable={false}>
-        <View style={{ marginBottom: 12 }}>
-          <View style={styles.titleContainer}>
-            <ThemedText style={styles.sectionTitle}>{title}</ThemedText>
-            {!hideDescription && remoteInputEnabled && serverUrl && (
-              <ThemedText style={styles.subtitle}>用手机访问 {serverUrl}，可远程输入</ThemedText>
-            )}
+        <View>
+          <View style={styles.headerRow}>
+            <View style={styles.titleContainer}>
+              {icon && <View style={styles.iconBadge}>{icon}</View>}
+              <ThemedText style={styles.sectionTitle}>{title}</ThemedText>
+            </View>
           </View>
+
+          {description && (
+            <ThemedText style={styles.description}>{description}</ThemedText>
+          )}
+
           <View style={styles.inputRow}>
             <View style={styles.inputContainer}>
               <TextInput
@@ -205,7 +240,7 @@ export const SettingsInputSection = forwardRef<SettingsInputSectionRef, Settings
                 <TouchableOpacity
                   style={styles.clearButton}
                   onPress={handleClear}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                   focusable={deviceType !== "tv"}
                 >
                   <X size={18} color={colors.icon} />
@@ -228,12 +263,17 @@ export const SettingsInputSection = forwardRef<SettingsInputSectionRef, Settings
           </View>
 
           {testResult && (
-            <View style={styles.statusBadge}>
+            <View
+              style={[
+                styles.statusBadge,
+                testResult.success ? styles.statusSuccessBadge : styles.statusErrorBadge,
+              ]}
+            >
               {testResult.success ? (
                 <>
                   <CheckCircle2 size={16} color="#4ade80" />
                   <ThemedText style={styles.statusTextSuccess}>
-                    {renderSuccessMessage ? renderSuccessMessage() : "成功"}
+                    {renderSuccessMessage ? renderSuccessMessage() : "连通成功"}
                   </ThemedText>
                 </>
               ) : (

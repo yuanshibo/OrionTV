@@ -8,14 +8,12 @@ import Toast from "react-native-toast-message";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { useSettingsStore } from "@/stores/settingsStore";
-import { useRemoteControlStore } from "@/stores/remoteControlStore";
 import LoginModal from "@/components/LoginModal";
 import useAuthStore from "@/stores/authStore";
 import { useUpdateStore, initUpdateStore } from "@/stores/updateStore";
 import { UpdateModal } from "@/components/UpdateModal";
 import { DeleteConfirmationModal } from "@/components/DeleteConfirmationModal";
 import { UPDATE_CONFIG } from "@/constants/UpdateConfig";
-import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { useMemoryManagement } from "@/hooks/useMemoryManagement";
 import { ConsoleOptimizer } from '@/utils/ConsoleOptimizer';
 import { usePerformanceMonitor } from '@/hooks/usePerformanceMonitor';
@@ -40,11 +38,9 @@ export default function RootLayout() {
   const [loaded, error] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
-  const { loadSettings, remoteInputEnabled } = useSettingsStore();
-  const { startServer, stopServer } = useRemoteControlStore();
+  const { loadSettings } = useSettingsStore();
   const { isAuthChecked } = useAuthStore();
   const { checkForUpdate, lastCheckTime } = useUpdateStore();
-  const responsiveConfig = useResponsiveLayout();
 
   // Use global memory management
   useMemoryManagement();
@@ -89,15 +85,6 @@ export default function RootLayout() {
     }
   }, [loaded, lastCheckTime, checkForUpdate]);
 
-  useEffect(() => {
-    // 只有在非手机端才启动远程控制服务器
-    if (remoteInputEnabled && responsiveConfig.deviceType !== "mobile") {
-      startServer();
-    } else {
-      stopServer();
-    }
-  }, [remoteInputEnabled, startServer, stopServer, responsiveConfig.deviceType]);
-
   if (!loaded && !error) {
     return null;
   }
@@ -122,7 +109,6 @@ export default function RootLayout() {
               <Stack.Screen name="index" options={{ headerShown: false }} />
               <Stack.Screen name="detail" options={{ headerShown: false }} />
               <Stack.Screen name="favorites" options={{ headerShown: false }} />
-              <Stack.Screen name="live" options={{ headerShown: false }} />
               <Stack.Screen name="play" options={{ headerShown: false }} />
               <Stack.Screen name="related" options={{ headerShown: false, presentation: 'modal' }} />
               <Stack.Screen name="search" options={{ headerShown: false }} />
