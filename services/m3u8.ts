@@ -9,6 +9,39 @@ export interface M3U8ProbeResult {
   error?: string;
 }
 
+export interface RawM3U8Entry {
+  text: string;
+  finalUrl: string;
+  timestamp: number;
+}
+
+const RAW_M3U8_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const MAX_RAW_M3U8_CACHE_ENTRIES = 20;
+export const rawM3U8Cache = new Map<string, RawM3U8Entry>();
+
+export function getRawM3U8FromCache(url: string): { text: string; finalUrl: string } | null {
+  const entry = rawM3U8Cache.get(url);
+  if (!entry) return null;
+  if (Date.now() - entry.timestamp > RAW_M3U8_CACHE_TTL_MS) {
+    rawM3U8Cache.delete(url);
+    return null;
+  }
+  return { text: entry.text, finalUrl: entry.finalUrl };
+}
+
+export function setRawM3U8ToCache(url: string, text: string, finalUrl: string = url): void {
+  if (!url || !text) return;
+  if (rawM3U8Cache.size >= MAX_RAW_M3U8_CACHE_ENTRIES) {
+    const oldestKey = rawM3U8Cache.keys().next().value;
+    if (oldestKey) rawM3U8Cache.delete(oldestKey);
+  }
+  rawM3U8Cache.set(url, { text, finalUrl, timestamp: Date.now() });
+}
+
+export function clearRawM3U8Cache(): void {
+  rawM3U8Cache.clear();
+}
+
 export const probeM3U8 = async (
   url: string,
   externalSignal?: AbortSignal,
@@ -61,6 +94,8 @@ export const probeM3U8 = async (
     }
 
     const playlist = await response.text();
+    const finalUrl = response.url || url;
+    setRawM3U8ToCache(url, playlist, finalUrl);
     const lines = playlist.split(/\r?\n/);
     let highestResolution = 0;
     let resolutionString: string | null = null;
