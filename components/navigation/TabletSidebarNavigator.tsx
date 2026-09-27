@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text, ScrollView, useColorScheme } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
-import { Home, Search, Heart, Settings, Tv, Menu, X } from 'lucide-react-native';
+import { Home, Search, Heart, Settings, Menu, X } from 'lucide-react-native';
 import { Colors } from '@/constants/Colors';
 import { useResponsiveLayout } from '@/hooks/useResponsiveLayout';
 import { DeviceUtils } from '@/utils/DeviceUtils';
@@ -18,7 +18,6 @@ interface SidebarItem {
 const sidebarItems: SidebarItem[] = [
   { key: 'home', label: '首页', icon: Home, route: '/', section: 'main' },
   { key: 'search', label: '搜索', icon: Search, route: '/search', section: 'main' },
-  { key: 'live', label: '直播', icon: Tv, route: '/live', section: 'main' },
   { key: 'favorites', label: '收藏', icon: Heart, route: '/favorites', section: 'user' },
   { key: 'settings', label: '设置', icon: Settings, route: '/settings', section: 'user' },
 ];

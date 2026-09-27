@@ -43,7 +43,8 @@ jest.mock('react-native-blob-util', () => ({
         writeFile: jest.fn(() => Promise.resolve()),
         unlink: jest.fn(() => Promise.resolve()),
         ls: jest.fn(() => Promise.resolve([])),
-        exists: jest.fn(() => Promise.resolve(true)),
+        exists: jest.fn(() => Promise.resolve(false)),
+        stat: jest.fn(() => Promise.resolve({ lastModified: Date.now() })),
     },
 }));
 

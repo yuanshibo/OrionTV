@@ -41,12 +41,6 @@ const getRemotePageHTML = () => {
       </div>
 
       <div class="card">
-        <div class="card-title">📺 设置 M3U 直播源地址</div>
-        <input id="m3uUrl" type="url" placeholder="如: http://example.com/live.m3u" />
-        <button onclick="sendTargeted('m3u', 'm3uUrl')">发送到电视直播源设置</button>
-      </div>
-
-      <div class="card">
         <div class="card-title">🔍 搜索影视 / 通用文本</div>
         <input id="generalText" placeholder="输入影视名称或任意文本..." />
         <div class="btn-row">

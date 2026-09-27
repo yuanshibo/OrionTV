@@ -23,7 +23,7 @@ jest.mock('react-native-blob-util', () => ({
     },
     writeFile: jest.fn().mockResolvedValue(undefined),
     unlink: jest.fn().mockResolvedValue(undefined),
-    exists: jest.fn().mockResolvedValue(true),
+    exists: jest.fn().mockResolvedValue(false),
     ls: jest.fn().mockResolvedValue(['adfree_old_1.m3u8', 'adfree_old_2.m3u8']),
   },
 }));

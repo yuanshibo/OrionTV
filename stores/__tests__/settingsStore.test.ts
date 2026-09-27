@@ -40,7 +40,6 @@ describe('settingsStore - adBlockMode', () => {
       apiBaseUrl: 'http://test.com',
       remoteInputEnabled: false,
       videoSource: { enabledAll: true, sources: {} },
-      m3uUrl: '',
       adBlockMode: 'skip',
     });
 

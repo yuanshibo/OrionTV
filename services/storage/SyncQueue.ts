@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "../api";
+import { storageConfig } from "../storageConfig";
 import Logger from "@/utils/Logger";
 
 const logger = Logger.withTag("SyncQueue");
@@ -63,10 +64,17 @@ export class SyncQueue {
         return;
       }
 
+      // Check if remote storage requires auth and API has no credentials
+      if (storageConfig.getStorageType() !== "localstorage" && !api.isAuthenticated()) {
+        this.isFlushing = false;
+        return;
+      }
+
       logger.info(`[SyncQueue] Flushing ${queue.length} pending tasks...`);
       const remainingTasks: SyncTask[] = [];
 
-      for (const task of queue) {
+      for (let i = 0; i < queue.length; i++) {
+        const task = queue[i];
         try {
           switch (task.type) {
             case "save_favorite":
@@ -82,9 +90,15 @@ export class SyncQueue {
               await api.deletePlayRecord(task.key);
               break;
           }
-        } catch {
-          // If still failing (e.g. offline), retain for next flush
+        } catch (err) {
           remainingTasks.push(task);
+          // If unauthenticated (401), stop immediately to avoid hammering the server
+          if (err instanceof Error && err.message === "UNAUTHORIZED") {
+            const rest = queue.slice(i + 1);
+            remainingTasks.push(...rest);
+            logger.warn("[SyncQueue] 401 Unauthorized encountered, aborting pending sync queue flush");
+            break;
+          }
         }
       }
 

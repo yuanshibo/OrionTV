@@ -75,6 +75,14 @@ export class API {
     this.authCookie = cookie;
   }
 
+  public getCookie(): string | null {
+    return this.authCookie;
+  }
+
+  public isAuthenticated(): boolean {
+    return Boolean(this.authCookie);
+  }
+
   private async _fetchData<T>(url: string, options: RequestInit = {}, retries = 2): Promise<T> {
     const isGet = !options.method || options.method === "GET";
     const cacheKey = `${url}:${JSON.stringify(options.headers || {})}`;

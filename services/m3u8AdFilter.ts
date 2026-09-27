@@ -1,5 +1,12 @@
 import ReactNativeBlobUtil from 'react-native-blob-util';
 import Logger from '@/utils/Logger';
+import { getRawM3U8FromCache, setRawM3U8ToCache, clearRawM3U8Cache } from './m3u8';
+import {
+  initFeatureStore,
+  getLearnedKeywords,
+  getLearnedDurations,
+  learnAdFeature,
+} from './m3u8FeatureStore';
 
 const logger = Logger.withTag('M3U8AdFilter');
 
@@ -33,6 +40,7 @@ export interface FilterM3U8Result {
   totalAdDuration: number;
   isModified: boolean;
   candidates?: AdCandidateBlock[];
+  blocks?: StreamBlock[];
 }
 
 export interface AdFilterOptions {
@@ -385,8 +393,15 @@ export function filterM3U8Content(
     return { content: '', adIntervals: [], totalAdDuration: 0, isModified: false };
   }
 
-  const adKeywords = options.adKeywords || DEFAULT_AD_KEYWORDS;
-  const standardAdDurs = options.adDurations || DEFAULT_AD_DURATIONS;
+  const learnedKeywords = getLearnedKeywords();
+  const learnedDurations = getLearnedDurations();
+
+  const adKeywords =
+    options.adKeywords ||
+    (learnedKeywords.length > 0 ? [...DEFAULT_AD_KEYWORDS, ...learnedKeywords] : DEFAULT_AD_KEYWORDS);
+  const standardAdDurs =
+    options.adDurations ||
+    (learnedDurations.length > 0 ? [...DEFAULT_AD_DURATIONS, ...learnedDurations] : DEFAULT_AD_DURATIONS);
 
   const lines = m3u8Content.split(/\r?\n/);
 
@@ -665,6 +680,7 @@ export function filterM3U8Content(
     totalAdDuration,
     isModified,
     candidates,
+    blocks,
   };
 }
 
@@ -672,19 +688,19 @@ export function filterM3U8Content(
  * Cache management options for M3U8 temporary files.
  */
 export interface M3U8CacheCleanupOptions {
-  /** Maximum number of recent adfree M3U8 files to keep (default: 15) */
+  /** Maximum number of recent adfree M3U8 files to keep (default: 50) */
   maxFiles?: number;
-  /** Maximum age in milliseconds before a file is considered expired (default: 24 hours) */
+  /** Maximum age in milliseconds before a file is considered expired (default: 7 days) */
   maxAgeMs?: number;
   /** Currently active file URI (e.g. file:///.../adfree_xxx.m3u8), will NEVER be deleted */
   activeUrl?: string;
 }
 
-const DEFAULT_MAX_CACHE_FILES = 15;
-const DEFAULT_MAX_CACHE_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours
+const DEFAULT_MAX_CACHE_FILES = 50;
+const DEFAULT_MAX_CACHE_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 /**
- * Cache management: removes old temporary M3U8 files with timestamp ordering,
+ * Cache management: removes old temporary M3U8 files with timestamp/mtime ordering,
  * active playback file protection, and TTL expiration.
  */
 export async function cleanupM3U8Cache(options?: M3U8CacheCleanupOptions): Promise<void> {
@@ -700,16 +716,26 @@ export async function cleanupM3U8Cache(options?: M3U8CacheCleanupOptions): Promi
     const now = Date.now();
 
     // Filter files matching adfree_*.m3u8
-    const adfreeEntries = files
-      .filter((f) => f.startsWith('adfree_') && f.endsWith('.m3u8'))
-      .map((filename) => {
+    const adfreeFiles = files.filter((f) => f.startsWith('adfree_') && f.endsWith('.m3u8'));
+
+    const adfreeEntries = await Promise.all(
+      adfreeFiles.map(async (filename) => {
         const fullPath = `${cacheDir}/${filename}`;
         const fileUri = `file://${fullPath}`;
         // Extract timestamp if present: adfree_<hash>_<timestamp>.m3u8
         const match = filename.match(/^adfree_[^_]+_(\d+)\.m3u8$/);
-        const timestamp = match ? parseInt(match[1], 10) : 0;
+        let timestamp = match ? parseInt(match[1], 10) : 0;
+        if (!timestamp && ReactNativeBlobUtil.fs?.stat) {
+          try {
+            const stat = await ReactNativeBlobUtil.fs.stat(fullPath);
+            timestamp = stat?.lastModified || 0;
+          } catch {
+            timestamp = 0;
+          }
+        }
         return { filename, fullPath, fileUri, timestamp };
-      });
+      })
+    );
 
     // Separate active file from candidate files (active file is strictly protected)
     const candidateEntries = adfreeEntries.filter((entry) => {
@@ -774,6 +800,7 @@ const inFlightProcessPromiseMap = new Map<string, Promise<AdFilterResult>>();
 export function clearAdFilterCache(): void {
   adFilterResultCache.clear();
   inFlightProcessPromiseMap.clear();
+  clearRawM3U8Cache();
 }
 
 /**
@@ -809,10 +836,10 @@ export async function verifyCandidateBlocksViaPTS(
   }
   const urls = Array.from(urlSet);
 
-  // 2. Dynamic Worker Pool for concurrent sweeping (Concurrency Limit = 50)
-  // Drastically reduces total HTTP requests from 3N to 1N and eliminates straggler wait times
+  // 2. Dynamic Worker Pool for concurrent sweeping (Concurrency Limit = 4)
+  // Reduces network socket exhaustion and prevents CDN rate limiting on TV boxes
   const ptsCache = new Map<string, number | null>();
-  const CONCURRENCY_LIMIT = 50;
+  const CONCURRENCY_LIMIT = 4;
   let currentIndex = 0;
 
   const fetchWorker = async () => {
@@ -965,6 +992,15 @@ async function _processM3U8ForPlaybackInternal(
   cacheKey: string,
   options?: AdFilterOptions
 ): Promise<AdFilterResult> {
+  // Ensure learned features are initialized
+  await initFeatureStore();
+
+  const cacheDir = ReactNativeBlobUtil.fs?.dirs?.CacheDir;
+  const deterministicFilename = `adfree_${hashString(originalUrl)}.m3u8`;
+  const deterministicFilePath = cacheDir ? `${cacheDir}/${deterministicFilename}` : null;
+  const deterministicFileUri = deterministicFilePath ? `file://${deterministicFilePath}` : null;
+
+  // Step 1: In-memory cache check
   const cached = adFilterResultCache.get(cacheKey);
   if (cached && Date.now() - cached.timestamp < IN_MEMORY_CACHE_TTL_MS) {
     // If it's a local file, ensure the file still exists
@@ -985,28 +1021,61 @@ async function _processM3U8ForPlaybackInternal(
     }
   }
 
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000); // 6s timeout
-
-    const response = await fetch(originalUrl, {
-      signal: controller.signal,
-      headers: {
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        Accept: '*/*',
-      },
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      logger.debug(`Failed to fetch M3U8 for ad filtering: HTTP ${response.status}`);
-      return { cleanUrl: originalUrl, adIntervals: [], totalAdDuration: 0, isModified: false };
+  // Step 1.5: Deterministic disk cache check for cold start
+  if (deterministicFilePath && mode === 'seamless') {
+    try {
+      const exists = await ReactNativeBlobUtil.fs.exists(deterministicFilePath);
+      if (exists) {
+        logger.debug(`Hit deterministic disk cache for: ${originalUrl}`);
+        const diskResult: AdFilterResult = {
+          cleanUrl: deterministicFileUri!,
+          adIntervals: [],
+          totalAdDuration: 0,
+          isModified: true,
+        };
+        // Warm up memory cache
+        adFilterResultCache.set(cacheKey, { result: diskResult, timestamp: Date.now() });
+        return diskResult;
+      }
+    } catch (e) {
+      // Ignore disk error, proceed to fetch
     }
+  }
 
-    const m3u8Text = await response.text();
-    const finalUrl = response.url || originalUrl;
+  try {
+    // Step 2: Get M3U8 text (try Raw M3U8 Cache first)
+    let m3u8Text: string;
+    let finalUrl = originalUrl;
+
+    const cachedRaw = getRawM3U8FromCache(originalUrl);
+    if (cachedRaw) {
+      logger.debug(`Hit raw M3U8 cache for: ${originalUrl}`);
+      m3u8Text = cachedRaw.text;
+      finalUrl = cachedRaw.finalUrl;
+    } else {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6000); // 6s timeout
+
+      const response = await fetch(originalUrl, {
+        signal: controller.signal,
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          Accept: '*/*',
+        },
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        logger.debug(`Failed to fetch M3U8 for ad filtering: HTTP ${response.status}`);
+        return { cleanUrl: originalUrl, adIntervals: [], totalAdDuration: 0, isModified: false };
+      }
+
+      m3u8Text = await response.text();
+      finalUrl = response.url || originalUrl;
+      setRawM3U8ToCache(originalUrl, m3u8Text, finalUrl);
+    }
 
     // Check if this is a Master Playlist (#EXT-X-STREAM-INF)
     if (m3u8Text.includes('#EXT-X-STREAM-INF')) {
@@ -1027,20 +1096,37 @@ async function _processM3U8ForPlaybackInternal(
     const lastSlashIdx = finalUrl.lastIndexOf('/');
     const baseUrl = lastSlashIdx > 0 ? finalUrl.slice(0, lastSlashIdx + 1) : finalUrl + '/';
 
-    // Physical PTS Continuity Search (for streams with discontinuities)
-    let verifiedAdIndices: Set<number> | undefined = undefined;
-    if (m3u8Text.includes('#EXT-X-DISCONTINUITY')) {
-      const blocks = parseM3U8Blocks(m3u8Text);
-      if (blocks.length > 2) {
-        logger.debug(`[PTSProbe] Multi-block stream detected (${blocks.length} blocks). Evaluating physical PTS continuity...`);
-        verifiedAdIndices = await buildPTSTimeline(blocks, baseUrl);
+    // Step 4: First pass with heuristics and learned features (Fast-Path)
+    let filterResult = filterM3U8Content(m3u8Text, baseUrl, options);
+
+    // Step 5: If not modified by heuristics, but candidates exist, evaluate physical PTS
+    if (!filterResult.isModified && filterResult.candidates && filterResult.candidates.length > 0) {
+      logger.debug(
+        `[PTSProbe] Multi-block stream has ${filterResult.candidates.length} candidate blocks. Evaluating physical PTS continuity...`
+      );
+      const verifiedAdIndices = await verifyCandidateBlocksViaPTS(filterResult.candidates, baseUrl);
+
+      if (verifiedAdIndices && verifiedAdIndices.size > 0) {
+        // Learn newly verified features and feedback into feature store
+        if (filterResult.blocks) {
+          for (const vIdx of verifiedAdIndices) {
+            const block = filterResult.blocks[vIdx];
+            if (block) {
+              await learnAdFeature({
+                url: block.urls[0],
+                duration: block.duration,
+              });
+            }
+          }
+        }
+
+        // Re-run filterM3U8Content with verifiedAdIndices
+        filterResult = filterM3U8Content(m3u8Text, baseUrl, {
+          ...options,
+          verifiedAdIndices,
+        });
       }
     }
-
-    let filterResult = filterM3U8Content(m3u8Text, baseUrl, {
-      ...options,
-      verifiedAdIndices: verifiedAdIndices && verifiedAdIndices.size > 0 ? verifiedAdIndices : options?.verifiedAdIndices,
-    });
 
     if (!filterResult.isModified) {
       logger.debug('No ads detected in M3U8 stream');
@@ -1072,9 +1158,8 @@ async function _processM3U8ForPlaybackInternal(
       return skipResult;
     }
 
-    // Mode is 'seamless': save clean M3U8 to local cache file
+    // Mode is 'seamless': save clean M3U8 to local deterministic cache file
     try {
-      const cacheDir = ReactNativeBlobUtil.fs?.dirs?.CacheDir;
       if (!cacheDir) {
         logger.warn('Cache directory not available, falling back to skip mode');
         return {
@@ -1085,7 +1170,7 @@ async function _processM3U8ForPlaybackInternal(
         };
       }
 
-      const filename = `adfree_${hashString(finalUrl)}_${Date.now()}.m3u8`;
+      const filename = `adfree_${hashString(finalUrl)}.m3u8`;
       const filePath = `${cacheDir}/${filename}`;
 
       await ReactNativeBlobUtil.fs.writeFile(filePath, filterResult.content, 'utf8');

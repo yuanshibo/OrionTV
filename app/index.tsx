@@ -23,6 +23,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useFocusStore } from "@/stores/focusStore";
 import { FocusPriority } from "@/types/focus";
 import { DynamicBackground } from "@/components/DynamicBackground";
+import useAuthStore from "@/stores/authStore";
 
 export default function HomeScreen() {
   const fadeAnim = useSharedValue(0);
@@ -103,6 +104,8 @@ export default function HomeScreen() {
   const [categoryFocusTrigger, setCategoryFocusTrigger] = useState(0);
   const setFocusArea = useFocusStore(s => s.setFocusArea);
 
+  const isLoggedIn = useAuthStore(state => state.isLoggedIn);
+
   // Set content focus area when content is displayed
   useEffect(() => {
     if (contentData.length > 0 && !loading) {
@@ -116,11 +119,14 @@ export default function HomeScreen() {
 
   useEffect(() => {
     void hydrateFromStorage();
-    void SyncQueue.flush();
-  }, [hydrateFromStorage]);
+    if (isLoggedIn) {
+      void SyncQueue.flush();
+    }
+  }, [hydrateFromStorage, isLoggedIn]);
 
   useFocusEffect(
     useCallback(() => {
+      if (!isLoggedIn) return;
       if (selectedCategoryType === "record") {
         refreshPlayRecords()
           .then(() => setCategoryFocusTrigger(p => p + 1))
@@ -132,7 +138,7 @@ export default function HomeScreen() {
           lastCheckedPlayRecords.current = now;
         }
       }
-    }, [refreshPlayRecords, selectedCategoryType, hasRecordCategory])
+    }, [isLoggedIn, refreshPlayRecords, selectedCategoryType, hasRecordCategory])
   );
 
   useTVBackHandler({
@@ -179,15 +185,31 @@ export default function HomeScreen() {
 
   // 数据获取逻辑
   useEffect(() => {
-    if (!selectedCategory || (selectedCategory.tags && !selectedCategory.tag) || !apiConfigStatus.isConfigured || apiConfigStatus.needsConfiguration) {
+    if (
+      !isLoggedIn ||
+      !selectedCategory ||
+      (selectedCategory.tags && !selectedCategory.tag) ||
+      !apiConfigStatus.isConfigured ||
+      apiConfigStatus.needsConfiguration
+    ) {
       return;
     }
 
-    // Initial data hydration if empty
-    if (contentData.length === 0 && !loading) {
+    // Initial data hydration if empty and not in error state
+    if (contentData.length === 0 && !loading && !error) {
       initialize();
     }
-  }, [selectedCategory, selectedCategory?.tag, apiConfigStatus.isConfigured, apiConfigStatus.needsConfiguration, initialize, contentData.length, loading]);
+  }, [
+    isLoggedIn,
+    selectedCategory,
+    selectedCategory?.tag,
+    apiConfigStatus.isConfigured,
+    apiConfigStatus.needsConfiguration,
+    initialize,
+    contentData.length,
+    loading,
+    error,
+  ]);
 
   // 错误状态清理
   useEffect(() => {

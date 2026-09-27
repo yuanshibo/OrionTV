@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
-import { View, TextInput, StyleSheet, Alert, TouchableOpacity, useColorScheme, ActivityIndicator, StyleProp, ViewStyle } from "react-native";
+import { View, TextInput, StyleSheet, TouchableOpacity, useColorScheme, ActivityIndicator, StyleProp, ViewStyle } from "react-native";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
 import VideoCard from "@/components/VideoCard";
@@ -7,13 +7,9 @@ import VideoLoadingAnimation from "@/components/VideoLoadingAnimation";
 import { api } from "@/services/api";
 import { useSearchStore } from "@/stores/searchStore";
 import { VideoCardViewModel } from "@/utils/searchUtils";
-import { Search, QrCode } from "lucide-react-native";
+import { Search } from "lucide-react-native";
 import { StyledButton } from "@/components/StyledButton";
-import { useRemoteControlStore } from "@/stores/remoteControlStore";
-import { useRemoteMessage } from "@/hooks/useRemoteMessage";
-import { RemoteControlModal } from "@/components/RemoteControlModal";
-import { useSettingsStore } from "@/stores/settingsStore";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import { Colors } from "@/constants/Colors";
 import CustomScrollView from "@/components/CustomScrollView";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
@@ -22,11 +18,8 @@ import { getCommonResponsiveStyles } from "@/utils/ResponsiveStyles";
 import ResponsiveNavigation from "@/components/navigation/ResponsiveNavigation";
 import ResponsiveHeader from "@/components/navigation/ResponsiveHeader";
 import { DeviceUtils } from "@/utils/DeviceUtils";
-import Logger from "@/utils/Logger";
 import { useShallow } from "zustand/react/shallow";
 import { DynamicBackground } from "@/components/DynamicBackground";
-
-const logger = Logger.withTag("SearchScreen");
 
 
 
@@ -55,9 +48,6 @@ export default function SearchScreen() {
 
   const textInputRef = useRef<TextInput>(null);
   const [isInputFocused, setIsInputFocused] = useState(false);
-  const { showModal: showRemoteModal } = useRemoteControlStore();
-  const { remoteInputEnabled } = useSettingsStore();
-  const router = useRouter();
   const colorScheme = useColorScheme() === 'light' ? 'light' : 'dark';
   const colors = Colors[colorScheme];
   const [focusedPoster, setFocusedPoster] = useState<string | null>(null);
@@ -67,15 +57,7 @@ export default function SearchScreen() {
   const commonStyles = getCommonResponsiveStyles(responsiveConfig);
   const { deviceType, spacing } = responsiveConfig;
 
-  const handleRemoteMessage = useCallback((message: string) => {
-    logger.debug("Received remote input:", message);
-    setKeyword(message);
-    doSearch(message);
-  }, [setKeyword, doSearch]);
-
   useTVBackHandler({ fallbackRoute: "/" });
-
-  useRemoteMessage(handleRemoteMessage, 'search');
 
   useEffect(() => {
     if (params.q) {
@@ -92,17 +74,6 @@ export default function SearchScreen() {
   }, [params.q, doSearch, loadDiscoverData, resetSearch, setKeyword]);
 
   const onSearchPress = () => handleSearch();
-
-  const handleQrPress = () => {
-    if (!remoteInputEnabled) {
-      Alert.alert("远程输入未启用", "请先在设置页面中启用远程输入功能", [
-        { text: "取消", style: "cancel" },
-        { text: "去设置", onPress: () => router.push("/settings") },
-      ]);
-      return;
-    }
-    showRemoteModal('search');
-  };
 
   const handleLoadMore = () => {
     if (loadingMore || !hasMore) return;
@@ -177,11 +148,6 @@ export default function SearchScreen() {
           <StyledButton style={dynamicStyles.searchButton} onPress={onSearchPress}>
             <Search size={deviceType === 'mobile' ? 20 : 24} color={colors.text} />
           </StyledButton>
-          {deviceType !== 'mobile' && (
-            <StyledButton style={dynamicStyles.qrButton} onPress={handleQrPress}>
-              <QrCode size={deviceType === 'tv' ? 24 : 20} color={colors.text} />
-            </StyledButton>
-          )}
         </View>
 
         {loading && results.length === 0 ? (
@@ -209,7 +175,6 @@ export default function SearchScreen() {
             }
           />
         )}
-        <RemoteControlModal />
       </>
     );
   };
@@ -275,14 +240,6 @@ const createResponsiveStyles = (deviceType: string, spacing: number, colors: (ty
       fontSize: isMobile ? 16 : 18,
     },
     searchButton: {
-      width: isMobile ? minTouchTarget : 50,
-      height: isMobile ? minTouchTarget : 50,
-      justifyContent: "center",
-      alignItems: "center",
-      borderRadius: isMobile ? 8 : 8,
-      marginRight: deviceType !== 'mobile' ? spacing / 2 : 0,
-    },
-    qrButton: {
       width: isMobile ? minTouchTarget : 50,
       height: isMobile ? minTouchTarget : 50,
       justifyContent: "center",

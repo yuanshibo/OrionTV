@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text, Platform, useColorScheme } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
-import { Home, Search, Heart, Settings, Tv } from 'lucide-react-native';
+import { Home, Search, Heart, Settings } from 'lucide-react-native';
 import { Colors } from '@/constants/Colors';
 import { useResponsiveLayout } from '@/hooks/useResponsiveLayout';
 import { DeviceUtils } from '@/utils/DeviceUtils';
@@ -16,7 +16,6 @@ interface TabItem {
 const tabs: TabItem[] = [
   { key: 'home', label: '首页', icon: Home, route: '/' },
   { key: 'search', label: '搜索', icon: Search, route: '/search' },
-  { key: 'live', label: '直播', icon: Tv, route: '/live' },
   { key: 'favorites', label: '收藏', icon: Heart, route: '/favorites' },
   { key: 'settings', label: '设置', icon: Settings, route: '/settings' },
 ];
@@ -26,12 +25,8 @@ const MobileBottomTabNavigator: React.FC = () => {
   const pathname = usePathname();
   const colorScheme = useColorScheme() === 'light' ? 'light' : 'dark';
   const colors = Colors[colorScheme];
-  const { spacing, deviceType } = useResponsiveLayout();
-  
-  const filteredTabs = tabs.filter(tab => 
-    deviceType !== 'mobile' || tab.key !== 'live'
-  );
-  
+  const { spacing } = useResponsiveLayout();
+
   const handleTabPress = (route: string) => {
     if (route === '/') {
       router.push('/');
@@ -50,7 +45,7 @@ const MobileBottomTabNavigator: React.FC = () => {
 
   return (
     <View style={dynamicStyles.container}>
-      {filteredTabs.map((tab) => {
+      {tabs.map((tab) => {
         const isActive = isTabActive(tab.route);
         const IconComponent = tab.icon;
         

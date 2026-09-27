@@ -8,20 +8,11 @@ import Logger from "@/utils/Logger";
 
 const logger = Logger.withTag('SettingsStore');
 
-import { parseM3U } from "@/services/m3u";
-
 export interface ApiTestResult {
   success: boolean;
   siteName?: string;
   storageType?: string;
   latency?: number;
-  error?: string;
-}
-
-export interface M3uTestResult {
-  success: boolean;
-  channelCount?: number;
-  sampleChannels?: string[];
   error?: string;
 }
 
@@ -65,7 +56,6 @@ export const normalizeUrl = (rawUrl: string, defaultProtocol = "http://"): strin
 
 interface SettingsState {
   apiBaseUrl: string;
-  m3uUrl: string;
   remoteInputEnabled: boolean;
   videoSource: {
     enabledAll: boolean;
@@ -78,18 +68,14 @@ interface SettingsState {
   serverConfigError: string | null;
   isLoadingServerConfig: boolean;
   isTestingApi: boolean;
-  isTestingM3u: boolean;
   lastApiTestResult: ApiTestResult | null;
-  lastM3uTestResult: M3uTestResult | null;
   adBlockMode: "seamless" | "skip" | "off";
   setAdBlockMode: (mode: "seamless" | "skip" | "off") => void;
   loadSettings: () => Promise<void>;
   fetchServerConfig: () => Promise<void>;
   setApiBaseUrl: (url: string) => void;
-  setM3uUrl: (url: string) => void;
   setRemoteInputEnabled: (enabled: boolean) => void;
   testApiConnection: (customUrl?: string) => Promise<ApiTestResult>;
-  testM3uConnection: (customUrl?: string) => Promise<M3uTestResult>;
   saveSettings: () => Promise<void>;
   setVideoSource: (config: { enabledAll: boolean; sources: { [key: string]: boolean } }) => void;
   showModal: () => void;
@@ -98,16 +84,13 @@ interface SettingsState {
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
   apiBaseUrl: DEFAULT_API_BASE_URL,
-  m3uUrl: "",
   remoteInputEnabled: false,
   isModalVisible: false,
   serverConfig: null,
   serverConfigError: null,
   isLoadingServerConfig: false,
   isTestingApi: false,
-  isTestingM3u: false,
   lastApiTestResult: null,
-  lastM3uTestResult: null,
   videoSource: {
     enabledAll: true,
     sources: {},
@@ -124,7 +107,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     const effectiveApiBaseUrl = settings.apiBaseUrl || DEFAULT_API_BASE_URL;
     set({
       apiBaseUrl: effectiveApiBaseUrl,
-      m3uUrl: settings.m3uUrl,
       remoteInputEnabled: settings.remoteInputEnabled || false,
       adBlockMode: settings.adBlockMode || "seamless",
       videoSource: settings.videoSource || {
@@ -203,7 +185,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     }
   },
   setApiBaseUrl: (url) => set({ apiBaseUrl: url, lastApiTestResult: null }),
-  setM3uUrl: (url) => set({ m3uUrl: url, lastM3uTestResult: null }),
   setRemoteInputEnabled: (enabled) => set({ remoteInputEnabled: enabled }),
   setVideoSource: (config) => set({ videoSource: config }),
 
@@ -257,70 +238,15 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     }
   },
 
-  testM3uConnection: async (customUrl?: string): Promise<M3uTestResult> => {
-    const rawUrl = customUrl !== undefined ? customUrl : get().m3uUrl;
-    const targetUrl = normalizeUrl(rawUrl);
-
-    if (!targetUrl) {
-      const res: M3uTestResult = { success: false, error: "请输入有效的直播源地址" };
-      set({ lastM3uTestResult: res });
-      return res;
-    }
-
-    set({ isTestingM3u: true, lastM3uTestResult: null });
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 8000);
-
-    try {
-      const response = await fetch(targetUrl, { signal: controller.signal });
-      clearTimeout(timer);
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      const text = await response.text();
-      const channels = parseM3U(text);
-
-      if (channels.length === 0) {
-        const res: M3uTestResult = { success: false, error: "解析完成，但未发现有效频道" };
-        set({ lastM3uTestResult: res, isTestingM3u: false });
-        return res;
-      }
-
-      const sampleChannels = channels.slice(0, 3).map((c) => c.name);
-      const res: M3uTestResult = {
-        success: true,
-        channelCount: channels.length,
-        sampleChannels,
-      };
-      set({ lastM3uTestResult: res, isTestingM3u: false });
-      return res;
-    } catch (e: any) {
-      clearTimeout(timer);
-      let errMsg = "无法获取或解析直播源";
-      if (e?.name === "AbortError") {
-        errMsg = "请求超时 (8秒)";
-      } else if (e?.message) {
-        errMsg = `探测失败: ${e.message}`;
-      }
-      const res: M3uTestResult = { success: false, error: errMsg };
-      set({ lastM3uTestResult: res, isTestingM3u: false });
-      return res;
-    }
-  },
-
   saveSettings: async () => {
-    const { apiBaseUrl, m3uUrl, remoteInputEnabled, videoSource, adBlockMode } = get();
+    const { apiBaseUrl, remoteInputEnabled, videoSource, adBlockMode } = get();
 
     const processedApiBaseUrl = normalizeUrl(apiBaseUrl);
-    const processedM3uUrl = normalizeUrl(m3uUrl);
 
     const oldApiBaseUrl = get().apiBaseUrl;
 
     await SettingsManager.save({
       apiBaseUrl: processedApiBaseUrl,
-      m3uUrl: processedM3uUrl,
       remoteInputEnabled,
       videoSource,
       adBlockMode,
@@ -336,7 +262,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     set({
       isModalVisible: false,
       apiBaseUrl: processedApiBaseUrl,
-      m3uUrl: processedM3uUrl,
     });
     if (processedApiBaseUrl) {
       await get().fetchServerConfig();

@@ -19,9 +19,14 @@ interface AuthState {
   logout: () => Promise<void>;
 }
 
-const useAuthStore = create<AuthState>((set) => {
+const useAuthStore = create<AuthState>((set, get) => {
   // 注册全局 401 处理回调：任何 API 请求收到 401 时自动退出登录
   api.onUnauthorized = async () => {
+    const { isLoggedIn, authCookie } = get();
+    if (!isLoggedIn && !authCookie) {
+      // 已经处于未登录状态，避免重复清空和重复警告刷屏
+      return;
+    }
     logger.warn("401 Unauthorized: clearing auth state");
     api.setCookie(null);
     await AsyncStorage.removeItem('authCookies');

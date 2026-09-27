@@ -1,6 +1,5 @@
-import React, { useState } from "react";
-import { StyleSheet, Pressable, Platform } from "react-native";
-import { ThemedView } from "@/components/ThemedView";
+import React, { useState, useMemo } from "react";
+import { StyleSheet, Pressable, Platform, useColorScheme, ViewStyle, StyleProp, View } from "react-native";
 import { Colors } from "@/constants/Colors";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 
@@ -10,11 +9,21 @@ interface SettingsSectionProps {
   onBlur?: () => void;
   onPress?: () => void;
   focusable?: boolean;
+  style?: StyleProp<ViewStyle>;
 }
 
-export const SettingsSection: React.FC<SettingsSectionProps> = ({ children, onFocus, onBlur, onPress, focusable = false }) => {
+export const SettingsSection: React.FC<SettingsSectionProps> = ({
+  children,
+  onFocus,
+  onBlur,
+  onPress,
+  focusable = false,
+  style,
+}) => {
   const [isFocused, setIsFocused] = useState(false);
-  const deviceType = useResponsiveLayout().deviceType;
+  const { deviceType } = useResponsiveLayout();
+  const colorScheme = useColorScheme() === "light" ? "light" : "dark";
+  const colors = Colors[colorScheme];
 
   const handleFocus = () => {
     setIsFocused(true);
@@ -28,41 +37,54 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({ children, onFo
 
   const handlePress = () => {
     onPress?.();
-  }
+  };
+
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        section: {
+          padding: deviceType === "tv" ? 22 : 18,
+          marginBottom: 16,
+          borderRadius: 14,
+          borderWidth: 1,
+          borderColor: colorScheme === "dark" ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.08)",
+          backgroundColor: colorScheme === "dark" ? "rgba(255, 255, 255, 0.03)" : "#ffffff",
+        },
+        sectionFocused: {
+          borderColor: colors.primary,
+          backgroundColor: colorScheme === "dark" ? "rgba(210, 105, 30, 0.08)" : "rgba(255, 165, 0, 0.08)",
+          shadowColor: colors.primary,
+          shadowOffset: { width: 0, height: 0 },
+          shadowOpacity: 0.35,
+          shadowRadius: 8,
+          elevation: 4,
+        },
+        sectionPressable: {
+          width: "100%",
+        },
+      }),
+    [colors, colorScheme, deviceType]
+  );
 
   if (!focusable) {
-    return <ThemedView style={styles.section}>{children}</ThemedView>;
+    return <View style={[styles.section, style]}>{children}</View>;
   }
 
   return (
-    <ThemedView style={[styles.section, isFocused && styles.sectionFocused]}>
+    <View style={[styles.section, isFocused && styles.sectionFocused, style]}>
       <Pressable
-        android_ripple={Platform.isTV||deviceType !=='tv'? {color:'transparent'}:{color:Colors.dark.link}}
+        android_ripple={
+          Platform.isTV || deviceType !== "tv"
+            ? { color: "transparent" }
+            : { color: colors.link }
+        }
         style={styles.sectionPressable}
-        // {...(Platform.isTV ? {onFocus: handleFocus, onBlur: handleBlur} : {onPress: onPress})}
         onFocus={handleFocus}
         onBlur={handleBlur}
         onPress={handlePress}
       >
         {children}
       </Pressable>
-    </ThemedView>
+    </View>
   );
 };
-
-const styles = StyleSheet.create({
-  section: {
-    padding: 20,
-    marginBottom: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#333",
-  },
-  sectionFocused: {
-    borderColor: Colors.dark.primary,
-    backgroundColor: "#007AFF10",
-  },
-  sectionPressable: {
-    width: "100%",
-  },
-});
