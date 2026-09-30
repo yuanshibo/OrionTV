@@ -29,6 +29,13 @@ describe('m3u8FeatureStore', () => {
       const pattern = extractUrlPattern('https://cdn.example.com/adv/slice.ts');
       expect(pattern).toBe('\\/adv\\/');
     });
+
+    it('returns null for generic CDN hostnames without ad-specific tokens (prevents mislearning)', () => {
+      // Domains like zuidazym3u8.com, ryplay1.com are shared between ad and movie segments
+      expect(extractUrlPattern('https://v13.zuidazym3u8.com/yyv13/202609/11/UqsZQmKs8m27/video/2000k_1080/hls/seg_001.ts')).toBeNull();
+      expect(extractUrlPattern('https://cdn1.ryplay1.com/20240910/7784_c1c8f178/2000k/hls/seg_001.ts')).toBeNull();
+      expect(extractUrlPattern('https://play.phimgood.com/20260707/28681_f69fa239/3000k/hls/seg.ts')).toBeNull();
+    });
   });
 
   describe('learnAdFeature and persistence', () => {
@@ -57,6 +64,36 @@ describe('m3u8FeatureStore', () => {
 
       const keywords = getLearnedKeywords();
       expect(keywords.some((rx) => rx.test('https://dsp.adnetwork.com/foo.ts'))).toBe(true);
+    });
+
+    it('does NOT learn pattern for generic CDN URLs without ad-specific tokens', async () => {
+      const changed = await learnAdFeature({ url: 'https://cdn1.ryplay1.com/20240910/7784/seg.ts' });
+      expect(changed).toBe(false);
+      expect(getLearnedKeywords().length).toBe(0);
+    });
+
+    it('evicts oldest keyword when capacity exceeds 50', async () => {
+      for (let i = 0; i < 50; i++) {
+        await learnAdFeature({ url: `https://ad${i}.adserver.com/seg.ts` });
+      }
+      expect(getLearnedKeywords().length).toBe(50);
+
+      // Adding one more should evict the oldest (ad0)
+      await learnAdFeature({ url: 'https://adnew.adserver.com/seg.ts' });
+      expect(getLearnedKeywords().length).toBe(50);
+      expect(getLearnedKeywords().some((rx) => rx.test('https://ad0.adserver.com/seg.ts'))).toBe(false);
+    });
+
+    it('evicts oldest duration when capacity exceeds 50', async () => {
+      for (let i = 0; i < 50; i++) {
+        await learnAdFeature({ duration: 10 + i });
+      }
+      expect(getLearnedDurations().length).toBe(50);
+
+      // Adding one more should evict the oldest (10s)
+      await learnAdFeature({ duration: 99 });
+      expect(getLearnedDurations().length).toBe(50);
+      expect(getLearnedDurations()).not.toContain(10);
     });
   });
 

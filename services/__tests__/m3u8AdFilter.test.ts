@@ -25,6 +25,7 @@ jest.mock('react-native-blob-util', () => ({
     unlink: jest.fn().mockResolvedValue(undefined),
     exists: jest.fn().mockResolvedValue(false),
     ls: jest.fn().mockResolvedValue(['adfree_old_1.m3u8', 'adfree_old_2.m3u8']),
+    stat: jest.fn().mockResolvedValue({ lastModified: Date.now() }),
   },
 }));
 
@@ -493,53 +494,76 @@ describe('m3u8AdFilter', () => {
       jest.clearAllMocks();
     });
 
-    it('sorts files by timestamp and deletes files beyond maxFiles limit', async () => {
+    it('sorts files by stat.lastModified and deletes files beyond maxFiles limit', async () => {
       const now = Date.now();
+      // Use deterministic filename format: adfree_<hash>.m3u8 (no embedded timestamp)
       const mockFiles = [
-        `adfree_hash1_${now - 5000}.m3u8`,
-        `adfree_hash2_${now - 1000}.m3u8`,
-        `adfree_hash3_${now - 3000}.m3u8`,
-        `adfree_hash4_${now - 4000}.m3u8`,
-        `adfree_hash5_${now - 2000}.m3u8`,
+        'adfree_hash1.m3u8', // oldest  (now - 5000)
+        'adfree_hash2.m3u8', // newest  (now - 1000)
+        'adfree_hash3.m3u8', // 3rd     (now - 3000)
+        'adfree_hash4.m3u8', // 2nd old (now - 4000)
+        'adfree_hash5.m3u8', // 2nd new (now - 2000)
       ];
       (ReactNativeBlobUtil.fs.ls as jest.Mock).mockResolvedValueOnce(mockFiles);
 
+      // Return a different lastModified for each stat call, in file list order
+      const statMock = ReactNativeBlobUtil.fs.stat as jest.Mock;
+      statMock
+        .mockResolvedValueOnce({ lastModified: now - 5000 }) // hash1
+        .mockResolvedValueOnce({ lastModified: now - 1000 }) // hash2
+        .mockResolvedValueOnce({ lastModified: now - 3000 }) // hash3
+        .mockResolvedValueOnce({ lastModified: now - 4000 }) // hash4
+        .mockResolvedValueOnce({ lastModified: now - 2000 }); // hash5
+
       await cleanupM3U8Cache({ maxFiles: 3, maxAgeMs: 24 * 60 * 60 * 1000 });
 
-      expect(ReactNativeBlobUtil.fs.unlink).toHaveBeenCalledWith(`/mock/cache/adfree_hash4_${now - 4000}.m3u8`);
-      expect(ReactNativeBlobUtil.fs.unlink).toHaveBeenCalledWith(`/mock/cache/adfree_hash1_${now - 5000}.m3u8`);
-      expect(ReactNativeBlobUtil.fs.unlink).not.toHaveBeenCalledWith(`/mock/cache/adfree_hash2_${now - 1000}.m3u8`);
-      expect(ReactNativeBlobUtil.fs.unlink).not.toHaveBeenCalledWith(`/mock/cache/adfree_hash5_${now - 2000}.m3u8`);
-      expect(ReactNativeBlobUtil.fs.unlink).not.toHaveBeenCalledWith(`/mock/cache/adfree_hash3_${now - 3000}.m3u8`);
+      // Oldest two (hash4 and hash1) should be deleted
+      expect(ReactNativeBlobUtil.fs.unlink).toHaveBeenCalledWith('/mock/cache/adfree_hash4.m3u8');
+      expect(ReactNativeBlobUtil.fs.unlink).toHaveBeenCalledWith('/mock/cache/adfree_hash1.m3u8');
+      // Newest three should be kept
+      expect(ReactNativeBlobUtil.fs.unlink).not.toHaveBeenCalledWith('/mock/cache/adfree_hash2.m3u8');
+      expect(ReactNativeBlobUtil.fs.unlink).not.toHaveBeenCalledWith('/mock/cache/adfree_hash5.m3u8');
+      expect(ReactNativeBlobUtil.fs.unlink).not.toHaveBeenCalledWith('/mock/cache/adfree_hash3.m3u8');
     });
 
     it('strictly protects activeUrl from being deleted even if it is old or exceeds limit', async () => {
       const now = Date.now();
       const mockFiles = [
-        `adfree_hash1_${now - 5000}.m3u8`,
-        `adfree_hash2_${now - 1000}.m3u8`,
+        'adfree_hash1.m3u8', // old (now - 5000)
+        'adfree_hash2.m3u8', // new (now - 1000)
       ];
       (ReactNativeBlobUtil.fs.ls as jest.Mock).mockResolvedValueOnce(mockFiles);
 
+      const statMock = ReactNativeBlobUtil.fs.stat as jest.Mock;
+      statMock
+        .mockResolvedValueOnce({ lastModified: now - 5000 }) // hash1
+        .mockResolvedValueOnce({ lastModified: now - 1000 }); // hash2
+
       await cleanupM3U8Cache({
         maxFiles: 0,
-        activeUrl: `file:///mock/cache/adfree_hash1_${now - 5000}.m3u8`,
+        activeUrl: 'file:///mock/cache/adfree_hash1.m3u8',
       });
 
-      expect(ReactNativeBlobUtil.fs.unlink).toHaveBeenCalledWith(`/mock/cache/adfree_hash2_${now - 1000}.m3u8`);
-      expect(ReactNativeBlobUtil.fs.unlink).not.toHaveBeenCalledWith(`/mock/cache/adfree_hash1_${now - 5000}.m3u8`);
+      // hash2 exceeds limit and is not protected
+      expect(ReactNativeBlobUtil.fs.unlink).toHaveBeenCalledWith('/mock/cache/adfree_hash2.m3u8');
+      // hash1 is the active file, must never be deleted
+      expect(ReactNativeBlobUtil.fs.unlink).not.toHaveBeenCalledWith('/mock/cache/adfree_hash1.m3u8');
     });
 
-    it('deletes files older than maxAgeMs', async () => {
+    it('deletes files older than maxAgeMs based on stat.lastModified', async () => {
       const now = Date.now();
-      const freshFile = `adfree_fresh_${now - 1000}.m3u8`;
-      const expiredFile = `adfree_expired_${now - 50000}.m3u8`;
-      (ReactNativeBlobUtil.fs.ls as jest.Mock).mockResolvedValueOnce([freshFile, expiredFile]);
+      const mockFiles = ['adfree_fresh.m3u8', 'adfree_expired.m3u8'];
+      (ReactNativeBlobUtil.fs.ls as jest.Mock).mockResolvedValueOnce(mockFiles);
+
+      const statMock = ReactNativeBlobUtil.fs.stat as jest.Mock;
+      statMock
+        .mockResolvedValueOnce({ lastModified: now - 1000 })   // fresh: 1s ago
+        .mockResolvedValueOnce({ lastModified: now - 50000 }); // expired: 50s ago
 
       await cleanupM3U8Cache({ maxFiles: 10, maxAgeMs: 10000 });
 
-      expect(ReactNativeBlobUtil.fs.unlink).toHaveBeenCalledWith(`/mock/cache/${expiredFile}`);
-      expect(ReactNativeBlobUtil.fs.unlink).not.toHaveBeenCalledWith(`/mock/cache/${freshFile}`);
+      expect(ReactNativeBlobUtil.fs.unlink).toHaveBeenCalledWith('/mock/cache/adfree_expired.m3u8');
+      expect(ReactNativeBlobUtil.fs.unlink).not.toHaveBeenCalledWith('/mock/cache/adfree_fresh.m3u8');
     });
   });
 
