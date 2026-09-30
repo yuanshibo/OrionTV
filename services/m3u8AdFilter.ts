@@ -722,10 +722,10 @@ export async function cleanupM3U8Cache(options?: M3U8CacheCleanupOptions): Promi
       adfreeFiles.map(async (filename) => {
         const fullPath = `${cacheDir}/${filename}`;
         const fileUri = `file://${fullPath}`;
-        // Extract timestamp if present: adfree_<hash>_<timestamp>.m3u8
-        const match = filename.match(/^adfree_[^_]+_(\d+)\.m3u8$/);
-        let timestamp = match ? parseInt(match[1], 10) : 0;
-        if (!timestamp && ReactNativeBlobUtil.fs?.stat) {
+        // File format is deterministic: adfree_<hash>.m3u8 (no embedded timestamp).
+        // Always use fs.stat.lastModified for LRU ordering.
+        let timestamp = 0;
+        if (ReactNativeBlobUtil.fs?.stat) {
           try {
             const stat = await ReactNativeBlobUtil.fs.stat(fullPath);
             timestamp = stat?.lastModified || 0;

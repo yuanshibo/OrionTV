@@ -68,29 +68,38 @@ export function getLearnedDurations(): number[] {
   return inMemoryFeatures.durations;
 }
 
+const MAX_LEARNED_KEYWORDS = 50;
+const MAX_LEARNED_DURATIONS = 50;
+
 /**
  * Extracts a distinctive regex pattern string from an ad URL.
+ *
+ * IMPORTANT: Only returns a pattern when the URL contains unambiguous ad-specific
+ * identifiers (e.g. ad/dsp/gg in hostname or path). Returns null for generic CDN
+ * hostnames that are shared between ad and movie segments, to prevent mislearning
+ * normal CDN domains as ad keywords which would cause false positives on movie content.
  */
 export function extractUrlPattern(url: string): string | null {
   if (!url || typeof url !== 'string') return null;
   try {
     const parsed = new URL(url);
     const host = parsed.hostname;
-    // If hostname itself has 'ad' or 'gg' or similar or is an ad server host
+    // Only match if hostname itself contains unambiguous ad-specific tokens
     if (/ad|guang|gg|dsp|union|pop|adv/i.test(host)) {
       return host.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     }
-    // Check pathname for distinctive ad directory
+    // Check pathname for distinctive ad directory segments
     const pathParts = parsed.pathname.split('/').filter(Boolean);
     for (const part of pathParts) {
       if (/^(ad|adv|guanggao|advert|dsp|union|pop|gg)$/i.test(part)) {
         return `\\/${part}\\/`;
       }
     }
-    // If url contains query or filename indicating ads
-    return host ? host.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : null;
+    // Do NOT fall back to generic CDN hostname — shared CDN domains would cause
+    // false positives on all movie segments from that CDN.
+    return null;
   } catch {
-    // If not standard URL, search for known tokens
+    // For non-standard URLs, only match explicit ad tokens in the path
     const match = url.match(/(guanggao|\/ad\/|\/adv\/|\/gg\/|\/pop\/)/i);
     return match ? match[0] : null;
   }
@@ -98,6 +107,7 @@ export function extractUrlPattern(url: string): string | null {
 
 /**
  * Records newly verified ad features (URL keyword or duration) and persists to storage.
+ * Enforces capacity limits to prevent unbounded memory growth.
  */
 export async function learnAdFeature(feature: { url?: string; duration?: number }): Promise<boolean> {
   await initFeatureStore();
@@ -108,6 +118,10 @@ export async function learnAdFeature(feature: { url?: string; duration?: number 
     const pattern = extractUrlPattern(feature.url);
     if (pattern && !inMemoryFeatures.keywords.includes(pattern)) {
       inMemoryFeatures.keywords.push(pattern);
+      // Evict oldest entry when capacity is exceeded
+      if (inMemoryFeatures.keywords.length > MAX_LEARNED_KEYWORDS) {
+        inMemoryFeatures.keywords.shift();
+      }
       modified = true;
       logger.info(`[LearnedFeature] Learned new ad pattern: "${pattern}" from ${feature.url}`);
     }
@@ -118,6 +132,10 @@ export async function learnAdFeature(feature: { url?: string; duration?: number 
     const exists = inMemoryFeatures.durations.some((d) => Math.abs(d - roundedDur) <= 0.5);
     if (!exists) {
       inMemoryFeatures.durations.push(roundedDur);
+      // Evict oldest entry when capacity is exceeded
+      if (inMemoryFeatures.durations.length > MAX_LEARNED_DURATIONS) {
+        inMemoryFeatures.durations.shift();
+      }
       modified = true;
       logger.info(`[LearnedFeature] Learned new ad duration: ${roundedDur}s`);
     }
