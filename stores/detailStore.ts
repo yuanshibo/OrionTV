@@ -25,8 +25,31 @@ import {
   probeM3U8WithCache,
 } from "@/utils/DetailCache";
 import { processM3U8ForPlayback } from "@/services/m3u8AdFilter";
+import { getSearchTermFromTitle } from "@/utils/searchUtils";
 
 const logger = Logger.withTag('DetailStore');
+
+export const isMatchingTitle = (itemTitle: string, queryTitle: string): boolean => {
+  const normItem = normalizeIdentifier(itemTitle);
+  const normQuery = normalizeIdentifier(queryTitle);
+  if (!normItem || !normQuery) return false;
+  if (normItem === normQuery) return true;
+
+  // Check without edition suffix (e.g. "普通话版", "国语版", "粤语版")
+  const rootItem = normalizeIdentifier(getSearchTermFromTitle(itemTitle));
+  const rootQuery = normalizeIdentifier(getSearchTermFromTitle(queryTitle));
+  if (rootQuery && rootItem && rootItem === rootQuery && rootQuery.length >= 2) {
+    return true;
+  }
+  if (rootQuery && normItem === rootQuery && rootQuery.length >= 2) {
+    return true;
+  }
+  if (rootItem && normQuery === rootItem && rootItem.length >= 2) {
+    return true;
+  }
+
+  return false;
+};
 
 // Lazy accessor to avoid circular require cycles between detailStore <-> playerStore
 const getIsPlayerActivelyPlaying = (): boolean => {
@@ -148,7 +171,15 @@ interface DetailState {
 
   resumeRecord: PlayRecord | null;
 
-  init: (q: string, preferredSource?: string, id?: string, year?: string, type?: string) => Promise<void>;
+  init: (
+    q: string,
+    preferredSource?: string,
+    id?: string,
+    year?: string,
+    type?: string,
+    poster?: string,
+    forceRefresh?: boolean
+  ) => Promise<void>;
   setDetail: (detail: SearchResultWithResolution) => Promise<void>;
   abort: () => void;
   toggleFavorite: () => Promise<void>;
@@ -170,9 +201,30 @@ const useDetailStore = create<DetailState>((set, get) => ({
   failedSources: new Set(),
   resumeRecord: null,
 
-  init: async (q, preferredSource, id, year, type) => {
+  init: async (q, preferredSource, id, year, type, poster, forceRefresh) => {
     const perfStart = performance.now();
     logger.debug(`[PERF] DetailStore.init START - q: ${q}, preferredSource: ${preferredSource}, id: ${id}`);
+
+    // --- Guard: Skip if already loaded and matches (unless forceRefresh is true) ---
+    const currentState = get();
+    if (!forceRefresh) {
+      const isSameQuery = currentState.q === q;
+      const isSameSource = !preferredSource || (currentState.detail?.source === preferredSource);
+      const isSameYear = !year || (currentState.detail?.year === year);
+      const isSameType = !type || (currentState.detail?.type === type);
+      const hasValidEpisodes = (currentState.detail?.episodes?.length ?? 0) > 0;
+
+      if (isSameQuery && currentState.detail && hasValidEpisodes && isSameSource && isSameYear && isSameType && !currentState.loading) {
+        logger.debug(`[INIT] Guard: Already loaded "${q}" with source "${currentState.detail.source}", skipping.`);
+        // Refresh resume record just in case (silent update)
+        if (currentState.detail?.title) {
+          PlayRecordManager.getLatestByTitle(currentState.detail.title, currentState.detail.year, currentState.detail.type)
+            .then(r => set({ resumeRecord: r }))
+            .catch(e => logger.debug("Failed to get latest record:", e));
+        }
+        return;
+      }
+    }
 
     const { controller: oldController } = get();
     if (oldController) {
@@ -183,8 +235,8 @@ const useDetailStore = create<DetailState>((set, get) => ({
 
     const cacheKey = buildDetailCacheKey(q, preferredSource, id, year, type);
     lastCacheKey = cacheKey;
-    let cachedEntry = getDetailCacheEntry(cacheKey);
-    if (!cachedEntry) {
+    let cachedEntry = !forceRefresh ? getDetailCacheEntry(cacheKey) : null;
+    if (!cachedEntry && !forceRefresh) {
       const generalKey = buildDetailCacheKey(q);
       cachedEntry = getDetailCacheEntry(generalKey);
     }
@@ -204,30 +256,13 @@ const useDetailStore = create<DetailState>((set, get) => ({
     }
 
     // 如果有有效缓存,直接使用缓存数据
-    const hasValidCache = cachedEntry && cachedDetail && cachedSearchResults.length > 0;
+    const hasValidCache = Boolean(cachedEntry && cachedDetail && cachedSearchResults.length > 0);
     logger.debug(`[CACHE] Cache status for "${q}": ${hasValidCache ? 'VALID' : 'MISS'}`);
 
-    // --- Guard: Skip if already loaded and matches ---
-    const currentState = get();
-    // Check if query matches AND if we are already on the preferred source (if specified)
-    const isSameQuery = currentState.q === q;
-    const isSameSource = !preferredSource || (currentState.detail?.source === preferredSource);
-    // Strict metadata check: if year/type provided, they MUST match
-    const isSameYear = !year || (currentState.detail?.year === year);
-    const isSameType = !type || (currentState.detail?.type === type);
-
-    if (isSameQuery && currentState.detail && isSameSource && isSameYear && isSameType && !currentState.loading) {
-      if (!hasValidCache) {
-        logger.debug(`[INIT] Guard: Already loaded "${q}" with source "${currentState.detail.source}", skipping.`);
-        // Refresh resume record just in case (silent update)
-        if (currentState.detail?.title) {
-          PlayRecordManager.getLatestByTitle(currentState.detail.title, currentState.detail.year, currentState.detail.type)
-            .then(r => set({ resumeRecord: r }))
-            .catch(e => logger.debug("Failed to get latest record:", e));
-        }
-        return;
-      }
+    if (forceRefresh) {
+      set({ failedSources: new Set() });
     }
+
     set({
       q,
       loading: !hasValidCache,
@@ -262,6 +297,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
     }
 
     // --- Progressive Loading Start ---
+    let validSourcesCount = 0;
 
     try {
       // 1. Fetch Metadata (Resources & History) in parallel
@@ -314,7 +350,7 @@ const useDetailStore = create<DetailState>((set, get) => ({
         set({ resumeRecord: matchedRecord });
       }
 
-      let validSourcesCount = 0;
+      validSourcesCount = 0;
       const MAX_VALID_SOURCES = 7;
       const loadedSourceKeys = new Set<string>();
 
@@ -423,10 +459,13 @@ const useDetailStore = create<DetailState>((set, get) => ({
 
       // Helper to process and add results
       const addResults = (results: SearchResult[], sourceKey: string) => {
+        const validTitleResults = results.filter((r) => isMatchingTitle(r.title, q));
+        if (validTitleResults.length === 0) return;
+
         const snapshot = get();
         const { results: newSearchResults } = processNewResults(
           snapshot.searchResults,
-          results,
+          validTitleResults,
           true, // merge
           sourceKey
         );
@@ -490,6 +529,8 @@ const useDetailStore = create<DetailState>((set, get) => ({
         }
       };
 
+      let isSearchOneSupported = true;
+
       // 5. Load Target Source First (Preferred or History)
       const targetSourceKey = preferredSource || historySourceKey;
       if (targetSourceKey) {
@@ -503,51 +544,135 @@ const useDetailStore = create<DetailState>((set, get) => ({
           } else {
             logger.warn(`[WARN] Target source "${targetSourceKey}" returned no results.`);
           }
-        } catch (e) {
-          logger.error(`[ERROR] Target source "${targetSourceKey}" failed:`, e);
+        } catch (e: any) {
+          logger.warn(`[WARN] Target source "${targetSourceKey}" failed:`, e);
         }
       }
 
-      // 6. Batch Parallel Load of Remaining Sources
-      const remainingResources = (resources as ApiSite[]).filter((r: ApiSite) => r.key !== targetSourceKey);
-      const BATCH_SIZE = APP_CONFIG.DETAIL.MAX_CONCURRENT_SOURCE_REQUESTS || 3;
-
-      for (let i = 0; i < remainingResources.length; i += BATCH_SIZE) {
-        if (signal.aborted) break;
-        if (validSourcesCount >= MAX_VALID_SOURCES) break;
-
-        const batch = remainingResources.slice(i, i + BATCH_SIZE);
-        await Promise.all(batch.map(async (res: ApiSite) => {
-          if (signal.aborted || validSourcesCount >= MAX_VALID_SOURCES) return;
-          try {
-            // Per-source fast failover timeout (3800ms) to prevent slow sources blocking the queue
-            const sourceTimeoutController = new AbortController();
-            const timeoutTimer = setTimeout(() => sourceTimeoutController.abort(), 3800);
-            const onParentAbort = () => sourceTimeoutController.abort();
-            signal.addEventListener("abort", onParentAbort, { once: true });
-
-            try {
-              const { results } = await api.searchVideo(q, res.key, sourceTimeoutController.signal);
-              if (results.length > 0 && !signal.aborted) {
-                addResults(results, res.key);
+      // If /api/search/one returned 404, fallback to aggregated /api/search
+      if (!isSearchOneSupported) {
+        logger.info(`[INFO] /api/search/one not supported (404), falling back to aggregated search (/api/search)`);
+        try {
+          const { results } = await api.searchVideos(q);
+          if (signal.aborted) return;
+          if (results && results.length > 0) {
+            const itemsToAdd = results.filter((item) => isMatchingTitle(item.title, q));
+            if (itemsToAdd.length > 0) {
+              if (targetSourceKey) {
+                const targetItems = itemsToAdd.filter((item) => item.source === targetSourceKey);
+                if (targetItems.length > 0) {
+                  addResults(targetItems, targetSourceKey);
+                }
               }
-            } finally {
-              clearTimeout(timeoutTimer);
-              signal.removeEventListener("abort", onParentAbort);
+              const otherItems = targetSourceKey
+                ? itemsToAdd.filter((item) => item.source !== targetSourceKey)
+                : itemsToAdd;
+              const sourcesSet = new Set(otherItems.map((item) => item.source));
+              for (const s of sourcesSet) {
+                if (validSourcesCount >= MAX_VALID_SOURCES) break;
+                addResults(otherItems.filter((item) => item.source === s), s);
+              }
             }
-          } catch (e) {
-            logger.warn(`[WARN] Source "${res.key}" failed or timed out:`, e);
           }
-        }));
+        } catch (searchErr) {
+          logger.warn(`[WARN] Aggregated search fallback failed:`, searchErr);
+        }
+      }
+
+      // 6. Batch Parallel Load of Remaining Sources (only if /api/search/one is supported)
+      if (isSearchOneSupported) {
+        const remainingResources = (resources as ApiSite[]).filter((r: ApiSite) => r.key !== targetSourceKey);
+        const BATCH_SIZE = APP_CONFIG.DETAIL.MAX_CONCURRENT_SOURCE_REQUESTS || 3;
+
+        for (let i = 0; i < remainingResources.length; i += BATCH_SIZE) {
+          if (signal.aborted) break;
+          if (validSourcesCount >= MAX_VALID_SOURCES) break;
+
+          const batch = remainingResources.slice(i, i + BATCH_SIZE);
+          let batchAll404 = true;
+          await Promise.all(batch.map(async (res: ApiSite) => {
+            if (signal.aborted || validSourcesCount >= MAX_VALID_SOURCES) return;
+            try {
+              // Per-source fast failover timeout (3800ms) to prevent slow sources blocking the queue
+              const sourceTimeoutController = new AbortController();
+              const timeoutTimer = setTimeout(() => sourceTimeoutController.abort(), 3800);
+              const onParentAbort = () => sourceTimeoutController.abort();
+              signal.addEventListener("abort", onParentAbort, { once: true });
+
+              try {
+                const { results } = await api.searchVideo(q, res.key, sourceTimeoutController.signal);
+                batchAll404 = false;
+                if (results.length > 0 && !signal.aborted) {
+                  addResults(results, res.key);
+                }
+              } finally {
+                clearTimeout(timeoutTimer);
+                signal.removeEventListener("abort", onParentAbort);
+              }
+            } catch (e: any) {
+              if (!e?.message?.includes("404")) {
+                batchAll404 = false;
+              }
+              logger.warn(`[WARN] Source "${res.key}" failed or timed out:`, e);
+            }
+          }));
+
+          // If entire first batch failed with 404, attempt aggregated search fallback concurrently without abandoning remaining sources
+          if (batchAll404 && i === 0 && validSourcesCount === 0) {
+            logger.info(`[INFO] First batch returned 404, attempting aggregated search fallback concurrently`);
+            try {
+              const { results } = await api.searchVideos(q);
+              if (signal.aborted) return;
+              if (results && results.length > 0) {
+                const itemsToAdd = results.filter((item) => isMatchingTitle(item.title, q));
+                if (itemsToAdd.length > 0) {
+                  const sourcesSet = new Set(itemsToAdd.map((item) => item.source));
+                  for (const s of sourcesSet) {
+                    if (validSourcesCount >= MAX_VALID_SOURCES) break;
+                    addResults(itemsToAdd.filter((item) => item.source === s), s);
+                  }
+                  if (validSourcesCount > 0) {
+                    break;
+                  }
+                }
+              }
+            } catch (searchErr) {
+              logger.warn(`[WARN] Aggregated search fallback failed:`, searchErr);
+            }
+          }
+        }
       }
 
       // 7. Finalize
       if (signal.aborted) return;
 
       const finalState = get();
-      if (finalState.loading) {
-        // If still loading, it means NO sources were valid
-        set({ loading: false, error: "未找到相关资源" });
+      if (finalState.loading || !finalState.detail || validSourcesCount === 0) {
+        // If still loading or detail is null or no sources succeeded:
+        // Gracefully degrade to metadata detail view rather than full-screen blank error
+        const fallbackDetail: SearchResultWithResolution = {
+          id: id ? parseInt(id, 10) || 0 : 0,
+          title: q,
+          poster: poster || matchedRecord?.cover || "",
+          episodes: [],
+          source: preferredSource || historySourceKey || "none",
+          source_name: "暂无播放源",
+          year: year || (matchedRecord?.year ? String(matchedRecord.year) : ""),
+          type: type || matchedRecord?.type || "",
+          desc: "未检索到可用的播放源线路，您可以尝试重新检索，或浏览下方相关推荐。",
+        };
+        set({
+          detail: fallbackDetail,
+          searchResults: [],
+          sources: [],
+          loading: false,
+          error: null,
+          allSourcesLoaded: true,
+        });
+
+        fetchDetailAuxData(fallbackDetail).then(({ isFavorited, resumeRecord }) => {
+          set({ isFavorited, resumeRecord: resumeRecord || matchedRecord });
+        });
       } else {
         set({ allSourcesLoaded: true });
         // Update cache
@@ -556,10 +681,40 @@ const useDetailStore = create<DetailState>((set, get) => ({
         }
       }
 
-    } catch (e) {
-      if ((e as Error).name !== "AbortError") {
+    } catch (e: any) {
+      const isAbort =
+        signal?.aborted ||
+        e?.name === "AbortError" ||
+        e?.message?.includes("canceled") ||
+        e?.message?.includes("cancelled") ||
+        e?.message?.includes("Aborted");
+
+      if (!isAbort) {
         logger.error(`[ERROR] DetailStore.init failed:`, e);
-        set({ error: `加载失败: ${e instanceof Error ? e.message : "未知错误"}` });
+        const finalState = get();
+        if (!finalState.detail || validSourcesCount === 0) {
+          const fallbackDetail: SearchResultWithResolution = {
+            id: id ? parseInt(id, 10) || 0 : 0,
+            title: q,
+            poster: poster || "",
+            episodes: [],
+            source: preferredSource || "none",
+            source_name: "暂无播放源",
+            year: year || "",
+            type: type || "",
+            desc: "数据加载遇到异常，您可以尝试重新检索。",
+          };
+          set({
+            detail: fallbackDetail,
+            searchResults: [],
+            sources: [],
+            loading: false,
+            error: null,
+            allSourcesLoaded: true,
+          });
+        } else {
+          set({ loading: false, error: `加载失败: ${e instanceof Error ? e.message : "未知错误"}` });
+        }
       }
     }
   },

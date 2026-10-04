@@ -40,6 +40,8 @@ export default function PlayScreen() {
 
   // Select state from the store reactively
   const detail = useDetailStore((state) => state.detail);
+  const detailLoading = useDetailStore((state) => state.loading);
+  const detailError = useDetailStore((state) => state.error);
   const initDetail = useDetailStore((state) => state.init);
 
   const {
@@ -63,6 +65,7 @@ export default function PlayScreen() {
     setShowRelatedVideos,
     setError,
     savePlayRecord,
+    retryCurrentPlayback,
   } = usePlayerStore(
     useShallow((state) => ({
       isLoaded: state.status?.isLoaded ?? false,
@@ -85,6 +88,7 @@ export default function PlayScreen() {
       setShowRelatedVideos: state.setShowRelatedVideos,
       setError: state.setError,
       savePlayRecord: state.savePlayRecord,
+      retryCurrentPlayback: state.retryCurrentPlayback,
     }))
   );
   const currentEpisode = usePlayerStore(selectCurrentEpisode);
@@ -209,15 +213,45 @@ export default function PlayScreen() {
     }
   }, [isSeekBuffering, player, seekPosition]);
 
+  const handleRetry = useCallback(() => {
+    const source = sourceStr;
+    const id = videoId;
+    const title = videoTitle || (queryTitle as string);
+
+    if (error === "所有播放源均不可用" || !detail) {
+      if (title) {
+        setError(undefined);
+        useDetailStore.setState({ failedSources: new Set() });
+        initDetail(title, source, id, undefined, undefined, undefined, true);
+      }
+    } else {
+      retryCurrentPlayback();
+    }
+  }, [detail, sourceStr, videoId, videoTitle, queryTitle, setError, initDetail, retryCurrentPlayback, error]);
+
+  const hasNoPlayableEpisodes = Boolean(
+    !detailLoading &&
+    detail &&
+    (!detail.episodes || detail.episodes.length === 0)
+  );
+
+  const effectiveError =
+    error ||
+    detailError ||
+    (!detailLoading && !detail ? "未找到相关资源" : undefined) ||
+    (hasNoPlayableEpisodes ? "未找到可播放的剧集" : undefined);
+
+  const effectiveLoading = !effectiveError && (isLoading || (detailLoading && !detail));
+
   return (
     <ThemedView focusable style={styles.container}>
       <PlayerView
         deviceType={deviceType}
         detail={detail}
-        error={error}
+        error={effectiveError}
         isLoaded={isLoaded}
         isBuffering={isBuffering}
-        isLoading={isLoading || !detail}
+        isLoading={effectiveLoading}
         isSeeking={isSeeking}
         isSeekBuffering={isSeekBuffering}
         currentEpisode={currentEpisode}
@@ -227,6 +261,7 @@ export default function PlayScreen() {
         onScreenPress={onScreenPress}
         onScreenLongPress={onScreenLongPress}
         setShowControls={setShowControls}
+        onRetry={handleRetry}
       />
       <EpisodeSelectionModal />
       <SourceSelectionModal />

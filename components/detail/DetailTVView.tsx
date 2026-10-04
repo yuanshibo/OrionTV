@@ -30,6 +30,7 @@ interface DetailTVViewProps {
   colors: (typeof Colors.dark) | (typeof Colors.light);
   deviceType: 'mobile' | 'tablet' | 'tv';
   resumeRecord?: PlayRecord | null;
+  onRetry?: () => void;
 }
 
 interface DetailTVContentProps extends DetailTVViewProps {
@@ -95,6 +96,7 @@ const DetailTVContent = memo(({
   resumeRecord,
   sortButtonTag,
   setSortButtonRef,
+  onRetry,
 }: DetailTVContentProps) => {
   const nextTargetDown = sortButtonTag || targetEpisodeTag;
 
@@ -129,6 +131,7 @@ const DetailTVContent = memo(({
             colors={colors}
             setFirstSourceRef={setFirstSourceRef}
             nextFocusDown={nextTargetDown}
+            onRetry={onRetry}
           />
         </TVFocusGuideView>
 
@@ -220,6 +223,7 @@ export const DetailTVView: React.FC<DetailTVViewProps> = memo(({
   colors,
   deviceType,
   resumeRecord,
+  onRetry,
 }) => {
   const [currentRange, setCurrentRange] = useState(0);
   const [isReversed, setIsReversed] = useState(false);
@@ -391,6 +395,7 @@ export const DetailTVView: React.FC<DetailTVViewProps> = memo(({
         resumeRecord={resumeRecord}
         sortButtonTag={sortButtonTag}
         setSortButtonRef={setSortButtonRef}
+        onRetry={onRetry}
       />
 
       {/* Full Synopsis & Cast Modal */}

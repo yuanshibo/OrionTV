@@ -14,7 +14,14 @@ const logger = Logger.withTag("PlayerView");
 const ErrorContainer = memo(({ style, message, textStyle, onRetry }: { style: any; message: string; textStyle: any; onRetry?: () => void }) => {
   logger.warn(`[UI] Displaying player error: ${message}`);
   return (
-    <TouchableOpacity activeOpacity={0.8} onPress={onRetry} style={style}>
+    <TouchableOpacity
+      activeOpacity={0.8}
+      onPress={onRetry}
+      style={style}
+      accessible={true}
+      focusable={true}
+      hasTVPreferredFocus={true}
+    >
       <Text style={textStyle}>{message}</Text>
       <Text style={[textStyle, { fontSize: 13, opacity: 0.7, marginTop: 12 }]}>按确认键重试</Text>
     </TouchableOpacity>
@@ -72,6 +79,7 @@ interface PlayerViewProps {
   onScreenPress: () => void;
   onScreenLongPress?: () => void;
   setShowControls: (show: boolean) => void;
+  onRetry?: () => void;
 }
 
 const PlayerView = memo((props: PlayerViewProps) => {
@@ -91,6 +99,7 @@ const PlayerView = memo((props: PlayerViewProps) => {
     onScreenPress,
     onScreenLongPress,
     setShowControls,
+    onRetry,
   } = props;
 
   const isLocked = usePlayerStore((state) => state.isLocked);
@@ -112,7 +121,7 @@ const PlayerView = memo((props: PlayerViewProps) => {
 
   const dynamicStyles = useMemo(() => createResponsiveStyles(deviceType), [deviceType]);
   const shouldShowPoster = Boolean(detail?.poster && !hasEverBeenLoaded && !error);
-  const rawShouldShowLoading = Boolean(isLoading || isSeekBuffering || (isLoaded && isBuffering));
+  const rawShouldShowLoading = Boolean(!error && (isLoading || isSeekBuffering || (isLoaded && isBuffering)));
   const [showLoading, setShowLoading] = useState(false);
 
   useEffect(() => {
@@ -150,7 +159,7 @@ const PlayerView = memo((props: PlayerViewProps) => {
           style={dynamicStyles.overlayContainer}
           message={error}
           textStyle={dynamicStyles.errorText}
-          onRetry={() => usePlayerStore.getState().retryCurrentPlayback()}
+          onRetry={onRetry || (() => usePlayerStore.getState().retryCurrentPlayback())}
         />
       )}
 

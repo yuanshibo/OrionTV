@@ -111,8 +111,15 @@ const RelatedSeries: React.FC<RelatedSeriesProps> = ({
         } else {
           setRelated(filtered.slice(0, 15));
         }
-      } catch (error) {
-        logger.error('Failed to fetch related series:', error);
+      } catch (error: any) {
+        const isAbort =
+          isCancelled ||
+          error?.name === 'AbortError' ||
+          error?.message?.includes('canceled') ||
+          error?.message?.includes('cancelled');
+        if (!isAbort) {
+          logger.error('Failed to fetch related series:', error);
+        }
       } finally {
         if (!isCancelled) {
           setLoading(false);

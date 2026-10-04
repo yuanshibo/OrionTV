@@ -294,16 +294,27 @@ const usePlayerStore = create<PlayerState>((set, get) => {
 
       const mappedEpisodes = episodes.map((ep, index) => ({ url: ep, title: `第 ${index + 1} 集` }));
 
+      const safeEpisodeIndex = Math.max(0, episodeIndex);
+      if (safeEpisodeIndex >= mappedEpisodes.length) {
+        logger.warn(`[PlayerStore] Episode index ${episodeIndex} exceeds total episodes ${mappedEpisodes.length}`);
+        set({
+          status: null,
+          isLoading: false,
+          error: `当前播放源仅有 ${mappedEpisodes.length} 集，未找到第 ${episodeIndex + 1} 集`,
+        });
+        return;
+      }
+
       // Process target episode for ad-filtering
       let adIntervals: AdInterval[] = [];
       const adBlockMode = useSettingsStore.getState().adBlockMode || 'seamless';
-      const targetEpisode = mappedEpisodes[episodeIndex];
+      const targetEpisode = mappedEpisodes[safeEpisodeIndex];
 
       if (targetEpisode?.url && adBlockMode !== 'off') {
         try {
           const filterResult = await processM3U8ForPlayback(targetEpisode.url, adBlockMode);
           if (filterResult.isModified) {
-            mappedEpisodes[episodeIndex] = { ...targetEpisode, url: filterResult.cleanUrl };
+            mappedEpisodes[safeEpisodeIndex] = { ...targetEpisode, url: filterResult.cleanUrl };
             adIntervals = filterResult.adIntervals;
           }
         } catch (adErr) {
@@ -314,7 +325,7 @@ const usePlayerStore = create<PlayerState>((set, get) => {
       set({
         isLoading: false,
         isUserPaused: false,
-        currentEpisodeIndex: episodeIndex,
+        currentEpisodeIndex: safeEpisodeIndex,
         episodes: mappedEpisodes,
         adIntervals,
         ...data,
@@ -457,13 +468,23 @@ const usePlayerStore = create<PlayerState>((set, get) => {
     },
 
     retryCurrentPlayback: async () => {
-      const { videoPlayer, currentEpisodeIndex, status, episodes, router, initialPosition } = get();
-      const { detail } = useDetailStore.getState();
+      const { videoPlayer, currentEpisodeIndex, status, episodes, router, initialPosition, error } = get();
+      const { detail, q } = useDetailStore.getState();
       const currentEpisode = episodes[currentEpisodeIndex];
 
       const resumePosition = (status?.positionMillis && status.positionMillis > 0)
         ? status.positionMillis
         : initialPosition || 0;
+
+      // If all sources failed or no URL, full reload from scratch with forceRefresh
+      if (error === "所有播放源均不可用" || !currentEpisode?.url) {
+        if (q) {
+          set({ error: undefined, isLoading: true });
+          useDetailStore.setState({ failedSources: new Set() });
+          await useDetailStore.getState().init(q, undefined, undefined, undefined, undefined, undefined, true);
+        }
+        return;
+      }
 
       set({ error: undefined, isLoading: true });
 
@@ -491,6 +512,8 @@ const usePlayerStore = create<PlayerState>((set, get) => {
           position: resumePosition,
           router,
         });
+      } else if (!detail && q) {
+        await useDetailStore.getState().init(q);
       }
     },
 
