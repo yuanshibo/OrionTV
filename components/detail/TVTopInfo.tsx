@@ -53,11 +53,16 @@ export const TVTopInfo = memo(({
                 </View>
                 <StyledButton
                     onPress={handlePrimaryPlay}
-                    style={dynamicStyles.playButton}
+                    style={[
+                        dynamicStyles.playButton,
+                        isPlayDisabled && { opacity: 0.8, backgroundColor: colors.border }
+                    ]}
                     text={playButtonLabel}
                     onFocus={onFocus}
-                    textStyle={dynamicStyles.playButtonText}
-                    disabled={isPlayDisabled}
+                    textStyle={[
+                        dynamicStyles.playButtonText,
+                        isPlayDisabled && { color: colors.text }
+                    ]}
                     hasTVPreferredFocus={true}
                     nextFocusDown={nextFocusDown}
                 />

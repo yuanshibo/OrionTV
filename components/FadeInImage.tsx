@@ -6,7 +6,7 @@ interface FadeInImageProps extends ImageProps {
     duration?: number;
 }
 
-export const FadeInImage: React.FC<FadeInImageProps> = ({ style, duration = 500, ...props }) => {
+export const FadeInImage: React.FC<FadeInImageProps> = ({ style, duration = 500, source, ...props }) => {
     const opacity = useRef(new Animated.Value(0)).current;
 
     const onLoad = () => {
@@ -17,10 +17,16 @@ export const FadeInImage: React.FC<FadeInImageProps> = ({ style, duration = 500,
         }).start();
     };
 
+    const hasValidUri = !source || typeof source !== 'object' || !('uri' in source) || Boolean((source as any).uri);
+    if (!hasValidUri) {
+        return <View style={[styles.container, style]} />;
+    }
+
     return (
         <View style={[styles.container, style]}>
             <Animated.Image
                 {...props}
+                source={source}
                 onLoad={onLoad}
                 style={[StyleSheet.absoluteFill, style, { opacity }]}
             />

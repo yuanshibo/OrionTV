@@ -29,6 +29,7 @@ interface DetailMobileViewProps {
   colors: (typeof Colors.dark) | (typeof Colors.light);
   deviceType: 'mobile' | 'tablet' | 'tv';
   resumeRecord?: PlayRecord | null;
+  onRetry?: () => void;
 }
 
 interface MobileTopInfoProps {
@@ -73,10 +74,15 @@ const MobileTopInfo = memo(({
           </View>
           <StyledButton
             onPress={handlePrimaryPlay}
-            style={dynamicStyles.playButton}
+            style={[
+              dynamicStyles.playButton,
+              isPlayDisabled && { opacity: 0.8, backgroundColor: colors.border }
+            ]}
             text={playButtonLabel}
-            textStyle={dynamicStyles.playButtonText}
-            disabled={isPlayDisabled}
+            textStyle={[
+              dynamicStyles.playButtonText,
+              isPlayDisabled && { color: colors.text }
+            ]}
           />
           <View style={dynamicStyles.metaContainer}>
             {detail.year ? <ThemedText style={dynamicStyles.metaText}>{detail.year}</ThemedText> : null}
@@ -119,6 +125,7 @@ export const DetailMobileView: React.FC<DetailMobileViewProps> = memo(({
   colors,
   deviceType,
   resumeRecord,
+  onRetry,
 }) => {
   const [currentRange, setCurrentRange] = useState(0);
   const [isReversed, setIsReversed] = useState(false);
@@ -168,6 +175,7 @@ export const DetailMobileView: React.FC<DetailMobileViewProps> = memo(({
           deviceType={deviceType}
           styles={dynamicStyles}
           colors={colors}
+          onRetry={onRetry}
         />
         {displayEpisodes.length > 0 && (
           <View style={dynamicStyles.episodesContainer}>
@@ -219,6 +227,7 @@ export const DetailMobileView: React.FC<DetailMobileViewProps> = memo(({
     chunks,
     currentRange,
     handleRangeSelect,
+    onRetry,
   ]);
 
   const renderFooter = useCallback(() => (

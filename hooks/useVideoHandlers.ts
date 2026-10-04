@@ -252,16 +252,22 @@ export const useVideoHandlers = ({
               }
             }
 
-            if (currentEpisode?.url && lastErrorUrlRef.current !== currentEpisode.url) {
-              lastErrorUrlRef.current = currentEpisode.url;
-              const { handleVideoError } = usePlayerStore.getState();
+            if (currentEpisode?.url) {
+              if (lastErrorUrlRef.current !== currentEpisode.url) {
+                lastErrorUrlRef.current = currentEpisode.url;
+                const { handleVideoError } = usePlayerStore.getState();
 
-              let handlerErrorType: 'ssl' | 'network' | 'other' = 'other';
-              if (errorType === ErrorType.SSL) handlerErrorType = 'ssl';
-              if (errorType === ErrorType.NETWORK) handlerErrorType = 'network';
+                let handlerErrorType: 'ssl' | 'network' | 'other' = 'other';
+                if (errorType === ErrorType.SSL) handlerErrorType = 'ssl';
+                if (errorType === ErrorType.NETWORK) handlerErrorType = 'network';
 
-              errorService.showToast(errorService.formatMessage(message), 'error', '正在切换播放源...');
-              handleVideoError(handlerErrorType, currentEpisode.url);
+                errorService.showToast(errorService.formatMessage(message), 'error', '正在切换播放源...');
+                handleVideoError(handlerErrorType, currentEpisode.url);
+              } else {
+                console.warn('[VIDEO] Error recurred on same URL, triggering fallback/error handling:', message);
+                const { handleVideoError } = usePlayerStore.getState();
+                handleVideoError('other', currentEpisode.url);
+              }
             }
             break;
           }

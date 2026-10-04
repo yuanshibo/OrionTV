@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useCallback } from "react";
-import { useColorScheme } from "react-native";
+import { useColorScheme, TouchableOpacity } from "react-native";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
@@ -72,12 +72,12 @@ export default function DetailScreen() {
 
   useEffect(() => {
     if (q) {
-      init(q, source, id, year, type);
+      init(q, source, id, year, type, poster);
     }
     return () => {
       abort();
     };
-  }, [init, q, source, id, year, type, abort]);
+  }, [init, q, source, id, year, type, poster, abort]);
 
   useFocusEffect(
     useCallback(() => {
@@ -87,9 +87,14 @@ export default function DetailScreen() {
 
   useTVBackHandler({ enabled: isTvExperience });
 
+  const handleRetry = useCallback(() => {
+    if (q) {
+      init(q, source, id, year, type, poster);
+    }
+  }, [init, q, source, id, year, type, poster]);
+
   const handlePlay = useCallback((episodeIndex: number, position?: number) => {
     if (!detail) return;
-    abort();
     const params: Record<string, string> = {
       q: detail.title,
       title: detail.title,
@@ -106,10 +111,11 @@ export default function DetailScreen() {
       pathname: "/play",
       params,
     });
-  }, [detail, abort, router]);
+  }, [detail, router]);
 
   const handlePrimaryPlay = useCallback(() => {
     if (!detail || !detail.episodes || detail.episodes.length === 0) {
+      handleRetry();
       return;
     }
 
@@ -117,11 +123,13 @@ export default function DetailScreen() {
     const resumePosition = resumeInfo.hasRecord ? resumeInfo.position : undefined;
 
     handlePlay(targetEpisodeIndex, resumePosition);
-  }, [detail, resumeInfo, handlePlay]);
+  }, [detail, resumeInfo, handlePlay, handleRetry]);
 
   const totalEpisodes = detail?.episodes?.length ?? 0;
   const isPlayDisabled = totalEpisodes === 0;
-  const playButtonLabel = (resumeInfo.hasRecord ? `继续播放 · 第${resumeInfo.episodeIndex + 1}集` : "立即播放 · 第1集") + `/全${totalEpisodes}集`;
+  const playButtonLabel = isPlayDisabled
+    ? (isTvExperience ? "暂无可用播放源 · 按确认键重试" : "暂无可用播放源 · 点击重试")
+    : (resumeInfo.hasRecord ? `继续播放 · 第${resumeInfo.episodeIndex + 1}集` : "立即播放 · 第1集") + `/全${totalEpisodes}集`;
 
   const detailViewProps = useMemo(() => ({
     detail,
@@ -138,6 +146,7 @@ export default function DetailScreen() {
     colors,
     deviceType,
     resumeRecord,
+    onRetry: handleRetry,
   }), [
     detail,
     searchResults,
@@ -153,6 +162,7 @@ export default function DetailScreen() {
     colors,
     deviceType,
     resumeRecord,
+    handleRetry,
   ]);
 
   const renderDetailContent = () => {
@@ -222,6 +232,15 @@ export default function DetailScreen() {
         <ThemedText type="subtitle" style={commonStyles.textMedium}>
           {error}
         </ThemedText>
+        <TouchableOpacity
+          accessible={true}
+          focusable={true}
+          hasTVPreferredFocus={true}
+          style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 12, backgroundColor: colors.tint, borderRadius: 8 }}
+          onPress={handleRetry}
+        >
+          <ThemedText style={{ color: '#fff' }}>按确认键重试</ThemedText>
+        </TouchableOpacity>
       </ThemedView>
     );
 

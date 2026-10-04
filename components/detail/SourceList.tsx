@@ -96,6 +96,7 @@ interface SourceListProps {
   colors: typeof Colors.dark;
   setFirstSourceRef?: (node: View | null) => void;
   nextFocusDown?: number | null;
+  onRetry?: () => void;
 }
 
 export const SourceList: React.FC<SourceListProps> = memo(({
@@ -108,6 +109,7 @@ export const SourceList: React.FC<SourceListProps> = memo(({
   colors,
   setFirstSourceRef,
   nextFocusDown,
+  onRetry,
 }) => {
   const isMobile = deviceType === 'mobile';
 
@@ -134,18 +136,43 @@ export const SourceList: React.FC<SourceListProps> = memo(({
     />
   );
 
+  const emptyContent = !loading && searchResults.length === 0 ? (
+    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
+      <ThemedText style={{ color: colors.icon, fontSize: 14 }}>
+        暂无可用的播放源线路
+      </ThemedText>
+      {onRetry && (
+        <StyledButton
+          ref={setFirstSourceRef}
+          variant="ghost"
+          style={{ marginLeft: 16, paddingHorizontal: 12, paddingVertical: 6 }}
+          onPress={onRetry}
+          nextFocusDown={nextFocusDown}
+        >
+          <ThemedText style={{ color: colors.link || colors.tint, fontSize: 14 }}>
+            重新检索
+          </ThemedText>
+        </StyledButton>
+      )}
+    </View>
+  ) : null;
+
   const content = isMobile ? (
     <View style={styles.sourceList}>
       {searchResults.map(renderButton)}
+      {emptyContent}
     </View>
   ) : (
-    <ScrollView
-      horizontal
-      style={styles.sourceList}
-      showsHorizontalScrollIndicator={false}
-    >
-      {searchResults.map(renderButton)}
-    </ScrollView>
+    <View>
+      <ScrollView
+        horizontal
+        style={styles.sourceList}
+        showsHorizontalScrollIndicator={false}
+      >
+        {searchResults.map(renderButton)}
+      </ScrollView>
+      {emptyContent}
+    </View>
   );
 
   return (
